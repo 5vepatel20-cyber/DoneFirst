@@ -99,10 +99,17 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                 itemBuilder: (ctx, i) {
                   final p = _allProofs[i];
                   final imageUrl = p['image_url'] as String? ?? '';
+                  final imageUrls =
+                      (p['image_urls'] as List<dynamic>?)
+                          ?.map((e) => e.toString())
+                          .toList() ??
+                      [];
                   final aiDecision = p['ai_decision'] as String? ?? 'pending';
                   final parentDecision =
                       p['parent_decision'] as String? ?? 'pending';
                   final taskDesc = p['task_description'] as String? ?? '';
+                  final allUrls = imageUrls.isNotEmpty ? imageUrls : [imageUrl];
+                  final photoCount = allUrls.length;
 
                   final borderColor = parentDecision == 'approved'
                       ? AppColors.success
@@ -117,7 +124,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => ProofImageViewer(
-                          imageUrl: imageUrl,
+                          imageUrl: allUrls.first,
                           taskDescription: taskDesc,
                           aiResult: p,
                         ),
@@ -134,7 +141,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(2),
                             child: Image.network(
-                              imageUrl,
+                              allUrls.first,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) =>
                                   Container(color: Colors.grey.shade200),
@@ -150,13 +157,26 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                                 vertical: 2,
                               ),
                               color: Colors.black54,
-                              child: Text(
-                                p['session_date'] as String? ?? '',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                ),
-                                textAlign: TextAlign.center,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    p['session_date'] as String? ?? '',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                    ),
+                                  ),
+                                  if (photoCount > 1)
+                                    Text(
+                                      '1/$photoCount',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 9,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),

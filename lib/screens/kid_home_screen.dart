@@ -4,6 +4,7 @@ import '../services/session_service.dart';
 import '../services/proof_service.dart';
 import '../services/break_service.dart';
 import '../services/notification_service.dart';
+import '../services/streak_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
 import 'task_entry_screen.dart';
@@ -27,6 +28,8 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   final _proofService = ProofService();
   final _breakService = BreakService();
   final _notificationService = NotificationService();
+  final _streakService = StreakService();
+  int _streak = 0;
   Map<String, dynamic>? _activeSession;
   List<Map<String, dynamic>> _tasks = [];
   bool _loading = true;
@@ -59,6 +62,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
       final tasks = await _proofService.getTasks(_activeSession!['id']);
       if (mounted) setState(() => _tasks = tasks);
     }
+    _streak = await _streakService.computeStreak(widget.childId);
     _loading = false;
   }
 
@@ -139,6 +143,40 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  if (_streak > 0)
+                    Card(
+                      color: AppColors.accent.withOpacity(0.08),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              _streak >= 7 ? '🔥' : '⭐',
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '$_streak-day streak!',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.accent,
+                              ),
+                            ),
+                            if (_streak >= 7)
+                              const Text(
+                                ' Unstoppable!',
+                                style: TextStyle(
+                                  color: AppColors.accent,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                   SessionTimer(
                     sessionStart: DateTime.parse(_activeSession!['started_at']),
                     durationMinutes: _activeSession!['min_lock_minutes'] ?? 60,

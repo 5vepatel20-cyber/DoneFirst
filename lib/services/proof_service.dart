@@ -80,13 +80,29 @@ class ProofService {
     String? note,
   }) async {
     final imageUrl = await uploadImage(image, taskId);
-    final aiResult = await verifyWithMistral(imageUrl, taskDescription);
+    return submitProofWithUrls(
+      taskId: taskId,
+      imageUrls: [imageUrl],
+      taskDescription: taskDescription,
+      note: note,
+    );
+  }
+
+  Future<Map<String, dynamic>> submitProofWithUrls({
+    required String taskId,
+    required List<String> imageUrls,
+    required String taskDescription,
+    String? note,
+  }) async {
+    final firstUrl = imageUrls.first;
+    final aiResult = await verifyWithMistral(firstUrl, taskDescription);
 
     final response = await _supabase
         .from('proof_submissions')
         .insert({
           'task_id': taskId,
-          'image_url': imageUrl,
+          'image_url': firstUrl,
+          'image_urls': imageUrls,
           'optional_note': note,
           'ai_decision': aiResult['decision'],
           'ai_confidence': (aiResult['confidence'] as num?)?.toDouble(),

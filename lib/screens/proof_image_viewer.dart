@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-class ProofImageViewer extends StatelessWidget {
+class ProofImageViewer extends StatefulWidget {
   final String imageUrl;
   final String taskDescription;
   final Map<String, dynamic>? aiResult;
@@ -14,23 +14,101 @@ class ProofImageViewer extends StatelessWidget {
   });
 
   @override
+  State<ProofImageViewer> createState() => _ProofImageViewerState();
+}
+
+class _ProofImageViewerState extends State<ProofImageViewer> {
+  late PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  List<String> get _allUrls {
+    final urls = <String>[];
+    if (widget.imageUrl.isNotEmpty) urls.add(widget.imageUrl);
+    final imageUrls = widget.aiResult?['image_urls'] as List<dynamic>?;
+    if (imageUrls != null) {
+      for (final u in imageUrls) {
+        final s = u.toString();
+        if (!urls.contains(s)) urls.add(s);
+      }
+    }
+    return urls;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final decision = aiResult?['decision'] ?? 'pending';
-    final parentDecision = aiResult?['parent_decision'] ?? 'pending';
-    final confidence = aiResult?['confidence'] ?? 0.0;
-    final reason = aiResult?['reason'] ?? '';
-    final parentNote = aiResult?['parent_note'] as String? ?? '';
+    final decision = widget.aiResult?['decision'] ?? 'pending';
+    final parentDecision = widget.aiResult?['parent_decision'] ?? 'pending';
+    final confidence = widget.aiResult?['confidence'] ?? 0.0;
+    final reason = widget.aiResult?['reason'] ?? '';
+    final parentNote = widget.aiResult?['parent_note'] as String? ?? '';
+    final allUrls = _allUrls;
 
     return Scaffold(
-      appBar: AppBar(title: Text(taskDescription)),
+      appBar: AppBar(
+        title: Text(widget.taskDescription),
+        actions: allUrls.length > 1
+            ? [
+                Center(
+                  child: Text(
+                    '${_currentPage + 1}/${allUrls.length}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ),
+              ]
+            : null,
+      ),
       body: Column(
         children: [
           Expanded(
-            child: InteractiveViewer(
-              child: Image.network(imageUrl, fit: BoxFit.contain),
-            ),
+            child: allUrls.length > 1
+                ? PageView(
+                    controller: _pageController,
+                    onPageChanged: (i) => setState(() => _currentPage = i),
+                    children: allUrls
+                        .map(
+                          (url) => InteractiveViewer(
+                            child: Image.network(url, fit: BoxFit.contain),
+                          ),
+                        )
+                        .toList(),
+                  )
+                : InteractiveViewer(
+                    child: Image.network(widget.imageUrl, fit: BoxFit.contain),
+                  ),
           ),
-          if (aiResult != null)
+          if (allUrls.length > 1)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(allUrls.length, (i) {
+                  return Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i == _currentPage
+                          ? AppColors.primary
+                          : AppColors.border,
+                    ),
+                  );
+                }),
+              ),
+            ),
+          if (widget.aiResult != null)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),

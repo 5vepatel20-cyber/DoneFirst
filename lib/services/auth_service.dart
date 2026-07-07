@@ -5,6 +5,13 @@ class AuthService {
 
   User? get currentUser => _supabase.auth.currentUser;
 
+  Future<void> resendVerification() async {
+    await _supabase.auth.resend(
+      type: OtpType.signup,
+      email: _supabase.auth.currentUser!.email!,
+    );
+  }
+
   Future<User?> signUp(
     String email,
     String password,

@@ -24,9 +24,8 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
   final _notificationService = NotificationService();
   final _picker = ImagePicker();
   final _noteController = TextEditingController();
-  File? _image;
+  final List<File> _images = [];
   bool _submitting = false;
-  Map<String, dynamic>? _result;
 
   @override
   void dispose() {
@@ -36,27 +35,31 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
 
   Future<void> _pickImage() async {
     final picked = await _picker.pickImage(source: ImageSource.camera);
-    if (picked != null) setState(() => _image = File(picked.path));
+    if (picked != null) setState(() => _images.add(File(picked.path)));
   }
 
   Future<void> _pickGallery() async {
     final picked = await _picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) setState(() => _image = File(picked.path));
+    if (picked != null) setState(() => _images.add(File(picked.path)));
   }
 
   Future<void> _submit() async {
-    if (_image == null) return;
+    if (_images.isEmpty) return;
     setState(() => _submitting = true);
     try {
-      final result = await _proofService.submitProof(
+      final urls = <String>[];
+      for (final img in _images) {
+        final url = await _proofService.uploadImage(img, widget.taskId);
+        urls.add(url);
+      }
+      await _proofService.submitProofWithUrls(
         taskId: widget.taskId,
-        image: _image!,
+        imageUrls: urls,
         taskDescription: widget.taskDescription,
         note: _noteController.text.trim().isEmpty
             ? null
             : _noteController.text.trim(),
       );
-      setState(() => _result = result);
       final taskData = await Supabase.instance.client
           .from('homework_tasks')
           .select('session_id')
@@ -71,18 +74,20 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
         parentId: sessionData['parent_id'] as String,
         childId: sessionData['child_id'] as String?,
         type: 'proof_submitted',
-        title: 'Proof submitted',
-        body: '${widget.taskDescription}',
+        title:
+            'Proof submitted (${urls.length} photo${urls.length > 1 ? 's' : ''})',
+        body: widget.taskDescription,
       );
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     } finally {
-      setState(() => _submitting = false);
+      if (mounted) setState(() => _submitting = false);
     }
-    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -94,7 +99,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
         child: Column(
           children: [
             Expanded(
-              child: _image == null
+              child: _images.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -113,7 +118,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                           ),
                           const SizedBox(height: 16),
                           const Text(
-                            'Take a photo of your completed homework',
+                            'Take photos of your completed homework',
                             style: TextStyle(
                               fontSize: 16,
                               color: AppColors.textPrimary,
@@ -134,66 +139,111 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                         ],
                       ),
                     )
-                  : Column(
-                      children: [
-                        Expanded(
-                          child: Image.file(_image!, fit: BoxFit.contain),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: TextField(
-                            controller: _noteController,
-                            decoration: const InputDecoration(
-                              labelText: 'Note for parent (optional)',
-                              hintText: 'Tell your parent about this...',
-                              prefixIcon: Icon(Icons.comment, size: 20),
-                            ),
-                            maxLines: 2,
+                  : GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 4,
+                            mainAxisSpacing: 4,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (_result != null && _result!['ai'] != null)
-                          Card(
-                            color: _result!['ai']['decision'] == 'approved'
-                                ? AppColors.success.withOpacity(0.1)
-                                : _result!['ai']['decision'] == 'rejected'
-                                ? AppColors.danger.withOpacity(0.1)
-                                : AppColors.accent.withOpacity(0.1),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
+                      itemCount: _images.length + 1,
+                      itemBuilder: (ctx, i) {
+                        if (i == _images.length) {
+                          return GestureDetector(
+                            onTap: _pickImage,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: AppColors.primary.withOpacity(0.3),
+                                  style: BorderStyle.solid,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
+                                  Icon(Icons.add, color: AppColors.primary),
+                                  SizedBox(height: 4),
                                   Text(
-                                    'AI: ${_result!['ai']['decision']}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
+                                    'Add more',
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: 11,
                                     ),
                                   ),
-                                  Text(
-                                    'Confidence: ${(_result!['ai']['confidence'] * 100).toStringAsFixed(0)}%',
-                                  ),
-                                  Text('${_result!['ai']['reason']}'),
                                 ],
                               ),
                             ),
-                          ),
-                      ],
+                          );
+                        }
+                        return Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                _images[i],
+                                fit: BoxFit.cover,
+                                height: double.infinity,
+                                width: double.infinity,
+                              ),
+                            ),
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: GestureDetector(
+                                onTap: () =>
+                                    setState(() => _images.removeAt(i)),
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.danger,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
             ),
-            if (_image != null && _result == null)
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _submitting ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Submit Proof'),
+            if (_images.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: TextField(
+                  controller: _noteController,
+                  decoration: const InputDecoration(
+                    labelText: 'Note for parent (optional)',
+                    hintText: 'Tell your parent about this...',
+                    prefixIcon: Icon(Icons.comment, size: 20),
+                  ),
+                  maxLines: 2,
                 ),
               ),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _submitting ? null : _submit,
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.cloud_upload),
+                  label: Text(
+                    _submitting
+                        ? 'Uploading...'
+                        : 'Submit ${_images.length} Photo${_images.length > 1 ? 's' : ''}',
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -2,12 +2,18 @@ import 'package:flutter_screentime/flutter_screentime.dart';
 
 class BlockingService {
   final _screenTime = FlutterScreentime();
+  bool _isBlocking = false;
+  bool _hasPermission = false;
+
+  bool get isBlocking => _isBlocking;
 
   Future<bool> requestPermission() async {
     try {
       await _screenTime.requestAuthorization();
+      _hasPermission = true;
       return true;
     } catch (e) {
+      _hasPermission = false;
       return false;
     }
   }
@@ -17,10 +23,20 @@ class BlockingService {
   }
 
   Future<void> startBlocking() async {
-    await _screenTime.startBlocking();
+    _isBlocking = true;
+    if (_hasPermission) {
+      try {
+        await _screenTime.startBlocking();
+      } catch (_) {}
+    }
   }
 
   Future<void> stopBlocking() async {
-    await _screenTime.stopBlocking();
+    _isBlocking = false;
+    if (_hasPermission) {
+      try {
+        await _screenTime.stopBlocking();
+      } catch (_) {}
+    }
   }
 }

@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import 'parent_dashboard.dart';
+import 'verify_email_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -35,6 +36,19 @@ class _AuthScreenState extends State<AuthScreen> {
             _emailController.text.trim(),
             _nameController.text.trim(),
           );
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => VerifyEmailScreen(
+                  email: _emailController.text.trim(),
+                  password: _passwordController.text,
+                  displayName: _nameController.text.trim(),
+                ),
+              ),
+            );
+          }
+          return;
         }
       } else {
         await _auth.signIn(

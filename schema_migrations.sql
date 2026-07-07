@@ -50,3 +50,10 @@ CREATE POLICY "System can insert notifications"
 CREATE POLICY "Parents can update their notifications"
   ON notifications FOR UPDATE
   USING (parent_id = auth.uid());
+
+-- Migration 5: Multiple images per proof
+ALTER TABLE proof_submissions ADD COLUMN IF NOT EXISTS image_urls TEXT[] DEFAULT '{}';
+
+-- Migration 6: Streak tracking
+ALTER TABLE children ADD COLUMN IF NOT EXISTS streak_count INT DEFAULT 0;
+ALTER TABLE children ADD COLUMN IF NOT EXISTS last_streak_date DATE;
