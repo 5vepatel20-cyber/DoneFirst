@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
 import '../services/blocking_service.dart';
 import '../services/break_service.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
 import 'proof_image_viewer.dart';
@@ -22,10 +24,12 @@ class LockActiveScreen extends StatefulWidget {
 }
 
 class _LockActiveScreenState extends State<LockActiveScreen> {
+  final _auth = AuthService();
   final _sessionService = SessionService();
   final _proofService = ProofService();
   final _blockingService = BlockingService();
   final _breakService = BreakService();
+  final _notificationService = NotificationService();
   List<Map<String, dynamic>> _proofs = [];
   List<Map<String, dynamic>> _breakRequests = [];
   Map<String, dynamic>? _session;
@@ -122,6 +126,17 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   Future<void> _unlock() async {
     await _blockingService.stopBlocking();
     await _sessionService.endSession(widget.sessionId);
+    if (_session != null) {
+      final parentId =
+          _session!['parent_id'] as String? ?? _auth.currentUser!.id;
+      await _notificationService.insertNotification(
+        parentId: parentId,
+        childId: _session!['child_id'] as String?,
+        type: 'session_complete',
+        title: 'Session complete',
+        body: '${widget.childName} finished homework',
+      );
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Apps unlocked! Homework complete.')),
@@ -130,9 +145,51 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     }
   }
 
-  Future<void> _handleDecision(String proofId, String decision) async {
-    await _proofService.updateParentDecision(proofId, decision);
+  Future<void> _handleDecision(
+    String proofId,
+    String decision, {
+    String? note,
+  }) async {
+    await _proofService.updateParentDecision(
+      proofId,
+      decision,
+      parentNote: note,
+    );
     await _loadAll();
+  }
+
+  Future<void> _promptDecision(String proofId, String decision) async {
+    if (decision == 'approved') {
+      await _handleDecision(proofId, decision);
+      return;
+    }
+    final noteController = TextEditingController();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reason for rejection'),
+        content: TextField(
+          controller: noteController,
+          autofocus: true,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            hintText: 'Tell your child what to fix...',
+            labelText: 'Note (optional)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Skip'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, noteController.text.trim()),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    await _handleDecision(proofId, decision, note: note);
   }
 
   Future<void> _handleBreak(String breakId, String decision) async {
@@ -232,6 +289,42 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                  ],
+                  if (_proofs.any(
+                    (p) => p['parent_decision'] == 'pending',
+                  )) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          for (final p in _proofs) {
+                            if (p['parent_decision'] == 'pending') {
+                              await _proofService.updateParentDecision(
+                                p['id'],
+                                'approved',
+                              );
+                            }
+                          }
+                          if (_session != null) {
+                            final parentId =
+                                _session!['parent_id'] as String? ??
+                                _auth.currentUser!.id;
+                            await _notificationService.insertNotification(
+                              parentId: parentId,
+                              childId: _session!['child_id'] as String?,
+                              type: 'proof_submitted',
+                              title: 'All proofs approved',
+                              body:
+                                  '${widget.childName}\'s homework all approved',
+                            );
+                          }
+                          await _loadAll();
+                        },
+                        icon: const Icon(Icons.done_all),
+                        label: const Text('Approve All'),
                       ),
                     ),
                   ],
@@ -353,13 +446,44 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 ),
               ),
             ],
+            if (proof['parent_note'] != null &&
+                (proof['parent_note'] as String).isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.comment,
+                      size: 14,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        proof['parent_note'],
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (parentDecision == 'pending') ...[
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () => _handleDecision(proof['id'], 'rejected'),
+                    onPressed: () => _promptDecision(proof['id'], 'rejected'),
                     icon: const Icon(
                       Icons.close,
                       size: 18,
@@ -372,7 +496,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                   ),
                   const SizedBox(width: 8),
                   FilledButton.icon(
-                    onPressed: () => _handleDecision(proof['id'], 'approved'),
+                    onPressed: () => _promptDecision(proof['id'], 'approved'),
                     icon: const Icon(Icons.check, size: 18),
                     label: const Text('Approve'),
                   ),

@@ -128,20 +128,30 @@ class ProofService {
     return proofs;
   }
 
-  Future<void> updateParentDecision(String proofId, String decision) async {
+  Future<void> updateParentDecision(
+    String proofId,
+    String decision, {
+    String? parentNote,
+  }) async {
     await _supabase
         .from('proof_submissions')
         .update({
           'parent_decision': decision,
           'parent_acted_at': DateTime.now().toIso8601String(),
+          if (parentNote != null) 'parent_note': parentNote,
         })
         .eq('id', proofId);
   }
 
-  Future<void> addTask(String sessionId, String description) async {
+  Future<void> addTask(
+    String sessionId,
+    String description, {
+    String subject = 'General',
+  }) async {
     await _supabase.from('homework_tasks').insert({
       'session_id': sessionId,
       'description': description,
+      'subject': subject,
       'status': 'pending',
     });
   }

@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
 import '../services/break_service.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
 import 'task_entry_screen.dart';
+import 'kid_history_screen.dart';
 
 class KidHomeScreen extends StatefulWidget {
   final String childId;
@@ -24,6 +26,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   final _sessionService = SessionService();
   final _proofService = ProofService();
   final _breakService = BreakService();
+  final _notificationService = NotificationService();
   Map<String, dynamic>? _activeSession;
   List<Map<String, dynamic>> _tasks = [];
   bool _loading = true;
@@ -62,6 +65,13 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   Future<void> _requestBreak() async {
     if (_activeSession == null) return;
     await _breakService.requestBreak(_activeSession!['id'], widget.childId);
+    await _notificationService.insertNotification(
+      parentId: _activeSession!['parent_id'] as String,
+      childId: widget.childId,
+      type: 'break_requested',
+      title: 'Break requested',
+      body: '${widget.childName} wants a break',
+    );
     setState(() => _breakRequested = true);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -297,6 +307,20 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                     label: Text(
                       _breakRequested ? 'Break Requested' : 'Ask for a Break',
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => KidHistoryScreen(
+                          childId: widget.childId,
+                          childName: widget.childName,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.history, size: 18),
+                    label: const Text('My History'),
                   ),
                 ],
               ),

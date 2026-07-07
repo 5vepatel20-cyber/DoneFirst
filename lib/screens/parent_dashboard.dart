@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/session_service.dart';
+import '../services/notification_service.dart';
+import '../services/schedule_service.dart';
 import '../theme/app_theme.dart';
 import 'auth_screen.dart';
 import 'lock_config_screen.dart';
@@ -13,6 +16,7 @@ import 'sessions_stats_screen.dart';
 import 'schedules_screen.dart';
 import 'proof_gallery_screen.dart';
 import 'kid_profile_screen.dart';
+import 'notification_center_screen.dart';
 
 class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
@@ -24,10 +28,17 @@ class ParentDashboard extends StatefulWidget {
 class _ParentDashboardState extends State<ParentDashboard> {
   final _auth = AuthService();
   final _sessionService = SessionService();
+  final _notificationService = NotificationService();
+  final _scheduleService = ScheduleService();
   List<Map<String, dynamic>> _children = [];
   final Map<String, bool> _activeLocks = {};
   bool _loading = true;
   int _monthlySessionCount = 0;
+  int _unreadNotifications = 0;
+  int _totalSessions = 0;
+  int _totalMinutes = 0;
+  int _totalApproved = 0;
+  List<Map<String, dynamic>> _todaySchedules = [];
 
   @override
   void initState() {
@@ -45,6 +56,38 @@ class _ParentDashboardState extends State<ParentDashboard> {
       _monthlySessionCount = await _sessionService.getMonthlySessionCount(
         _auth.currentUser!.id,
       );
+      _unreadNotifications = await _notificationService.getUnreadCount();
+
+      _todaySchedules = await _scheduleService.getTodaySchedules();
+
+      final family = await Supabase.instance.client
+          .from('parents')
+          .select('family_id')
+          .eq('id', _auth.currentUser!.id)
+          .single();
+      if (family['family_id'] != null) {
+        final allChildren = await Supabase.instance.client
+            .from('children')
+            .select('id')
+            .eq('family_id', family['family_id']);
+        final childIds = allChildren.map((c) => c['id'] as String).toList();
+        if (childIds.isNotEmpty) {
+          final allSessions = await Supabase.instance.client
+              .from('homework_sessions')
+              .select('id, duration_minutes')
+              .inFilter('child_id', childIds);
+          _totalSessions = allSessions.length;
+          _totalMinutes = allSessions.fold<int>(
+            0,
+            (sum, s) => sum + ((s['duration_minutes'] as int?) ?? 0),
+          );
+          final approvedProofs = await Supabase.instance.client
+              .from('proof_submissions')
+              .select('id')
+              .eq('parent_decision', 'approved');
+          _totalApproved = approvedProofs.length;
+        }
+      }
 
       for (final child in children) {
         final sessions = await _sessionService.getActiveSession(
@@ -181,6 +224,45 @@ class _ParentDashboardState extends State<ParentDashboard> {
             onPressed: _loadAll,
             tooltip: 'Refresh',
           ),
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationCenterScreen(),
+                  ),
+                ).then((_) => _loadAll()),
+                tooltip: 'Notifications',
+              ),
+              if (_unreadNotifications > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: AppColors.danger,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Text(
+                      '$_unreadNotifications',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.push(
@@ -279,6 +361,107 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       ),
                     ),
                   ),
+                  if (_totalSessions > 0) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            _miniStat(
+                              Icons.play_circle,
+                              '$_totalSessions',
+                              'Sessions',
+                            ),
+                            _miniStat(Icons.timer, '${_totalMinutes}m', 'Time'),
+                            _miniStat(
+                              Icons.verified,
+                              '$_totalApproved',
+                              'Approved',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (_todaySchedules.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      color: AppColors.primary.withOpacity(0.04),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.today,
+                                  size: 18,
+                                  color: AppColors.primary,
+                                ),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  "Today's Schedule",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ..._todaySchedules.map((s) {
+                              final child = _children.firstWhere(
+                                (c) => c['id'] == s['child_id'],
+                                orElse: () => {'name': 'Child'},
+                              );
+                              final childName =
+                                  child['name'] as String? ?? 'Child';
+                              final childId = s['child_id'] as String;
+                              final hasActive = _activeLocks[childId] ?? false;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '$childName - ${s['duration_minutes']}m',
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                    if (!hasActive)
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => LockConfigScreen(
+                                                childId: childId,
+                                                childName: childName,
+                                              ),
+                                            ),
+                                          ).then((_) => _loadAll());
+                                        },
+                                        child: const Text('Start Now'),
+                                      )
+                                    else
+                                      const Text(
+                                        'Already active',
+                                        style: TextStyle(
+                                          color: AppColors.success,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   ..._children.map((child) => _buildChildCard(child)),
                   Padding(
@@ -526,6 +709,32 @@ class _ParentDashboardState extends State<ParentDashboard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _miniStat(IconData icon, String value, String label) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: AppColors.primary),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+            ),
+          ),
+        ],
       ),
     );
   }

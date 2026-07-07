@@ -34,6 +34,10 @@ class AuthService {
     await _supabase.auth.resetPasswordForEmail(email);
   }
 
+  Future<void> changePassword(String newPassword) async {
+    await _supabase.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
   Future<void> deleteAccount() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;

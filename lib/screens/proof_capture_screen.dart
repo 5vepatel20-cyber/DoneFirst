@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/proof_service.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 
 class ProofCaptureScreen extends StatefulWidget {
@@ -19,10 +21,18 @@ class ProofCaptureScreen extends StatefulWidget {
 
 class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
   final _proofService = ProofService();
+  final _notificationService = NotificationService();
   final _picker = ImagePicker();
+  final _noteController = TextEditingController();
   File? _image;
   bool _submitting = false;
   Map<String, dynamic>? _result;
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickImage() async {
     final picked = await _picker.pickImage(source: ImageSource.camera);
@@ -42,8 +52,28 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
         taskId: widget.taskId,
         image: _image!,
         taskDescription: widget.taskDescription,
+        note: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
       );
       setState(() => _result = result);
+      final taskData = await Supabase.instance.client
+          .from('homework_tasks')
+          .select('session_id')
+          .eq('id', widget.taskId)
+          .single();
+      final sessionData = await Supabase.instance.client
+          .from('homework_sessions')
+          .select('parent_id, child_id')
+          .eq('id', taskData['session_id'])
+          .single();
+      await _notificationService.insertNotification(
+        parentId: sessionData['parent_id'] as String,
+        childId: sessionData['child_id'] as String?,
+        type: 'proof_submitted',
+        title: 'Proof submitted',
+        body: '${widget.taskDescription}',
+      );
     } catch (e) {
       if (mounted)
         ScaffoldMessenger.of(
@@ -109,7 +139,19 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                         Expanded(
                           child: Image.file(_image!, fit: BoxFit.contain),
                         ),
-                        const SizedBox(height: 16),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: TextField(
+                            controller: _noteController,
+                            decoration: const InputDecoration(
+                              labelText: 'Note for parent (optional)',
+                              hintText: 'Tell your parent about this...',
+                              prefixIcon: Icon(Icons.comment, size: 20),
+                            ),
+                            maxLines: 2,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         if (_result != null && _result!['ai'] != null)
                           Card(
                             color: _result!['ai']['decision'] == 'approved'

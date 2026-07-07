@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/session_service.dart';
 import '../services/blocking_service.dart';
+import '../services/lock_preset_service.dart';
 import '../theme/app_theme.dart';
 import '../models/app_pack.dart';
 import 'lock_active_screen.dart';
@@ -21,10 +22,88 @@ class LockConfigScreen extends StatefulWidget {
 class _LockConfigScreenState extends State<LockConfigScreen> {
   final _sessionService = SessionService();
   final _blockingService = BlockingService();
+  final _presetService = LockPresetService();
   int _minLock = 60;
   int _maxLift = 120;
   String _approvalMode = 'balanced';
   final Set<String> _selectedPacks = {};
+  List<Map<String, dynamic>> _presets = [];
+  bool _loadingPresets = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPresets();
+  }
+
+  Future<void> _loadPresets() async {
+    setState(() => _loadingPresets = true);
+    try {
+      _presets = await _presetService.getPresets();
+    } catch (_) {}
+    if (mounted) setState(() => _loadingPresets = false);
+  }
+
+  Future<void> _savePreset() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Save Preset'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Preset name',
+            hintText: 'e.g. Weekday Homework',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (name != null && name.isNotEmpty) {
+      await _presetService.savePreset(
+        name: name,
+        minLockMinutes: _minLock,
+        maxLiftMinutes: _maxLift,
+        approvalMode: _approvalMode,
+        selectedPacks: _selectedPacks.toList(),
+      );
+      await _loadPresets();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Preset saved!')));
+      }
+    }
+  }
+
+  Future<void> _loadPreset(Map<String, dynamic> preset) async {
+    setState(() {
+      _minLock = preset['min_lock_minutes'] as int? ?? 60;
+      _maxLift = preset['max_lift_minutes'] as int? ?? 120;
+      _approvalMode = preset['approval_mode'] as String? ?? 'balanced';
+      _selectedPacks.clear();
+      final packs = preset['selected_packs'] as List<dynamic>? ?? [];
+      for (final p in packs) {
+        _selectedPacks.add(p.toString());
+      }
+    });
+  }
+
+  Future<void> _deletePreset(String presetId) async {
+    await _presetService.deletePreset(presetId);
+    await _loadPresets();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -97,6 +176,40 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
               fontSize: 12,
               color: AppColors.textSecondary,
             ),
+          ),
+          const SizedBox(height: 24),
+          _section('Presets'),
+          const SizedBox(height: 8),
+          if (_loadingPresets)
+            const Center(child: CircularProgressIndicator())
+          else if (_presets.isNotEmpty) ...[
+            SizedBox(
+              height: 60,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _presets.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (ctx, i) {
+                  final p = _presets[i];
+                  return InputChip(
+                    label: Text(p['name'] ?? ''),
+                    onPressed: () => _loadPreset(p),
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    onDeleted: () => _deletePreset(p['id']),
+                  );
+                },
+              ),
+            ),
+          ] else
+            const Text(
+              'Save your current settings as a preset for quick reuse',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _savePreset,
+            icon: const Icon(Icons.save, size: 18),
+            label: const Text('Save Current as Preset'),
           ),
           const SizedBox(height: 24),
           _section('Apps to Block'),

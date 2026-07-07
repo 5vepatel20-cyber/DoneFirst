@@ -19,7 +19,20 @@ class TaskEntryScreen extends StatefulWidget {
 class _TaskEntryScreenState extends State<TaskEntryScreen> {
   final _proofService = ProofService();
   final _controller = TextEditingController();
+  String _selectedSubject = 'General';
   List<Map<String, dynamic>> _tasks = [];
+
+  static const List<String> subjects = [
+    'General',
+    'Math',
+    'Science',
+    'English',
+    'History',
+    'Foreign Language',
+    'Art',
+    'Music',
+    'Other',
+  ];
 
   @override
   void initState() {
@@ -35,7 +48,11 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
   Future<void> _addTask() async {
     final desc = _controller.text.trim();
     if (desc.isEmpty) return;
-    await _proofService.addTask(widget.sessionId, desc);
+    await _proofService.addTask(
+      widget.sessionId,
+      desc,
+      subject: _selectedSubject,
+    );
     _controller.clear();
     await _loadTasks();
   }
@@ -65,22 +82,50 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      labelText: 'Add a task',
-                      hintText: 'e.g. Math worksheet',
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        decoration: const InputDecoration(
+                          labelText: 'Add a task',
+                          hintText: 'e.g. Math worksheet',
+                        ),
+                        onSubmitted: (_) => _addTask(),
+                      ),
                     ),
-                    onSubmitted: (_) => _addTask(),
-                  ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      onPressed: _addTask,
+                      icon: const Icon(Icons.add),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: _addTask,
-                  icon: const Icon(Icons.add),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: _selectedSubject,
+                  decoration: const InputDecoration(
+                    labelText: 'Subject',
+                    prefixIcon: Icon(Icons.book, size: 20),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  isExpanded: true,
+                  items: subjects
+                      .map(
+                        (s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s, style: const TextStyle(fontSize: 14)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _selectedSubject = v);
+                  },
                 ),
               ],
             ),
@@ -126,6 +171,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                       final task = _tasks[i];
                       final taskId = task['id'] as String;
                       final description = task['description'] as String? ?? '';
+                      final subject = task['subject'] as String? ?? 'General';
                       final isDone = task['status'] != 'pending';
                       final taskStatus = task['status'] as String? ?? 'pending';
 
@@ -160,7 +206,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                               ),
                             ),
                             subtitle: Text(
-                              'Status: $taskStatus',
+                              '$subject · Status: $taskStatus',
                               style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,

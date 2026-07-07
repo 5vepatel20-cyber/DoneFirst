@@ -39,6 +39,29 @@ class ScheduleService {
         .eq('day_of_week', today);
     return response;
   }
+
+  Future<List<Map<String, dynamic>>> getTodaySchedules() async {
+    final today = DateTime.now().weekday;
+    final parentId = _supabase.auth.currentUser!.id;
+    final family = await _supabase
+        .from('parents')
+        .select('family_id')
+        .eq('id', parentId)
+        .single();
+    if (family['family_id'] == null) return [];
+    final children = await _supabase
+        .from('children')
+        .select('id')
+        .eq('family_id', family['family_id']);
+    final childIds = children.map((c) => c['id'] as String).toList();
+    if (childIds.isEmpty) return [];
+    final response = await _supabase
+        .from('recurring_schedules')
+        .select()
+        .inFilter('child_id', childIds)
+        .eq('day_of_week', today);
+    return response;
+  }
 }
 
 const List<String> weekdayNames = [
