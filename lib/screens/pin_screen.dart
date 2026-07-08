@@ -52,7 +52,7 @@ class _PinScreenState extends State<PinScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.08),
+                  color: AppColors.primary.withValues(alpha:0.08),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(

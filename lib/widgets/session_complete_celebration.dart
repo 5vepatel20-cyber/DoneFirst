@@ -62,7 +62,7 @@ class _SessionCompleteCelebrationState extends State<SessionCompleteCelebration>
               child: GestureDetector(
                 onTap: widget.onDismiss,
                 child: Card(
-                  color: AppColors.success.withOpacity(0.95),
+                  color: AppColors.success.withValues(alpha:0.95),
                   child: Container(
                     width: 300,
                     padding: const EdgeInsets.all(32),

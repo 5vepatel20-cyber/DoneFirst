@@ -115,7 +115,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                           Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.08),
+                              color: AppColors.primary.withValues(alpha:0.08),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -162,7 +162,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                             child: Container(
                               decoration: BoxDecoration(
                                 border: Border.all(
-                                  color: AppColors.primary.withOpacity(0.3),
+                                  color: AppColors.primary.withValues(alpha:0.3),
                                   style: BorderStyle.solid,
                                 ),
                                 borderRadius: BorderRadius.circular(8),

@@ -85,7 +85,7 @@ class AppTheme {
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: SegmentedButton.styleFrom(
-          selectedBackgroundColor: AppColors.primary.withOpacity(0.1),
+          selectedBackgroundColor: AppColors.primary.withValues(alpha:0.1),
           selectedForegroundColor: AppColors.primary,
         ),
       ),
@@ -161,7 +161,7 @@ class AppTheme {
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: SegmentedButton.styleFrom(
-          selectedBackgroundColor: AppColors.primaryLight.withOpacity(0.2),
+          selectedBackgroundColor: AppColors.primaryLight.withValues(alpha:0.2),
           selectedForegroundColor: AppColors.primaryLight,
         ),
       ),

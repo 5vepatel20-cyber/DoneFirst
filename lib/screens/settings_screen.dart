@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/consent_service.dart';
+import '../services/data_export_service.dart';
 import '../services/profile_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_mode.dart';
@@ -20,6 +22,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _auth = AuthService();
   final _profileService = ProfileService();
   final _consentService = ConsentService();
+  final _exportService = DataExportService();
   bool _notifyProofSubmitted = true;
   bool _notifyBreakRequested = true;
   bool _notifySessionComplete = true;
@@ -30,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _pin;
   List<ConsentRecord> _consentHistory = [];
   bool _loadingConsent = false;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -237,6 +241,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _exportData() async {
+    setState(() => _exporting = true);
+    try {
+      final json = await _exportService.exportAsJsonString();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Your Data Export',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy),
+                        tooltip: 'Copy JSON',
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: json),
+                          );
+                          if (!ctx.mounted) return;
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(
+                              content: Text('Export copied to clipboard'),
+                            ),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Export version ${DataExportService.exportVersion} • '
+                    '${json.length} characters',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(ctx)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SingleChildScrollView(
+                          child: SelectableText(
+                            json,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   Future<void> _deleteAccount() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -288,7 +390,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    backgroundColor: AppColors.primary.withValues(alpha:0.1),
                     child: Text(
                       _displayName?.substring(0, 1).toUpperCase() ?? '?',
                       style: const TextStyle(
@@ -435,6 +537,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          _section('Your Data'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: const Text('Export My Data'),
+              subtitle: const Text(
+                'Download a JSON copy of your profile, family, sessions, '
+                'proofs, and consent records.',
+              ),
+              trailing: _exporting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_right),
+              onTap: _exporting ? null : _exportData,
             ),
           ),
           const SizedBox(height: 32),

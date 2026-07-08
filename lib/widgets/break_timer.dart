@@ -52,7 +52,7 @@ class _BreakTimerState extends State<BreakTimer> {
   Widget build(BuildContext context) {
     final progress = _remaining / widget.breakDurationSeconds;
     return Card(
-      color: AppColors.info.withOpacity(0.08),
+      color: AppColors.info.withValues(alpha:0.08),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -87,7 +87,7 @@ class _BreakTimerState extends State<BreakTimer> {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: progress,
-                  backgroundColor: AppColors.info.withOpacity(0.1),
+                  backgroundColor: AppColors.info.withValues(alpha:0.1),
                   color: AppColors.info,
                   minHeight: 6,
                 ),

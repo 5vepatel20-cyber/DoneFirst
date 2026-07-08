@@ -156,7 +156,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
+                      color: AppColors.primary.withValues(alpha:0.08),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -207,7 +207,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                             (isToday
                                     ? AppColors.primary
                                     : AppColors.textSecondary)
-                                .withOpacity(0.1),
+                                .withValues(alpha:0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(

@@ -127,7 +127,7 @@ class UpgradeScreen extends StatelessWidget {
                               period,
                               style: TextStyle(
                                 fontSize: 14,
-                                color: color.withOpacity(0.7),
+                                color: color.withValues(alpha:0.7),
                               ),
                             ),
                           ),

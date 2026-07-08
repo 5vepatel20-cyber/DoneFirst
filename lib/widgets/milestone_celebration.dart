@@ -59,7 +59,7 @@ class _MilestoneCelebrationState extends State<MilestoneCelebration>
               child: GestureDetector(
                 onTap: widget.onDismiss,
                 child: Card(
-                  color: AppColors.accent.withOpacity(0.95),
+                  color: AppColors.accent.withValues(alpha:0.95),
                   child: Container(
                     width: 280,
                     padding: const EdgeInsets.all(32),

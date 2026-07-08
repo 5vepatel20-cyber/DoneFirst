@@ -87,7 +87,7 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                             (s.isCompleted
                                     ? AppColors.success
                                     : AppColors.accent)
-                                .withOpacity(0.1),
+                                .withValues(alpha:0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -189,7 +189,7 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                                                 : p.aiDecision == 'rejected'
                                                 ? AppColors.danger
                                                 : AppColors.accent)
-                                            .withOpacity(0.1),
+                                            .withValues(alpha:0.1),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(

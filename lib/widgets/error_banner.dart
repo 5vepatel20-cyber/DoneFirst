@@ -18,7 +18,7 @@ class ErrorBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: AppColors.danger.withOpacity(0.1),
+      color: AppColors.danger.withValues(alpha:0.1),
       child: Row(
         children: [
           const Icon(Icons.error_outline, color: AppColors.danger, size: 18),
@@ -75,7 +75,7 @@ class RetryWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppColors.danger.withOpacity(0.08),
+                color: AppColors.danger.withValues(alpha:0.08),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, size: 48, color: AppColors.textSecondary),

@@ -250,7 +250,7 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
                             decoration: BoxDecoration(
                               color: i == DateTime.now().weekday - 1
                                   ? AppColors.primary
-                                  : AppColors.primary.withOpacity(0.3),
+                                  : AppColors.primary.withValues(alpha:0.3),
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
@@ -286,7 +286,7 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color, size: 24),

@@ -144,7 +144,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: AppColors.success.withOpacity(0.1),
+                          backgroundColor: AppColors.success.withValues(alpha:0.1),
                           child: Text(
                             (p.displayName.isNotEmpty ? p.displayName : '?')[0]
                                 .toUpperCase(),

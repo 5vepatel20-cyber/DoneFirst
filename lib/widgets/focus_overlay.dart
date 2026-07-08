@@ -27,7 +27,7 @@ class FocusOverlay extends StatelessWidget {
             right: 0,
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              color: AppColors.danger.withOpacity(0.95),
+              color: AppColors.danger.withValues(alpha:0.95),
               child: SafeArea(
                 top: false,
                 child: Row(
@@ -35,7 +35,7 @@ class FocusOverlay extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha:0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Icon(

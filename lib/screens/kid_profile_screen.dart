@@ -104,7 +104,7 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: kidColors[_selectedColor].withOpacity(0.15),
+                color: kidColors[_selectedColor].withValues(alpha:0.15),
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -162,7 +162,7 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
                     boxShadow: _selectedColor == i
                         ? [
                             BoxShadow(
-                              color: kidColors[i].withOpacity(0.5),
+                              color: kidColors[i].withValues(alpha:0.5),
                               blurRadius: 8,
                             ),
                           ]
@@ -194,7 +194,7 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
                   height: 48,
                   decoration: BoxDecoration(
                     color: _selectedEmoji == i
-                        ? kidColors[_selectedColor].withOpacity(0.15)
+                        ? kidColors[_selectedColor].withValues(alpha:0.15)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
                     border: _selectedEmoji == i

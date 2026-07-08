@@ -195,7 +195,7 @@ class _SessionTimerState extends State<SessionTimer> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.08),
+        color: AppColors.primary.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(

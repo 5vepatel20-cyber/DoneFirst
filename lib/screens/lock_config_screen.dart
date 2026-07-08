@@ -236,7 +236,7 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
                 ),
                 secondary: Icon(
                   pack.icon,
-                  color: AppColors.primary.withOpacity(0.7),
+                  color: AppColors.primary.withValues(alpha:0.7),
                 ),
                 value: _selectedPacks.contains(pack.name),
                 onChanged: (v) {

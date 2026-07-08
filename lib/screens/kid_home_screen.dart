@@ -148,7 +148,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withOpacity(0.1),
+                      color: AppColors.success.withValues(alpha:0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -184,7 +184,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                 children: [
                   if (_streak > 0)
                     Card(
-                      color: AppColors.accent.withOpacity(0.08),
+                      color: AppColors.accent.withValues(alpha:0.08),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -354,7 +354,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                   if (_allDone) ...[
                     const SizedBox(height: 12),
                     Card(
-                      color: AppColors.success.withOpacity(0.08),
+                      color: AppColors.success.withValues(alpha:0.08),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
@@ -368,7 +368,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                               child: Text(
                                 'All tasks submitted! Waiting for parent to review.',
                                 style: TextStyle(
-                                  color: AppColors.success.withOpacity(0.9),
+                                  color: AppColors.success.withValues(alpha:0.9),
                                 ),
                               ),
                             ),
@@ -380,7 +380,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                   if (_proofs.any((p) => p.parentNote != null && p.parentNote!.isNotEmpty)) ...[
                     const SizedBox(height: 12),
                     Card(
-                      color: AppColors.info.withOpacity(0.08),
+                      color: AppColors.info.withValues(alpha:0.08),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(

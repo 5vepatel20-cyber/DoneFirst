@@ -229,7 +229,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
@@ -312,7 +312,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
+                      color: AppColors.primary.withValues(alpha:0.08),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -411,7 +411,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   if (_todaySchedules.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Card(
-                      color: AppColors.primary.withOpacity(0.04),
+                      color: AppColors.primary.withValues(alpha:0.04),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
@@ -550,8 +550,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   ),
                   child: CircleAvatar(
                     backgroundColor: hasActiveLock
-                        ? AppColors.accent.withOpacity(0.15)
-                        : AppColors.success.withOpacity(0.1),
+                        ? AppColors.accent.withValues(alpha:0.15)
+                        : AppColors.success.withValues(alpha:0.1),
                     child: Text(
                       childName[0].toUpperCase(),
                       style: TextStyle(

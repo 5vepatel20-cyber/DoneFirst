@@ -112,10 +112,10 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               color: decision == 'approved'
-                  ? AppColors.success.withOpacity(0.08)
+                  ? AppColors.success.withValues(alpha:0.08)
                   : decision == 'rejected'
-                  ? AppColors.danger.withOpacity(0.08)
-                  : AppColors.accent.withOpacity(0.08),
+                  ? AppColors.danger.withValues(alpha:0.08)
+                  : AppColors.accent.withValues(alpha:0.08),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -144,7 +144,7 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
                     const SizedBox(height: 8),
                     Divider(
                       height: 1,
-                      color: AppColors.border.withOpacity(0.3),
+                      color: AppColors.border.withValues(alpha:0.3),
                     ),
                     const SizedBox(height: 8),
                     Text(

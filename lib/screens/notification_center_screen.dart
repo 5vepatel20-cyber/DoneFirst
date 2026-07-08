@@ -116,12 +116,12 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                   onDismissed: (_) {},
                   child: Card(
                     margin: const EdgeInsets.only(bottom: 8),
-                    color: isRead ? null : AppColors.primary.withOpacity(0.03),
+                    color: isRead ? null : AppColors.primary.withValues(alpha:0.03),
                     child: ListTile(
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: _colorForType(type).withOpacity(0.1),
+                          color: _colorForType(type).withValues(alpha:0.1),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(

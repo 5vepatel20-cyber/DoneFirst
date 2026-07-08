@@ -157,7 +157,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                               Container(
                                 padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.08),
+                                  color: AppColors.primary.withValues(alpha:0.08),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -201,7 +201,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                         (s.isCompleted
                                                 ? AppColors.success
                                                 : AppColors.accent)
-                                            .withOpacity(0.1),
+                                            .withValues(alpha:0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Icon(
@@ -366,7 +366,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha:0.1),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(text, style: TextStyle(color: color, fontSize: 11)),
