@@ -699,7 +699,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => KidProfileScreen(child: child.toMap()),
+                      builder: (_) => KidProfileScreen(child: child),
                     ),
                   ),
                   icon: const Icon(Icons.face, size: 18),

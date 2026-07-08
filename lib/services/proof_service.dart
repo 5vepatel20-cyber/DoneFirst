@@ -221,13 +221,18 @@ class ProofService {
     required String taskDescription,
     String? note,
   }) async {
-    await _supabase.from('proof_submissions').insert({
+    final response = await _supabase.from('proof_submissions').insert({
       'task_id': taskId,
       'image_url': imageUrls.isNotEmpty ? imageUrls.first : '',
       'image_urls': imageUrls,
       'optional_note': note,
       'parent_decision': 'pending',
-    });
+    }).select().single();
+    if (imageUrls.isNotEmpty) {
+      final proof = ProofSubmission.fromMap(response);
+      final aiResult = await verifyWithMistral(imageUrls.first);
+      await storeAiResult(proof.id, aiResult);
+    }
   }
 
   Future<List<HomeworkTask>> getTasks(String sessionId) async {

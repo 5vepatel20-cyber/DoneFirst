@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/models.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 
@@ -25,7 +26,7 @@ const List<String> kidEmojis = [
 ];
 
 class KidProfileScreen extends StatefulWidget {
-  final Map<String, dynamic> child;
+  final Child child;
 
   const KidProfileScreen({super.key, required this.child});
 
@@ -43,9 +44,17 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(
-      text: widget.child['name'] as String? ?? '',
-    );
+    _nameController = TextEditingController(text: widget.child.name);
+    if (widget.child.color != null) {
+      final idx = kidColors.indexWhere(
+        (c) => c.toARGB32() == Color(int.parse(widget.child.color!)).toARGB32(),
+      );
+      if (idx >= 0) _selectedColor = idx;
+    }
+    if (widget.child.emoji != null) {
+      final idx = kidEmojis.indexOf(widget.child.emoji!);
+      if (idx >= 0) _selectedEmoji = idx;
+    }
   }
 
   @override
@@ -58,9 +67,14 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
     setState(() => _saving = true);
     try {
       final name = _nameController.text.trim();
-      if (name.isNotEmpty && name != widget.child['name']) {
-        await _sessionService.renameChild(widget.child['id'], name);
+      if (name.isNotEmpty && name != widget.child.name) {
+        await _sessionService.renameChild(widget.child.id, name);
       }
+      await _sessionService.updateChildProfile(
+        widget.child.id,
+        color: kidColors[_selectedColor].toARGB32().toRadixString(16),
+        emoji: kidEmojis[_selectedEmoji],
+      );
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -79,7 +93,7 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final childName = widget.child['name'] as String? ?? 'Child';
+    final childName = widget.child.name;
     return Scaffold(
       appBar: AppBar(title: Text('$childName\'s Profile')),
       body: ListView(
@@ -189,7 +203,7 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
                   ),
                   child: Center(
                     child: Text(
-                      kidEmojis[i],
+                      kidEmojis[_selectedEmoji],
                       style: const TextStyle(fontSize: 24),
                     ),
                   ),

@@ -42,7 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final familyName = await _profileService.getFamilyName();
       setState(() {
         _userEmail = user.email;
-        _displayName = profile?['display_name'] as String? ?? user.email;
+        _displayName = profile?.displayName ?? user.email;
         _familyName = familyName ?? 'My Family';
         _loading = false;
       });

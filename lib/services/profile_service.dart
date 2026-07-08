@@ -13,13 +13,14 @@ class ProfileService {
     return ParentUser.fromMap(response);
   }
 
-  Future<Map<String, dynamic>?> getParentProfile() async {
+  Future<ParentUser?> getParentProfile() async {
     final response = await _supabase
         .from('parents')
         .select()
         .eq('id', _supabase.auth.currentUser!.id)
         .maybeSingle();
-    return response;
+    if (response == null) return null;
+    return ParentUser.fromMap(response);
   }
 
   Future<String?> getFamilyName() async {
