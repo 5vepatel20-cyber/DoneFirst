@@ -25,9 +25,15 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _loading = false;
   String? _error;
   bool _obscurePassword = true;
+  bool _parentConfirmed = false;
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_isSignUp && !_parentConfirmed) {
+      setState(() => _error =
+          'You must confirm you are 18 or older and a parent or legal guardian.');
+      return;
+    }
     setState(() { _loading = true; _error = null; });
     try {
       if (_isSignUp) {
@@ -185,9 +191,48 @@ class _AuthScreenState extends State<AuthScreen> {
                   validator: _isSignUp ? Validators.password : null,
                   onFieldSubmitted: (_) => _submit(),
                 ),
+                if (_isSignUp) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: _parentConfirmed
+                            ? AppColors.primary.withValues(alpha: 0.4)
+                            : AppColors.textSecondary.withValues(alpha: 0.2),
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: CheckboxListTile(
+                      value: _parentConfirmed,
+                      onChanged: _loading
+                          ? null
+                          : (v) => setState(() {
+                                _parentConfirmed = v ?? false;
+                                if (_parentConfirmed && _error != null) {
+                                  _error = null;
+                                }
+                              }),
+                      title: const Text(
+                        'I am 18 or older and a parent or legal guardian.',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      subtitle: const Text(
+                        'Required to create an account (COPPA).',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 8),
+                      dense: true,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: _loading ? null : _submit,
+                  onPressed: (_loading ||
+                          (_isSignUp && !_parentConfirmed))
+                      ? null
+                      : _submit,
                   child: _loading
                       ? const SizedBox(
                           width: 20,

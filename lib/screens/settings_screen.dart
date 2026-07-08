@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/profile_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_mode.dart';
+import '../utils/policy_text.dart';
 import 'upgrade_screen.dart';
 import 'coparent_screen.dart';
 
@@ -422,6 +423,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 32),
+          _section('Legal'),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined),
+                  title: const Text('Privacy Policy'),
+                  subtitle: const Text(
+                    'What we collect and how we use it',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showPolicyDialog(
+                    context,
+                    'Privacy Policy',
+                    kPrivacyPolicyText,
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.description_outlined),
+                  title: const Text('Terms of Service'),
+                  subtitle: const Text('Rules for using DoneFirst'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showPolicyDialog(
+                    context,
+                    'Terms of Service',
+                    kTermsOfServiceText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
           _section('Danger Zone'),
           Card(
             child: ListTile(
@@ -453,6 +487,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
           fontWeight: FontWeight.w600,
           color: AppColors.textSecondary,
           letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  void _showPolicyDialog(BuildContext context, String title, String body) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Text(
+                      body,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

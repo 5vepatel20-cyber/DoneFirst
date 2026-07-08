@@ -108,10 +108,13 @@ supabase functions deploy delete-account --project-ref wxjtksxugsirpowptpmz
 - Current `BlockingService` returns stubs; `flutter_screentime` dependency present but no native code
 
 ### ⚠️ Blocker #5 — Children's privacy scaffolding
-**Status:** Draft docs created; needs legal review
+**Status:** Draft docs + in-app links + age gate shipped; needs legal review
 - `PRIVACY.md` — COPPA/GDPR-K aligned template
 - `TERMS.md` — Basic terms of service
-- Add in-app links to these docs; implement age gate + parental consent flow before launch
+- `lib/utils/policy_text.dart` — in-app copy mirroring the .md drafts
+- Settings → Legal section shows both in a scrollable dialog
+- AuthScreen sign-up requires the "I am 18+ and a parent or legal guardian" checkbox (COPPA)
+- Still open: legal review of `PRIVACY.md` / `TERMS.md` and replace the in-app copy with the legally-reviewed text
 
 ---
 
@@ -327,6 +330,6 @@ curl -s -o NUL -w "%{http_code}" http://127.0.0.1:8080
 
 ## Git
 - Repo: `https://github.com/5vepatel20-cyber/DoneFirst`
-- Branch: `main`
-- Last commit: `141e9cb` (plus uncommitted changes in this session)
+- Branch: `master`
+- CI: `.github/workflows/flutter-test.yml` runs `flutter analyze` + `flutter test` on every push/PR
 - `flutter pub get` not needed (deps resolved); only run if adding new deps
