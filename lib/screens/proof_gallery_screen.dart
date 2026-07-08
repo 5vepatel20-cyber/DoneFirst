@@ -54,10 +54,10 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
     return Scaffold(
       appBar: AppBar(title: Text('${widget.childName}\'s Proofs')),
       body: _loading
-          ? const Padding(
-              padding: EdgeInsets.all(8),
+          ? Padding(
+              padding: const EdgeInsets.all(8),
               child: GridView(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
                   crossAxisSpacing: 4,
                   mainAxisSpacing: 4,

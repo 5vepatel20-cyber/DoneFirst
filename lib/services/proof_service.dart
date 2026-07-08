@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../mistral_config.dart';
 import '../models/models.dart';
 
 class ProofService {
@@ -30,44 +29,20 @@ class ProofService {
   }
 
   Future<AiResult> verifyWithMistral(String imageUrl) async {
-    final base64Image = await _downloadAndEncodeImage(imageUrl);
     final response = await http.post(
-      Uri.parse(MistralConfig.apiUrl),
+      Uri.parse(
+          'https://wxjtksxugsirpowptpmz.supabase.co/functions/v1/verify-proof'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${MistralConfig.apiKey}',
+        'Authorization': 'Bearer ${_supabase.auth.currentSession?.accessToken ?? ''}',
       },
       body: jsonEncode({
-        'model': MistralConfig.model,
-        'messages': [
-          {
-            'role': 'user',
-            'content': [
-              {
-                'type': 'text',
-                'text':
-                    'You are verifying homework proof photos. Analyze the image and decide if it shows legitimate homework (worksheet, written answers, textbook, notes, computer screen with schoolwork). '
-                    'If it looks like valid homework, respond with decision "approved". '
-                    'If unclear or suspicious, respond with "needs_review". '
-                    'If clearly not homework, respond with "rejected". '
-                    'Respond in this JSON format ONLY: {"decision": "approved|needs_review|rejected", "confidence": 0.0-1.0, "reason": "brief explanation"}',
-              },
-              {
-                'type': 'image_url',
-                'image_url': 'data:image/jpeg;base64,$base64Image',
-              },
-            ],
-          }
-        ],
-        'response_format': {'type': 'json_object'},
-        'max_tokens': 256,
+        'imageUrl': imageUrl,
       }),
     );
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body);
-      final content = body['choices']?[0]?['message']?['content'] ?? '{}';
-      final resultJson = jsonDecode(content as String);
-      return AiResult.fromJson(resultJson);
+      return AiResult.fromJson(body);
     }
     return AiResult(
       decision: 'needs_review',
@@ -176,7 +151,11 @@ class ProofService {
           path,
           Uint8List.fromList(bytes),
         );
-    return _supabase.storage.from('proof-photos').getPublicUrl(path);
+    final signedUrl = await _supabase
+        .storage
+        .from('proof-photos')
+        .createSignedUrl(path, 604800);
+    return signedUrl;
   }
 
   Future<String> addImageToProof(String proofId, String imageUrl) async {
@@ -278,8 +257,4 @@ class ProofService {
     }
   }
 
-  Future<String> _downloadAndEncodeImage(String url) async {
-    final response = await http.get(Uri.parse(url));
-    return base64Encode(response.bodyBytes);
-  }
 }

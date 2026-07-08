@@ -118,6 +118,7 @@ class SessionService {
         .insert({
           'family_id': familyId,
           'name': name,
+          'parent_id': _supabase.auth.currentUser!.id,
           if (color != null) 'color': color,
           if (emoji != null) 'emoji': emoji,
         })

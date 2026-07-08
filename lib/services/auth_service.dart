@@ -1,3 +1,4 @@
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
@@ -48,55 +49,16 @@ class AuthService {
   Future<void> deleteAccount() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
+    final token = _supabase.auth.currentSession?.accessToken ?? '';
 
-    final parent = await _supabase
-        .from('parents')
-        .select('family_id')
-        .eq('id', user.id)
-        .maybeSingle();
-    final familyId = parent?['family_id'] as String?;
+    await http.post(
+      Uri.parse('https://wxjtksxugsirpowptpmz.supabase.co/functions/v1/delete-account'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-    if (familyId != null) {
-      final children = await _supabase
-          .from('children')
-          .select('id')
-          .eq('family_id', familyId);
-      for (final c in children) {
-        final childId = c['id'] as String;
-        final sessions = await _supabase
-            .from('homework_sessions')
-            .select('id')
-            .eq('child_id', childId);
-        for (final s in sessions) {
-          final sessionId = s['id'] as String;
-          await _supabase
-              .from('proof_submissions')
-              .delete()
-              .eq('session_id', sessionId);
-          await _supabase
-              .from('homework_tasks')
-              .delete()
-              .eq('session_id', sessionId);
-          await _supabase
-              .from('break_requests')
-              .delete()
-              .eq('session_id', sessionId);
-        }
-        await _supabase
-            .from('homework_sessions')
-            .delete()
-            .eq('child_id', childId);
-      }
-      await _supabase.from('children').delete().eq('family_id', familyId);
-      await _supabase.from('notifications').delete().eq('parent_id', user.id);
-      await _supabase.from('lock_presets').delete().eq('parent_id', user.id);
-      await _supabase.from('recurring_schedules').delete().eq('parent_id', user.id);
-      await _supabase.from('parent_invites').delete().eq('inviter_id', user.id);
-      await _supabase.from('families').delete().eq('id', familyId);
-    }
-
-    await _supabase.from('parents').delete().eq('id', user.id);
-    await _supabase.auth.admin.deleteUser(user.id);
     await _supabase.auth.signOut();
   }
 }

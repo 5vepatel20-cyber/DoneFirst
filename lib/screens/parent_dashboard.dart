@@ -139,9 +139,17 @@ class _ParentDashboardState extends State<ParentDashboard> {
       ),
     );
     if (name != null && name.isNotEmpty) {
-      final familyId = await _sessionService.getOrCreateFamily();
-      await _sessionService.addChild(name, familyId);
-      await _loadAll();
+      try {
+        final familyId = await _sessionService.getOrCreateFamily();
+        await _sessionService.addChild(name, familyId);
+        await _loadAll();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to add child: $e')),
+          );
+        }
+      }
     }
   }
 

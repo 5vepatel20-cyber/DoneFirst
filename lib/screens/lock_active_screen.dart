@@ -284,10 +284,8 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
+    return WillPopScope(
+      onWillPop: () async {
         final confirm = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -302,7 +300,9 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                ),
                 child: const Text('Unlock Early'),
               ),
             ],
@@ -311,6 +311,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
         if (confirm == true) {
           await _unlock();
         }
+        return confirm != true;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -325,160 +326,163 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
           ],
         ),
         body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadAll,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (_session != null)
-                    SessionTimer(
-                      sessionStart: _session!.startedAt,
-                      durationMinutes: _session!.minLockMinutes,
-                      minUnlockMinutes: _session!.minLockMinutes,
-                      autoLiftMinutes: _session!.maxLiftMinutes,
-                      paused: _paused,
-                    ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _togglePause,
-                          icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
-                          label: Text(_paused ? 'Resume' : 'Pause'),
-                        ),
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _loadAll,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (_session != null)
+                      SessionTimer(
+                        sessionStart: _session!.startedAt,
+                        durationMinutes: _session!.minLockMinutes,
+                        minUnlockMinutes: _session!.minLockMinutes,
+                        autoLiftMinutes: _session!.maxLiftMinutes,
+                        paused: _paused,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _extendSession,
-                          icon: const Icon(Icons.timer_outlined),
-                          label: const Text('Extend'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _togglePause,
+                            icon: Icon(
+                              _paused ? Icons.play_arrow : Icons.pause,
+                            ),
+                            label: Text(_paused ? 'Resume' : 'Pause'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _extendSession,
+                            icon: const Icon(Icons.timer_outlined),
+                            label: const Text('Extend'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_activeBreakTimer) ...[
+                      const SizedBox(height: 12),
+                      BreakTimer(
+                        onComplete: () async {
+                          setState(() => _activeBreakTimer = false);
+                          await _blockingService.startBlocking();
+                          await _loadAll();
+                        },
+                        onCancel: () async {
+                          setState(() => _activeBreakTimer = false);
+                          await _blockingService.startBlocking();
+                          await _loadAll();
+                        },
+                      ),
+                    ],
+                    if (_breakRequests.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Card(
+                        color: AppColors.info.withOpacity(0.08),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Break Requests',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              ...(_breakRequests.map(
+                                (br) => Row(
+                                  children: [
+                                    const Expanded(
+                                      child: Text('Child wants a break'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          _handleBreak(br.id, 'approved'),
+                                      child: const Text(
+                                        'Allow',
+                                        style: TextStyle(
+                                          color: AppColors.success,
+                                        ),
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          _handleBreak(br.id, 'rejected'),
+                                      child: const Text(
+                                        'Deny',
+                                        style: TextStyle(
+                                          color: AppColors.danger,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )),
+                            ],
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                  if (_activeBreakTimer) ...[
-                    const SizedBox(height: 12),
-                    BreakTimer(
-                      onComplete: () async {
-                        setState(() => _activeBreakTimer = false);
-                        await _blockingService.startBlocking();
-                        await _loadAll();
-                      },
-                      onCancel: () async {
-                        setState(() => _activeBreakTimer = false);
-                        await _blockingService.startBlocking();
-                        await _loadAll();
-                      },
-                    ),
-                  ],
-                  if (_breakRequests.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Card(
-                      color: AppColors.info.withOpacity(0.08),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Break Requests',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            ...(_breakRequests.map(
-                              (br) => Row(
-                                children: [
-                                  const Expanded(
-                                    child: Text('Child wants a break'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        _handleBreak(br.id, 'approved'),
-                                    child: const Text(
-                                      'Allow',
-                                      style: TextStyle(
-                                        color: AppColors.success,
-                                      ),
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        _handleBreak(br.id, 'rejected'),
-                                    child: const Text(
-                                      'Deny',
-                                      style: TextStyle(
-                                        color: AppColors.danger,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )),
-                          ],
+                    if (_proofs.any((p) => p.isPending)) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => _batchApproveAll(),
+                          icon: const Icon(Icons.done_all),
+                          label: const Text('Approve All'),
                         ),
                       ),
-                    ),
-                  ],
-                  if (_proofs.any((p) => p.isPending)) ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: () => _batchApproveAll(),
-                        icon: const Icon(Icons.done_all),
-                        label: const Text('Approve All'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _batchApproveAllWithNote(),
-                        icon: const Icon(Icons.note_add, size: 18),
-                        label: const Text('Approve All with Note'),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  if (_proofs.isEmpty)
-                    const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.hourglass_empty,
-                              size: 48,
-                              color: AppColors.accent,
-                            ),
-                            SizedBox(height: 12),
-                            Text(
-                              'Waiting for proof submissions...',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Auto-refreshes every 10s',
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _batchApproveAllWithNote(),
+                          icon: const Icon(Icons.note_add, size: 18),
+                          label: const Text('Approve All with Note'),
                         ),
                       ),
-                    )
-                  else
-                    ...(_proofs.map((proof) => _buildProofCard(proof))),
-                ],
+                    ],
+                    const SizedBox(height: 12),
+                    if (_proofs.isEmpty)
+                      const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.hourglass_empty,
+                                size: 48,
+                                color: AppColors.accent,
+                              ),
+                              SizedBox(height: 12),
+                              Text(
+                                'Waiting for proof submissions...',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Auto-refreshes every 10s',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      ...(_proofs.map((proof) => _buildProofCard(proof))),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 
@@ -518,9 +522,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 ),
                 if (!proof.isPending)
                   Icon(
-                    proof.isApproved
-                        ? Icons.check_circle
-                        : Icons.cancel,
+                    proof.isApproved ? Icons.check_circle : Icons.cancel,
                     color: parentColor,
                   )
                 else

@@ -1,12 +1,11 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RealtimeService extends ChangeNotifier {
   final _supabase = Supabase.instance.client;
-  StreamSubscription? _notificationsSub;
-  StreamSubscription? _proofsSub;
-  StreamSubscription? _breaksSub;
+  RealtimeChannel? _notificationsChannel;
+  RealtimeChannel? _proofsChannel;
+  RealtimeChannel? _breaksChannel;
   bool _listening = false;
   int _unreadCount = 0;
 
@@ -24,9 +23,9 @@ class RealtimeService extends ChangeNotifier {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
 
-    _notificationsSub = _supabase
+    _notificationsChannel = _supabase
         .channel('notifications')
-        .onPostgresChange(
+        .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'notifications',
@@ -39,9 +38,9 @@ class RealtimeService extends ChangeNotifier {
         )
         .subscribe();
 
-    _proofsSub = _supabase
+    _proofsChannel = _supabase
         .channel('proofs')
-        .onPostgresChange(
+        .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'proof_submissions',
@@ -52,9 +51,9 @@ class RealtimeService extends ChangeNotifier {
         )
         .subscribe();
 
-    _breaksSub = _supabase
+    _breaksChannel = _supabase
         .channel('breaks')
-        .onPostgresChange(
+        .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'break_requests',
@@ -72,9 +71,9 @@ class RealtimeService extends ChangeNotifier {
   }
 
   void stopListening() {
-    _notificationsSub?.cancel();
-    _proofsSub?.cancel();
-    _breaksSub?.cancel();
+    _notificationsChannel?.unsubscribe();
+    _proofsChannel?.unsubscribe();
+    _breaksChannel?.unsubscribe();
     _listening = false;
     notifyListeners();
   }

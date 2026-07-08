@@ -140,8 +140,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                   padding: EdgeInsets.all(16),
                   child: ShimmerCard(lines: 4),
                 )
-          ? const Center(child: CircularProgressIndicator())
-          : _activeSession == null
+              : _activeSession == null
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
