@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
+import 'consent_service.dart';
 
 class SessionService {
   final _supabase = Supabase.instance.client;
@@ -113,17 +114,33 @@ class SessionService {
 
   Future<Child> addChild(String name, String familyId,
       {String? color, String? emoji}) async {
+    final parentId = _supabase.auth.currentUser!.id;
     final response = await _supabase
         .from('children')
         .insert({
           'family_id': familyId,
           'name': name,
-          'parent_id': _supabase.auth.currentUser!.id,
+          'parent_id': parentId,
           if (color != null) 'color': color,
           if (emoji != null) 'emoji': emoji,
         })
         .select()
         .single();
+
+    // COPPA / GDPR-K: every time the parent enrolls a child in our
+    // service, that's a fresh consent act for that minor's data.
+    // Record it as an immutable audit row. Non-fatal if the audit
+    // table isn't installed yet (migration 9 not run) — the child
+    // record is what we need to make the app work.
+    try {
+      await ConsentService().recordConsent(
+        parentId: parentId,
+        consentType: ConsentService.typeChildDataCollection,
+      );
+    } catch (_) {
+      // swallow — see comment above
+    }
+
     return Child.fromMap(response);
   }
 
