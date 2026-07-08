@@ -1,0 +1,15 @@
+# Copy this file to android/key.properties and fill in your values.
+# android/key.properties is gitignored. NEVER commit it.
+#
+# Generate the keystore with:
+#   keytool -genkey -v -keystore ~/donefirst-upload.jks \
+#           -alias donefirst -keyalg RSA -keysize 2048 -validity 10000
+#
+# storeFile is relative to the android/ directory (the directory containing
+# this file's parent in the project tree). Use ../donefirst-upload.jks if
+# you keep the keystore outside android/.
+
+storeFile=../donefirst-upload.jks
+storePassword=<your-store-password>
+keyAlias=donefirst
+keyPassword=<your-key-password>

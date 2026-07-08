@@ -57,3 +57,16 @@ ALTER TABLE proof_submissions ADD COLUMN IF NOT EXISTS image_urls TEXT[] DEFAULT
 -- Migration 6: Streak tracking
 ALTER TABLE children ADD COLUMN IF NOT EXISTS streak_count INT DEFAULT 0;
 ALTER TABLE children ADD COLUMN IF NOT EXISTS last_streak_date DATE;
+
+-- Migration 8: Mistral verification usage log
+-- Created alongside rls_policies.sql (migration 7). One row per
+-- successful verify-proof call; used by the Edge Function for the
+-- daily-cap check and (in future) by parents to see their usage.
+CREATE TABLE IF NOT EXISTS mistral_verification_log (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  parent_id UUID REFERENCES parents(id) ON DELETE CASCADE NOT NULL,
+  called_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS mistral_verification_log_parent_called_at_idx
+  ON mistral_verification_log (parent_id, called_at DESC);

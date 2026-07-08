@@ -21,6 +21,11 @@ Thumbs.db
 # Secrets
 lib/mistral_config.dart
 
+# Android release signing
+android/key.properties
+*.jks
+*.keystore
+
 # Figma
 .figma_token
 figma_mcp_config.json
