@@ -9,6 +9,7 @@ import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
 import 'proof_image_viewer.dart';
+import '../models/models.dart';
 
 class LockActiveScreen extends StatefulWidget {
   final String sessionId;
@@ -30,9 +31,9 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   final _blockingService = BlockingService();
   final _breakService = BreakService();
   final _notificationService = NotificationService();
-  List<Map<String, dynamic>> _proofs = [];
-  List<Map<String, dynamic>> _breakRequests = [];
-  Map<String, dynamic>? _session;
+  List<ProofSubmission> _proofs = [];
+  List<BreakRequest> _breakRequests = [];
+  HomeworkSession? _session;
   bool _loading = true;
   bool _paused = false;
   Timer? _refreshTimer;
@@ -54,15 +55,12 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   }
 
   Future<void> _loadAll() async {
-    final sessions = await _sessionService.getSessionById(widget.sessionId);
-    final proofs = await _proofService.getProofsForSession(widget.sessionId);
-    final breaks = await _breakService.getPendingBreaks(widget.sessionId);
+    _session = await _sessionService.getSessionById(widget.sessionId);
+    _proofs = await _proofService.getProofsForSession(widget.sessionId);
+    _breakRequests = await _breakService.getPendingRequests(widget.sessionId);
     if (mounted)
       setState(() {
-        _session = sessions;
-        _proofs = proofs;
-        _breakRequests = breaks;
-        _paused = sessions?['status'] == 'paused';
+        _paused = _session?.isPaused ?? false;
         _loading = false;
       });
     await _checkAutoUnlock();
@@ -103,11 +101,9 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
 
   Future<void> _checkAutoUnlock() async {
     if (_proofs.isEmpty) return;
-    final allDecided = _proofs.every((p) => p['parent_decision'] != 'pending');
+    final allDecided = _proofs.every((p) => p.parentDecision != 'pending');
     if (allDecided) {
-      final allApproved = _proofs.every(
-        (p) => p['parent_decision'] == 'approved',
-      );
+      final allApproved = _proofs.every((p) => p.isApproved);
       if (allApproved) await _unlock();
     }
   }
@@ -127,11 +123,9 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     await _blockingService.stopBlocking();
     await _sessionService.endSession(widget.sessionId);
     if (_session != null) {
-      final parentId =
-          _session!['parent_id'] as String? ?? _auth.currentUser!.id;
       await _notificationService.insertNotification(
-        parentId: parentId,
-        childId: _session!['child_id'] as String?,
+        parentId: _session!.parentId,
+        childId: _session!.childId,
         type: 'session_complete',
         title: 'Session complete',
         body: '${widget.childName} finished homework',
@@ -193,11 +187,13 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   }
 
   Future<void> _handleBreak(String breakId, String decision) async {
-    await _breakService.respondToBreak(breakId, decision);
     if (decision == 'approved') {
+      await _breakService.approveBreak(breakId);
       await _blockingService.stopBlocking();
       await Future.delayed(const Duration(minutes: 5));
       await _blockingService.startBlocking();
+    } else {
+      await _breakService.denyBreak(breakId);
     }
     await _loadAll();
   }
@@ -220,10 +216,10 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 children: [
                   if (_session != null)
                     SessionTimer(
-                      sessionStart: DateTime.parse(_session!['started_at']),
-                      durationMinutes: _session!['min_lock_minutes'] ?? 60,
-                      minUnlockMinutes: _session!['min_lock_minutes'],
-                      autoLiftMinutes: _session!['max_lift_minutes'],
+                      sessionStart: _session!.startedAt,
+                      durationMinutes: _session!.minLockMinutes,
+                      minUnlockMinutes: _session!.minLockMinutes,
+                      autoLiftMinutes: _session!.maxLiftMinutes,
                       paused: _paused,
                     ),
                   const SizedBox(height: 8),
@@ -260,7 +256,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 8),
-                            ..._breakRequests.map(
+                            ...(_breakRequests.map(
                               (br) => Row(
                                 children: [
                                   const Expanded(
@@ -268,7 +264,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                                   ),
                                   TextButton(
                                     onPressed: () =>
-                                        _handleBreak(br['id'], 'approved'),
+                                        _handleBreak(br.id, 'approved'),
                                     child: const Text(
                                       'Allow',
                                       style: TextStyle(
@@ -278,43 +274,40 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                                   ),
                                   TextButton(
                                     onPressed: () =>
-                                        _handleBreak(br['id'], 'rejected'),
+                                        _handleBreak(br.id, 'rejected'),
                                     child: const Text(
                                       'Deny',
-                                      style: TextStyle(color: AppColors.danger),
+                                      style: TextStyle(
+                                        color: AppColors.danger,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
+                            )),
                           ],
                         ),
                       ),
                     ),
                   ],
-                  if (_proofs.any(
-                    (p) => p['parent_decision'] == 'pending',
-                  )) ...[
+                  if (_proofs.any((p) => p.isPending)) ...[
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
                         onPressed: () async {
                           for (final p in _proofs) {
-                            if (p['parent_decision'] == 'pending') {
+                            if (p.isPending) {
                               await _proofService.updateParentDecision(
-                                p['id'],
+                                p.id,
                                 'approved',
                               );
                             }
                           }
                           if (_session != null) {
-                            final parentId =
-                                _session!['parent_id'] as String? ??
-                                _auth.currentUser!.id;
                             await _notificationService.insertNotification(
-                              parentId: parentId,
-                              childId: _session!['child_id'] as String?,
+                              parentId: _session!.parentId,
+                              childId: _session!.childId,
                               type: 'proof_submitted',
                               title: 'All proofs approved',
                               body:
@@ -361,27 +354,26 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                       ),
                     )
                   else
-                    ..._proofs.map((proof) => _buildProofCard(proof)),
+                    ...(_proofs.map((proof) => _buildProofCard(proof))),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildProofCard(Map<String, dynamic> proof) {
-    final taskDesc = proof['task_description'] ?? 'Task';
-    final aiDecision = proof['ai_decision'] ?? 'pending';
-    final parentDecision = proof['parent_decision'] ?? 'pending';
-    final imageUrl = proof['image_url'] ?? '';
+  Widget _buildProofCard(ProofSubmission proof) {
+    final taskDesc = proof.taskDescription ?? 'Task';
+    final aiDecision = proof.aiDecision ?? 'pending';
+    final parentDecision = proof.parentDecision;
 
     final aiColor = aiDecision == 'approved'
         ? AppColors.success
         : aiDecision == 'rejected'
         ? AppColors.danger
         : AppColors.accent;
-    final parentColor = parentDecision == 'approved'
+    final parentColor = proof.isApproved
         ? AppColors.success
-        : parentDecision == 'rejected'
+        : proof.isRejected
         ? AppColors.danger
         : AppColors.textSecondary;
 
@@ -403,9 +395,9 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                     ),
                   ),
                 ),
-                if (parentDecision != 'pending')
+                if (!proof.isPending)
                   Icon(
-                    parentDecision == 'approved'
+                    proof.isApproved
                         ? Icons.check_circle
                         : Icons.cancel,
                     color: parentColor,
@@ -422,14 +414,14 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 _badge('Parent: $parentDecision', parentColor),
               ],
             ),
-            if (imageUrl.isNotEmpty) ...[
+            if (proof.imageUrl.isNotEmpty) ...[
               const SizedBox(height: 8),
               GestureDetector(
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => ProofImageViewer(
-                      imageUrl: imageUrl,
+                      imageUrl: proof.imageUrl,
                       taskDescription: taskDesc,
                       aiResult: proof,
                     ),
@@ -438,7 +430,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.network(
-                    imageUrl,
+                    proof.imageUrl,
                     height: 150,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -446,8 +438,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 ),
               ),
             ],
-            if (proof['parent_note'] != null &&
-                (proof['parent_note'] as String).isNotEmpty) ...[
+            if (proof.parentNote != null && proof.parentNote!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(8),
@@ -466,7 +457,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        proof['parent_note'],
+                        proof.parentNote!,
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textPrimary,
@@ -477,13 +468,13 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 ),
               ),
             ],
-            if (parentDecision == 'pending') ...[
+            if (proof.isPending) ...[
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () => _promptDecision(proof['id'], 'rejected'),
+                    onPressed: () => _promptDecision(proof.id, 'rejected'),
                     icon: const Icon(
                       Icons.close,
                       size: 18,
@@ -496,7 +487,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                   ),
                   const SizedBox(width: 8),
                   FilledButton.icon(
-                    onPressed: () => _promptDecision(proof['id'], 'approved'),
+                    onPressed: () => _promptDecision(proof.id, 'approved'),
                     icon: const Icon(Icons.check, size: 18),
                     label: const Text('Approve'),
                   ),

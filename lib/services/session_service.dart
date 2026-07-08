@@ -1,9 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/models.dart';
 
 class SessionService {
   final _supabase = Supabase.instance.client;
 
-  Future<Map<String, dynamic>> startSession({
+  Future<HomeworkSession> startSession({
     required String childId,
     required int minLockMinutes,
     required int maxLiftMinutes,
@@ -21,10 +22,19 @@ class SessionService {
         })
         .select()
         .single();
-    return response;
+    return HomeworkSession.fromMap(response);
   }
 
-  Future<List<Map<String, dynamic>>> getActiveSession(String childId) async {
+  Future<List<HomeworkSession>> getActiveSessions() async {
+    final response = await _supabase
+        .from('homework_sessions')
+        .select()
+        .eq('status', 'active')
+        .order('started_at', ascending: false);
+    return response.map((m) => HomeworkSession.fromMap(m)).toList();
+  }
+
+  Future<HomeworkSession?> getActiveSession(String childId) async {
     final response = await _supabase
         .from('homework_sessions')
         .select()
@@ -32,25 +42,27 @@ class SessionService {
         .eq('status', 'active')
         .order('started_at', ascending: false)
         .limit(1);
-    return response;
+    if (response.isEmpty) return null;
+    return HomeworkSession.fromMap(response.first);
   }
 
-  Future<Map<String, dynamic>?> getSessionById(String sessionId) async {
+  Future<HomeworkSession?> getSessionById(String sessionId) async {
     final response = await _supabase
         .from('homework_sessions')
         .select()
         .eq('id', sessionId)
         .maybeSingle();
-    return response;
+    if (response == null) return null;
+    return HomeworkSession.fromMap(response);
   }
 
-  Future<List<Map<String, dynamic>>> getHistory(String childId) async {
+  Future<List<HomeworkSession>> getHistory(String childId) async {
     final response = await _supabase
         .from('homework_sessions')
         .select()
         .eq('child_id', childId)
         .order('started_at', ascending: false);
-    return response;
+    return response.map((m) => HomeworkSession.fromMap(m)).toList();
   }
 
   Future<void> endSession(String sessionId) async {
@@ -60,6 +72,13 @@ class SessionService {
           'status': 'completed',
           'ended_at': DateTime.now().toIso8601String(),
         })
+        .eq('id', sessionId);
+  }
+
+  Future<void> cancelSession(String sessionId) async {
+    await _supabase
+        .from('homework_sessions')
+        .update({'status': 'cancelled'})
         .eq('id', sessionId);
   }
 
@@ -77,7 +96,8 @@ class SessionService {
         .eq('id', sessionId);
   }
 
-  Future<List<Map<String, dynamic>>> getChildren(String parentId) async {
+  Future<List<Child>> getChildren([String? parentId]) async {
+    parentId ??= _supabase.auth.currentUser!.id;
     final family = await _supabase
         .from('parents')
         .select('family_id')
@@ -88,16 +108,22 @@ class SessionService {
         .from('children')
         .select()
         .eq('family_id', family['family_id']);
-    return children;
+    return children.map((m) => Child.fromMap(m)).toList();
   }
 
-  Future<Map<String, dynamic>> addChild(String name, String familyId) async {
+  Future<Child> addChild(String name, String familyId,
+      {String? color, String? emoji}) async {
     final response = await _supabase
         .from('children')
-        .insert({'family_id': familyId, 'name': name})
+        .insert({
+          'family_id': familyId,
+          'name': name,
+          if (color != null) 'color': color,
+          if (emoji != null) 'emoji': emoji,
+        })
         .select()
         .single();
-    return response;
+    return Child.fromMap(response);
   }
 
   Future<void> deleteChild(String childId) async {
@@ -111,6 +137,17 @@ class SessionService {
         .eq('id', childId);
   }
 
+  Future<void> updateChildProfile(
+      String childId, {String? color, String? emoji}) async {
+    await _supabase
+        .from('children')
+        .update({
+          if (color != null) 'color': color,
+          if (emoji != null) 'emoji': emoji,
+        })
+        .eq('id', childId);
+  }
+
   Future<String> getOrCreateFamily() async {
     final parent = await _supabase
         .from('parents')
@@ -118,7 +155,7 @@ class SessionService {
         .eq('id', _supabase.auth.currentUser!.id)
         .single();
     if (parent['family_id'] != null) {
-      return parent['family_id'];
+      return parent['family_id'] as String;
     }
     final family = await _supabase
         .from('families')
@@ -129,7 +166,7 @@ class SessionService {
         .from('parents')
         .update({'family_id': family['id']})
         .eq('id', _supabase.auth.currentUser!.id);
-    return family['id'];
+    return family['id'] as String;
   }
 
   Future<void> ensureParentRecord(
@@ -168,14 +205,34 @@ class SessionService {
         .eq('id', sessionId);
   }
 
-  Future<int> getMonthlySessionCount(String parentId) async {
+  Future<int> getMonthlySessionCount([String? parentId]) async {
     final now = DateTime.now();
     final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+    final uid = parentId ?? _supabase.auth.currentUser!.id;
     final response = await _supabase
         .from('homework_sessions')
         .select('id')
-        .eq('parent_id', parentId)
+        .eq('parent_id', uid)
         .gte('started_at', startOfMonth);
     return response.length;
+  }
+
+  Future<Map<String, int>> getFamilyStats() async {
+    final sessions = await _supabase
+        .from('homework_sessions')
+        .select('status, min_lock_minutes')
+        .eq('parent_id', _supabase.auth.currentUser!.id);
+    int totalSessions = sessions.length;
+    int totalMinutes = 0;
+    int approved = 0;
+    for (final s in sessions) {
+      totalMinutes += (s['min_lock_minutes'] as int? ?? 0);
+      if (s['status'] == 'completed') approved++;
+    }
+    return {
+      'sessions': totalSessions,
+      'minutes': totalMinutes,
+      'approved': approved,
+    };
   }
 }

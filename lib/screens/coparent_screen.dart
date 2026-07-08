@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/coparent_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import '../models/models.dart';
 
 class CoparentScreen extends StatefulWidget {
   const CoparentScreen({super.key});
@@ -14,9 +15,9 @@ class _CoparentScreenState extends State<CoparentScreen> {
   final _coparentService = CoparentService();
   final _sessionService = SessionService();
   final _emailController = TextEditingController();
-  List<Map<String, dynamic>> _invites = [];
-  List<Map<String, dynamic>> _coParents = [];
-  List<Map<String, dynamic>> _myInvites = [];
+  List<ParentInvite> _invites = [];
+  List<ParentUser> _coParents = [];
+  List<ParentInvite> _myInvites = [];
   bool _loading = true;
   String? _familyId;
 
@@ -93,7 +94,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
                           children: [
                             FilledButton(
                               onPressed: () async {
-                                await _coparentService.acceptInvite(inv['id']);
+                                await _coparentService.acceptInvite(inv.id);
                                 if (mounted)
                                   Navigator.pushReplacementNamed(
                                     context,
@@ -105,7 +106,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
                             const SizedBox(width: 4),
                             TextButton(
                               onPressed: () async {
-                                await _coparentService.cancelInvite(inv['id']);
+                                await _coparentService.cancelInvite(inv.id);
                                 await _load();
                               },
                               child: const Text('Decline'),
@@ -145,13 +146,13 @@ class _CoparentScreenState extends State<CoparentScreen> {
                         leading: CircleAvatar(
                           backgroundColor: AppColors.success.withOpacity(0.1),
                           child: Text(
-                            (p['display_name'] as String? ?? '?')[0]
+                            (p.displayName.isNotEmpty ? p.displayName : '?')[0]
                                 .toUpperCase(),
                             style: TextStyle(color: AppColors.success),
                           ),
                         ),
-                        title: Text(p['display_name'] as String? ?? 'Unknown'),
-                        subtitle: Text(p['email'] as String? ?? ''),
+                        title: Text(p.displayName.isNotEmpty ? p.displayName : 'Unknown'),
+                        subtitle: Text(p.email),
                       ),
                     ),
                   ),
@@ -206,7 +207,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
                           Icons.hourglass_empty,
                           color: AppColors.accent,
                         ),
-                        title: Text(inv['invitee_email'] as String? ?? ''),
+                        title: Text(inv.inviteeEmail),
                         subtitle: const Text('Pending'),
                         trailing: IconButton(
                           icon: const Icon(
@@ -214,7 +215,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
                             color: AppColors.danger,
                           ),
                           onPressed: () async {
-                            await _coparentService.cancelInvite(inv['id']);
+                            await _coparentService.cancelInvite(inv.id);
                             await _load();
                           },
                         ),

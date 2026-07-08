@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../models/models.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
 import '../services/break_service.dart';
@@ -30,8 +31,8 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   final _notificationService = NotificationService();
   final _streakService = StreakService();
   int _streak = 0;
-  Map<String, dynamic>? _activeSession;
-  List<Map<String, dynamic>> _tasks = [];
+  HomeworkSession? _activeSession;
+  List<HomeworkTask> _tasks = [];
   bool _loading = true;
   Timer? _refreshTimer;
   bool _breakRequested = false;
@@ -53,13 +54,11 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   }
 
   Future<void> _checkActive() async {
-    final sessions = await _sessionService.getActiveSession(widget.childId);
+    _activeSession =
+        await _sessionService.getActiveSession(widget.childId);
     if (!mounted) return;
-    setState(() {
-      _activeSession = sessions.isNotEmpty ? sessions.first : null;
-    });
     if (_activeSession != null) {
-      final tasks = await _proofService.getTasks(_activeSession!['id']);
+      final tasks = await _proofService.getTasks(_activeSession!.id);
       if (mounted) setState(() => _tasks = tasks);
     }
     _streak = await _streakService.computeStreak(widget.childId);
@@ -68,9 +67,9 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
 
   Future<void> _requestBreak() async {
     if (_activeSession == null) return;
-    await _breakService.requestBreak(_activeSession!['id'], widget.childId);
+    await _breakService.requestBreak(_activeSession!.id, widget.childId);
     await _notificationService.insertNotification(
-      parentId: _activeSession!['parent_id'] as String,
+      parentId: _activeSession!.parentId,
       childId: widget.childId,
       type: 'break_requested',
       title: 'Break requested',
@@ -89,10 +88,8 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
     await _checkActive();
   }
 
-  int get _tasksRemaining =>
-      _tasks.where((t) => t['status'] == 'pending').length;
-  int get _tasksSubmitted =>
-      _tasks.where((t) => t['status'] == 'submitted').length;
+  int get _tasksRemaining => _tasks.where((t) => t.isPending).length;
+  int get _tasksSubmitted => _tasks.where((t) => t.isSubmitted).length;
   bool get _allDone => _tasks.isNotEmpty && _tasksRemaining == 0;
 
   @override
@@ -178,11 +175,11 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                       ),
                     ),
                   SessionTimer(
-                    sessionStart: DateTime.parse(_activeSession!['started_at']),
-                    durationMinutes: _activeSession!['min_lock_minutes'] ?? 60,
-                    minUnlockMinutes: _activeSession!['min_lock_minutes'],
-                    autoLiftMinutes: _activeSession!['max_lift_minutes'],
-                    paused: _activeSession!['status'] == 'paused',
+                    sessionStart: _activeSession!.startedAt,
+                    durationMinutes: _activeSession!.minLockMinutes,
+                    minUnlockMinutes: _activeSession!.minLockMinutes,
+                    autoLiftMinutes: _activeSession!.maxLiftMinutes,
+                    paused: _activeSession!.isPaused,
                   ),
                   const SizedBox(height: 16),
                   Card(
@@ -220,7 +217,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => TaskEntryScreen(
-                                    sessionId: _activeSession!['id'],
+                                    sessionId: _activeSession!.id,
                                     childName: widget.childName,
                                   ),
                                 ),
@@ -232,7 +229,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                             const SizedBox(height: 8),
                             ...(_tasks.map(
                               (t) => Dismissible(
-                                key: Key(t['id']),
+                                key: Key(t.id),
                                 direction: DismissDirection.endToStart,
                                 background: Container(
                                   alignment: Alignment.centerRight,
@@ -246,34 +243,34 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                                     color: Colors.white,
                                   ),
                                 ),
-                                onDismissed: (_) => _deleteTask(t['id']),
+                                onDismissed: (_) => _deleteTask(t.id),
                                 child: Card(
                                   margin: const EdgeInsets.only(bottom: 4),
                                   child: ListTile(
                                     dense: true,
                                     leading: Icon(
-                                      t['status'] != 'pending'
+                                      t.status != 'pending'
                                           ? Icons.check_circle
                                           : Icons.radio_button_unchecked,
-                                      color: t['status'] != 'pending'
+                                      color: t.status != 'pending'
                                           ? AppColors.success
                                           : AppColors.accent,
                                       size: 20,
                                     ),
                                     title: Text(
-                                      t['description'] ?? '',
+                                      t.description,
                                       style: const TextStyle(
                                         color: AppColors.textPrimary,
                                       ),
                                     ),
-                                    trailing: t['status'] == 'pending'
+                                    trailing: t.status == 'pending'
                                         ? TextButton(
                                             onPressed: () => Navigator.push(
                                               context,
                                               MaterialPageRoute(
                                                 builder: (_) => TaskEntryScreen(
                                                   sessionId:
-                                                      _activeSession!['id'],
+                                                      _activeSession!.id,
                                                   childName: widget.childName,
                                                 ),
                                               ),
@@ -303,7 +300,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => TaskEntryScreen(
-                            sessionId: _activeSession!['id'],
+                            sessionId: _activeSession!.id,
                             childName: widget.childName,
                           ),
                         ),

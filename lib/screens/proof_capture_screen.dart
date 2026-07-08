@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/proof_service.dart';
 import '../services/notification_service.dart';
+import '../services/session_service.dart';
+import '../models/models.dart';
 import '../theme/app_theme.dart';
 
 class ProofCaptureScreen extends StatefulWidget {
@@ -65,14 +67,12 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
           .select('session_id')
           .eq('id', widget.taskId)
           .single();
-      final sessionData = await Supabase.instance.client
-          .from('homework_sessions')
-          .select('parent_id, child_id')
-          .eq('id', taskData['session_id'])
-          .single();
+      final sessionData = await SessionService().getSessionById(
+        taskData['session_id'] as String,
+      );
       await _notificationService.insertNotification(
-        parentId: sessionData['parent_id'] as String,
-        childId: sessionData['child_id'] as String?,
+        parentId: sessionData!.parentId,
+        childId: sessionData!.childId,
         type: 'proof_submitted',
         title:
             'Proof submitted (${urls.length} photo${urls.length > 1 ? 's' : ''})',

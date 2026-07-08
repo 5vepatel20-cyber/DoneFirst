@@ -20,3 +20,8 @@ Thumbs.db
 
 # Secrets
 lib/mistral_config.dart
+
+# Figma
+.figma_token
+figma_mcp_config.json
+figma_simple_import.cjs

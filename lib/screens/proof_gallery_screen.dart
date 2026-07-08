@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/models.dart';
 import '../services/proof_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
@@ -20,7 +21,7 @@ class ProofGalleryScreen extends StatefulWidget {
 class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
   final _sessionService = SessionService();
   final _proofService = ProofService();
-  List<Map<String, dynamic>> _allProofs = [];
+  final List<_ProofWithDate> _allProofs = [];
   bool _loading = true;
 
   @override
@@ -31,18 +32,18 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
 
   Future<void> _load() async {
     final sessions = await _sessionService.getHistory(widget.childId);
-    final allProofs = <Map<String, dynamic>>[];
+    final allProofs = <_ProofWithDate>[];
     for (final s in sessions) {
-      final proofs = await _proofService.getProofsForSession(s['id'] as String);
+      final proofs = await _proofService.getProofsForSession(s.id);
+      final date = s.startedAt.toIso8601String().substring(0, 10);
       for (final p in proofs) {
-        p['session_date'] =
-            (s['started_at'] as String?)?.substring(0, 10) ?? '';
-        allProofs.add(p);
+        allProofs.add(_ProofWithDate(p, date));
       }
     }
     if (mounted)
       setState(() {
-        _allProofs = allProofs;
+        _allProofs.clear();
+        _allProofs.addAll(allProofs);
         _loading = false;
       });
   }
@@ -96,26 +97,17 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                   mainAxisSpacing: 4,
                 ),
                 itemCount: _allProofs.length,
-                itemBuilder: (ctx, i) {
-                  final p = _allProofs[i];
-                  final imageUrl = p['image_url'] as String? ?? '';
-                  final imageUrls =
-                      (p['image_urls'] as List<dynamic>?)
-                          ?.map((e) => e.toString())
-                          .toList() ??
-                      [];
-                  final aiDecision = p['ai_decision'] as String? ?? 'pending';
-                  final parentDecision =
-                      p['parent_decision'] as String? ?? 'pending';
-                  final taskDesc = p['task_description'] as String? ?? '';
-                  final allUrls = imageUrls.isNotEmpty ? imageUrls : [imageUrl];
+                  itemBuilder: (ctx, i) {
+                  final pw = _allProofs[i];
+                  final p = pw.proof;
+                  final allUrls = p.imageUrls.isNotEmpty ? p.imageUrls : [p.imageUrl];
                   final photoCount = allUrls.length;
 
-                  final borderColor = parentDecision == 'approved'
+                  final borderColor = p.isApproved
                       ? AppColors.success
-                      : parentDecision == 'rejected'
+                      : p.isRejected
                       ? AppColors.danger
-                      : aiDecision == 'approved'
+                      : p.aiDecision == 'approved'
                       ? AppColors.info
                       : AppColors.accent;
 
@@ -125,7 +117,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                       MaterialPageRoute(
                         builder: (_) => ProofImageViewer(
                           imageUrl: allUrls.first,
-                          taskDescription: taskDesc,
+                          taskDescription: p.taskDescription ?? '',
                           aiResult: p,
                         ),
                       ),
@@ -162,7 +154,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    p['session_date'] as String? ?? '',
+                                    pw.date,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 9,
@@ -180,7 +172,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                               ),
                             ),
                           ),
-                          if (parentDecision == 'approved')
+                          if (p.isApproved)
                             const Positioned(
                               top: 2,
                               right: 2,
@@ -190,7 +182,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                                 size: 16,
                               ),
                             ),
-                          if (parentDecision == 'rejected')
+                          if (p.isRejected)
                             const Positioned(
                               top: 2,
                               right: 2,
@@ -209,4 +201,10 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
             ),
     );
   }
+}
+
+class _ProofWithDate {
+  final ProofSubmission proof;
+  final String date;
+  const _ProofWithDate(this.proof, this.date);
 }

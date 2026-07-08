@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../models/models.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/error_banner.dart';
 import 'proof_image_viewer.dart';
 
 class ProofReviewScreen extends StatefulWidget {
@@ -15,9 +17,10 @@ class ProofReviewScreen extends StatefulWidget {
 class _ProofReviewScreenState extends State<ProofReviewScreen> {
   final _sessionService = SessionService();
   final _proofService = ProofService();
-  List<Map<String, dynamic>> _allSessions = [];
-  List<Map<String, dynamic>> _filteredSessions = [];
+  List<HomeworkSession> _allSessions = [];
+  List<HomeworkSession> _filteredSessions = [];
   bool _loading = true;
+  String? _error;
 
   DateTimeRange? _dateRange;
   final _searchController = TextEditingController();
@@ -35,9 +38,13 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    _allSessions = await _sessionService.getHistory(widget.childId);
-    _applyFilters();
+    setState(() { _loading = true; _error = null; });
+    try {
+      _allSessions = await _sessionService.getHistory(widget.childId);
+      _applyFilters();
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+    }
     setState(() => _loading = false);
   }
 
@@ -45,23 +52,17 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
     var filtered = _allSessions;
     if (_dateRange != null) {
       filtered = filtered.where((s) {
-        final started = s['started_at']?.toString() ?? '';
-        if (started.length < 10) return false;
-        final dateStr = started.substring(0, 10);
-        final date = DateTime.tryParse(dateStr);
-        if (date == null) return false;
-        return date.isAfter(
+        return s.startedAt.isAfter(
               _dateRange!.start.subtract(const Duration(days: 1)),
             ) &&
-            date.isBefore(_dateRange!.end.add(const Duration(days: 1)));
+            s.startedAt.isBefore(_dateRange!.end.add(const Duration(days: 1)));
       }).toList();
     }
     final query = _searchController.text.trim().toLowerCase();
     if (query.isNotEmpty) {
-      filtered = filtered.where((s) {
-        final status = (s['status'] as String? ?? '').toLowerCase();
-        return status.contains(query);
-      }).toList();
+      filtered = filtered
+          .where((s) => s.status.toLowerCase().contains(query))
+          .toList();
     }
     setState(() => _filteredSessions = filtered);
   }
@@ -101,6 +102,8 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? RetryWidget(message: _error!, onRetry: _load)
           : Column(
               children: [
                 Padding(
@@ -186,11 +189,8 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                           itemCount: _filteredSessions.length,
                           itemBuilder: (ctx, i) {
                             final s = _filteredSessions[i];
-                            final status = s['status'] ?? 'unknown';
-                            final started = s['started_at']?.toString() ?? '';
-                            final date = started.length >= 10
-                                ? started.substring(0, 10)
-                                : started;
+                            final date = s.startedAt.toIso8601String()
+                                .substring(0, 10);
                             return Card(
                               margin: const EdgeInsets.only(bottom: 8),
                               child: ListTile(
@@ -198,36 +198,35 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
                                     color:
-                                        (status == 'completed'
+                                        (s.isCompleted
                                                 ? AppColors.success
                                                 : AppColors.accent)
                                             .withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Icon(
-                                    status == 'completed'
+                                    s.isCompleted
                                         ? Icons.check_circle
                                         : Icons.play_circle,
-                                    color: status == 'completed'
+                                    color: s.isCompleted
                                         ? AppColors.success
                                         : AppColors.accent,
                                   ),
                                 ),
                                 title: Text(
-                                  '$status — $date',
+                                  '${s.status} — $date',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
                                 subtitle: Text(
-                                  'Min: ${s['min_lock_minutes']}m | ${s['approval_mode']}',
+                                  'Min: ${s.minLockMinutes}m | ${s.approvalMode}',
                                 ),
                                 trailing: const Icon(
                                   Icons.arrow_forward_ios,
                                   size: 16,
                                 ),
-                                onTap: () =>
-                                    _showSessionProofs(s['id'] as String),
+                                onTap: () => _showSessionProofs(s.id),
                               ),
                             );
                           },
@@ -253,23 +252,20 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                   itemCount: proofs.length,
                   itemBuilder: (ctx, i) {
                     final p = proofs[i];
-                    final imageUrl = p['image_url'] as String? ?? '';
-                    final aiDecision = p['ai_decision'] ?? 'pending';
-                    final parentDecision = p['parent_decision'] ?? 'pending';
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (imageUrl.isNotEmpty)
+                          if (p.imageUrl.isNotEmpty)
                             GestureDetector(
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => ProofImageViewer(
-                                    imageUrl: imageUrl,
+                                    imageUrl: p.imageUrl,
                                     taskDescription:
-                                        p['task_description'] as String? ?? '',
+                                        p.taskDescription ?? '',
                                     aiResult: p,
                                   ),
                                 ),
@@ -279,7 +275,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                   top: Radius.circular(8),
                                 ),
                                 child: Image.network(
-                                  imageUrl,
+                                  p.imageUrl,
                                   height: 180,
                                   width: double.infinity,
                                   fit: BoxFit.cover,
@@ -292,7 +288,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  p['task_description'] as String? ?? '',
+                                  p.taskDescription ?? '',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -301,38 +297,36 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                 Row(
                                   children: [
                                     _smallBadge(
-                                      'AI: $aiDecision',
-                                      aiDecision == 'approved'
+                                      'AI: ${p.aiDecision ?? "pending"}',
+                                      p.aiDecision == 'approved'
                                           ? AppColors.success
-                                          : aiDecision == 'rejected'
+                                          : p.aiDecision == 'rejected'
                                           ? AppColors.danger
                                           : AppColors.accent,
                                     ),
                                     const SizedBox(width: 8),
                                     _smallBadge(
-                                      'Parent: $parentDecision',
-                                      parentDecision == 'approved'
+                                      'Parent: ${p.parentDecision}',
+                                      p.isApproved
                                           ? AppColors.success
-                                          : parentDecision == 'rejected'
+                                          : p.isRejected
                                           ? AppColors.danger
                                           : AppColors.textSecondary,
                                     ),
                                   ],
                                 ),
-                                if (p['ai_reason'] != null &&
-                                    (p['ai_reason'] as String).isNotEmpty)
+                                if (p.aiReason != null && p.aiReason!.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Text(
-                                      p['ai_reason'],
+                                      p.aiReason!,
                                       style: const TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 12,
                                       ),
                                     ),
                                   ),
-                                if (p['parent_note'] != null &&
-                                    (p['parent_note'] as String).isNotEmpty)
+                                if (p.parentNote != null && p.parentNote!.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Row(
@@ -345,7 +339,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                         const SizedBox(width: 4),
                                         Expanded(
                                           child: Text(
-                                            p['parent_note'],
+                                            p.parentNote!,
                                             style: const TextStyle(
                                               color: AppColors.textPrimary,
                                               fontSize: 11,

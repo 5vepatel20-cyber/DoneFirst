@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../services/notification_service.dart';
@@ -30,7 +31,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   final _sessionService = SessionService();
   final _notificationService = NotificationService();
   final _scheduleService = ScheduleService();
-  List<Map<String, dynamic>> _children = [];
+  List<Child> _children = [];
   final Map<String, bool> _activeLocks = {};
   bool _loading = true;
   int _monthlySessionCount = 0;
@@ -38,7 +39,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   int _totalSessions = 0;
   int _totalMinutes = 0;
   int _totalApproved = 0;
-  List<Map<String, dynamic>> _todaySchedules = [];
+  List<RecurringSchedule> _todaySchedules = [];
 
   @override
   void initState() {
@@ -89,11 +90,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
         }
       }
 
-      for (final child in children) {
-        final sessions = await _sessionService.getActiveSession(
-          child['id'] as String,
+      for (final child in _children) {
+        final session = await _sessionService.getActiveSession(
+          child.id,
         );
-        _activeLocks[child['id'] as String] = sessions.isNotEmpty;
+        _activeLocks[child.id] = session != null;
       }
     } catch (_) {}
     setState(() => _loading = false);
@@ -129,9 +130,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
     }
   }
 
-  Future<void> _editChild(Map<String, dynamic> child) async {
+  Future<void> _editChild(Child child) async {
     final controller = TextEditingController(
-      text: child['name'] as String? ?? '',
+      text: child.name,
     );
     final name = await showDialog<String>(
       context: context,
@@ -155,18 +156,18 @@ class _ParentDashboardState extends State<ParentDashboard> {
       ),
     );
     if (name != null && name.isNotEmpty) {
-      await _sessionService.renameChild(child['id'], name);
+      await _sessionService.renameChild(child.id, name);
       await _loadAll();
     }
   }
 
-  Future<void> _deleteChild(Map<String, dynamic> child) async {
+  Future<void> _deleteChild(Child child) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Child?'),
         content: Text(
-          'All data for "${child['name']}" will be permanently removed.',
+          'All data for "${child.name}" will be permanently removed.',
         ),
         actions: [
           TextButton(
@@ -182,7 +183,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
       ),
     );
     if (confirm == true) {
-      await _sessionService.deleteChild(child['id']);
+      await _sessionService.deleteChild(child.id);
       await _loadAll();
     }
   }
@@ -413,12 +414,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             const SizedBox(height: 8),
                             ..._todaySchedules.map((s) {
                               final child = _children.firstWhere(
-                                (c) => c['id'] == s['child_id'],
-                                orElse: () => {'name': 'Child'},
+                                (c) => c.id == s.childId,
+                                orElse: () => const Child(id: '', name: 'Child'),
                               );
-                              final childName =
-                                  child['name'] as String? ?? 'Child';
-                              final childId = s['child_id'] as String;
+                              final childName = child.name;
+                              final childId = s.childId;
                               final hasActive = _activeLocks[childId] ?? false;
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 4),
@@ -426,7 +426,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        '$childName - ${s['duration_minutes']}m',
+                                        '$childName - ${s.durationMinutes}m',
                                         style: const TextStyle(fontSize: 13),
                                       ),
                                     ),
@@ -478,9 +478,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
     );
   }
 
-  Widget _buildChildCard(Map<String, dynamic> child) {
-    final childId = child['id'] as String;
-    final childName = child['name'] as String? ?? 'Child';
+  Widget _buildChildCard(Child child) {
+    final childId = child.id;
+    final childName = child.name;
     final hasActiveLock = _activeLocks[childId] ?? false;
 
     return Card(
@@ -605,14 +605,14 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   child: hasActiveLock
                       ? FilledButton.icon(
                           onPressed: () async {
-                            final sessions = await _sessionService
+                            final session = await _sessionService
                                 .getActiveSession(childId);
-                            if (sessions.isNotEmpty && mounted) {
+                            if (session != null && mounted) {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => LockActiveScreen(
-                                    sessionId: sessions.first['id'] as String,
+                                    sessionId: session.id,
                                     childName: childName,
                                   ),
                                 ),
@@ -699,7 +699,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => KidProfileScreen(child: child),
+                      builder: (_) => KidProfileScreen(child: child.toMap()),
                     ),
                   ),
                   icon: const Icon(Icons.face, size: 18),

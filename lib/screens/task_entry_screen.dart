@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/proof_service.dart';
 import '../theme/app_theme.dart';
+import '../models/models.dart';
 import 'proof_capture_screen.dart';
 
 class TaskEntryScreen extends StatefulWidget {
@@ -20,7 +21,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
   final _proofService = ProofService();
   final _controller = TextEditingController();
   String _selectedSubject = 'General';
-  List<Map<String, dynamic>> _tasks = [];
+  List<HomeworkTask> _tasks = [];
 
   static const List<String> subjects = [
     'General',
@@ -66,7 +67,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
     // Delete old proof if exists
     final oldProof = await _proofService.getLatestProof(taskId);
     if (oldProof != null) {
-      await _proofService.deleteProof(oldProof['id']);
+      await _proofService.deleteProof(oldProof!.id);
     }
     // Reset task status to pending
     await _proofService.deleteTask(taskId);
@@ -169,11 +170,11 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                     itemCount: _tasks.length,
                     itemBuilder: (ctx, i) {
                       final task = _tasks[i];
-                      final taskId = task['id'] as String;
-                      final description = task['description'] as String? ?? '';
-                      final subject = task['subject'] as String? ?? 'General';
-                      final isDone = task['status'] != 'pending';
-                      final taskStatus = task['status'] as String? ?? 'pending';
+                      final taskId = task.id;
+                      final description = task.description;
+                      final subject = task.subject;
+                      final isDone = task.status != 'pending';
+                      final taskStatus = task.status;
 
                       return Dismissible(
                         key: Key(taskId),

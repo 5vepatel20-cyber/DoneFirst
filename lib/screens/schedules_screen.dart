@@ -3,6 +3,11 @@ import '../services/schedule_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import 'lock_config_screen.dart';
+import '../models/models.dart';
+
+const List<String> weekdayNames = [
+  'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+];
 
 class SchedulesScreen extends StatefulWidget {
   final String childId;
@@ -20,9 +25,9 @@ class SchedulesScreen extends StatefulWidget {
 class _SchedulesScreenState extends State<SchedulesScreen> {
   final _scheduleService = ScheduleService();
   final _sessionService = SessionService();
-  List<Map<String, dynamic>> _schedules = [];
+  List<RecurringSchedule> _schedules = [];
   bool _loading = true;
-  int? _activeSessionId;
+  String? _activeSessionId;
 
   @override
   void initState() {
@@ -36,7 +41,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
     if (mounted)
       setState(() {
         _schedules = schedules;
-        _activeSessionId = active.isNotEmpty ? active.first['id'] : null;
+        _activeSessionId = active?.id;
         _loading = false;
       });
   }
@@ -187,9 +192,9 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
               itemCount: _schedules.length,
               itemBuilder: (ctx, i) {
                 final s = _schedules[i];
-                final day = s['day_of_week'] as int? ?? 1;
-                final dur = s['duration_minutes'] as int? ?? 60;
-                final mode = s['approval_mode'] as String? ?? 'balanced';
+                final day = s.dayOfWeek;
+                final dur = s.durationMinutes;
+                final mode = s.approvalMode;
                 final isToday = day == DateTime.now().weekday;
 
                 return Card(
@@ -246,7 +251,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                             color: AppColors.danger,
                           ),
                           onPressed: () async {
-                            await _scheduleService.removeSchedule(s['id']);
+                            await _scheduleService.deleteSchedule(s.id);
                             await _load();
                           },
                         ),

@@ -1,20 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/models.dart';
 
 class BreakService {
   final _supabase = Supabase.instance.client;
 
-  Future<Map<String, dynamic>> requestBreak(
-    String sessionId,
-    String childId,
-  ) async {
-    final existing = await _supabase
-        .from('break_requests')
-        .select()
-        .eq('session_id', sessionId)
-        .eq('status', 'pending')
-        .maybeSingle();
-    if (existing != null) return existing;
-
+  Future<BreakRequest> requestBreak(String sessionId, String childId) async {
     final response = await _supabase
         .from('break_requests')
         .insert({
@@ -24,26 +14,48 @@ class BreakService {
         })
         .select()
         .single();
-    return response;
+    return BreakRequest.fromMap(response);
   }
 
-  Future<List<Map<String, dynamic>>> getPendingBreaks(String sessionId) async {
+  Future<List<BreakRequest>> getPendingRequests(String childId) async {
+    final response = await _supabase
+        .from('break_requests')
+        .select()
+        .eq('child_id', childId)
+        .eq('status', 'pending')
+        .order('created_at', ascending: false);
+    return response.map((m) => BreakRequest.fromMap(m)).toList();
+  }
+
+  Future<List<BreakRequest>> getPendingBreaks(String sessionId) async {
     final response = await _supabase
         .from('break_requests')
         .select()
         .eq('session_id', sessionId)
         .eq('status', 'pending')
-        .order('created_at');
-    return response;
+        .order('created_at', ascending: false);
+    return response.map((m) => BreakRequest.fromMap(m)).toList();
   }
 
-  Future<void> respondToBreak(String breakId, String decision) async {
+  Future<void> respondToBreak(String requestId, String decision) async {
+    if (decision == 'approved') {
+      await approveBreak(requestId);
+    } else {
+      await denyBreak(requestId);
+    }
+  }
+
+  Future<void> approveBreak(String requestId) async {
     await _supabase
         .from('break_requests')
-        .update({
-          'status': decision,
-          'responded_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', breakId);
+        .update({'status': 'approved'})
+        .eq('id', requestId);
+  }
+
+  Future<void> denyBreak(String requestId) async {
+    await _supabase
+        .from('break_requests')
+        .update({'status': 'denied'})
+        .eq('id', requestId);
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
+import '../models/models.dart';
 
 class NotificationCenterScreen extends StatefulWidget {
   const NotificationCenterScreen({super.key});
@@ -13,7 +14,7 @@ class NotificationCenterScreen extends StatefulWidget {
 
 class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   final _notificationService = NotificationService();
-  List<Map<String, dynamic>> _notifications = [];
+  List<AppNotification> _notifications = [];
   bool _loading = true;
 
   @override
@@ -78,7 +79,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
-          if (_notifications.any((n) => n['read'] == false))
+          if (_notifications.any((n) => !n.read))
             TextButton(
               onPressed: _markAllRead,
               child: const Text('Mark all read'),
@@ -98,10 +99,10 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
               itemCount: _notifications.length,
               itemBuilder: (ctx, i) {
                 final n = _notifications[i];
-                final type = n['type'] as String? ?? '';
-                final isRead = n['read'] == true;
+                final type = n.type;
+                final isRead = n.read;
                 return Dismissible(
-                  key: Key(n['id']),
+                  key: Key(n.id),
                   direction: DismissDirection.endToStart,
                   background: Container(
                     alignment: Alignment.centerRight,
@@ -130,7 +131,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                         ),
                       ),
                       title: Text(
-                        n['title'] ?? '',
+                        n.title,
                         style: TextStyle(
                           fontWeight: isRead
                               ? FontWeight.normal
@@ -138,9 +139,9 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      subtitle: n['body'] != null
+                      subtitle: n.body != null
                           ? Text(
-                              n['body'],
+                              n.body!,
                               style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,
@@ -157,7 +158,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                                 shape: BoxShape.circle,
                               ),
                             ),
-                      onTap: () => _markRead(n['id']),
+                      onTap: () => _markRead(n.id),
                     ),
                   ),
                 );

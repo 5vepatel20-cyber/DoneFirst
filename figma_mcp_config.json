@@ -1,0 +1,57 @@
+{
+  "_comment": "Figma MCP Configuration - Choose your client below",
+
+  "cursor": {
+    "mcpServers": {
+      "figma": {
+        "url": "https://mcp.figma.com/mcp",
+        "env": {
+          "FIGMA_API_KEY": "<YOUR_FIGMA_API_KEY>"
+        }
+      }
+    }
+  },
+
+  "claude_code": {
+    "mcpServers": {
+      "figma": {
+        "command": "npx",
+        "args": ["-y", "@anthropic-ai/claude-code", "mcp", "add", "figma", "--url", "https://mcp.figma.com/mcp", "--env", "FIGMA_API_KEY=<YOUR_FIGMA_API_KEY>"]
+      }
+    }
+  },
+
+  "windsurf": {
+    "mcpServers": {
+      "figma": {
+        "url": "https://mcp.figma.com/mcp",
+        "env": {
+          "FIGMA_API_KEY": "<YOUR_FIGMA_API_KEY>"
+        }
+      }
+    }
+  },
+
+  "gemini_cli": {
+    "mcpServers": {
+      "figma": {
+        "command": "npx",
+        "args": ["-y", "@anthropic-ai/claude-code", "mcp", "add", "figma", "--url", "https://mcp.figma.com/mcp"],
+        "env": {
+          "FIGMA_API_KEY": "<YOUR_FIGMA_API_KEY>"
+        }
+      }
+    }
+  },
+
+  "zed": {
+    "mcp_servers": {
+      "figma": {
+        "url": "https://mcp.figma.com/mcp",
+        "env": {
+          "FIGMA_API_KEY": "<YOUR_FIGMA_API_KEY>"
+        }
+      }
+    }
+  }
+}

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../models/models.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/error_banner.dart';
 import 'proof_image_viewer.dart';
 
 class KidHistoryScreen extends StatefulWidget {
@@ -21,8 +23,9 @@ class KidHistoryScreen extends StatefulWidget {
 class _KidHistoryScreenState extends State<KidHistoryScreen> {
   final _sessionService = SessionService();
   final _proofService = ProofService();
-  List<Map<String, dynamic>> _sessions = [];
+  List<HomeworkSession> _sessions = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -31,24 +34,19 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    _sessions = await _sessionService.getHistory(widget.childId);
+    setState(() { _loading = true; _error = null; });
+    try {
+      _sessions = await _sessionService.getHistory(widget.childId);
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+    }
     if (mounted) setState(() => _loading = false);
   }
 
-  String _formatDuration(String? startedAt, String? endedAt) {
-    if (startedAt == null) return '--';
-    final start = DateTime.tryParse(startedAt);
-    if (start == null) return '--';
-    if (endedAt == null) {
-      final diff = DateTime.now().difference(start);
-      final h = diff.inHours;
-      final m = diff.inMinutes % 60;
-      return h > 0 ? '${h}h ${m}m ago' : '${m}m ago';
-    }
-    final end = DateTime.tryParse(endedAt);
-    if (end == null) return '--';
-    final diff = end.difference(start);
+  String _formatDuration(HomeworkSession s) {
+    final diff = s.endedAt != null
+        ? s.endedAt!.difference(s.startedAt)
+        : DateTime.now().difference(s.startedAt);
     final h = diff.inHours;
     final m = diff.inMinutes % 60;
     return h > 0 ? '${h}h ${m}m' : '${m}m';
@@ -60,6 +58,8 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
       appBar: AppBar(title: Text('${widget.childName}\'s History')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? RetryWidget(message: _error!, onRetry: _load)
           : _sessions.isEmpty
           ? const EmptyState(
               icon: Icons.history,
@@ -71,15 +71,11 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
               itemCount: _sessions.length,
               itemBuilder: (ctx, i) {
                 final s = _sessions[i];
-                final status = s['status'] ?? 'unknown';
-                final started = s['started_at']?.toString() ?? '';
+                final started = s.startedAt.toIso8601String();
                 final date = started.length >= 10
                     ? started.substring(0, 10)
                     : started;
-                final duration = _formatDuration(
-                  s['started_at']?.toString(),
-                  s['ended_at']?.toString(),
-                );
+                final duration = _formatDuration(s);
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -88,21 +84,21 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color:
-                            (status == 'completed'
+                            (s.isCompleted
                                     ? AppColors.success
                                     : AppColors.accent)
                                 .withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
-                        status == 'completed'
+                        s.isCompleted
                             ? Icons.check_circle
-                            : status == 'active'
+                            : s.isActive
                             ? Icons.play_circle
                             : Icons.cancel,
-                        color: status == 'completed'
+                        color: s.isCompleted
                             ? AppColors.success
-                            : status == 'active'
+                            : s.isActive
                             ? AppColors.accent
                             : AppColors.textSecondary,
                       ),
@@ -112,11 +108,11 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                       style: const TextStyle(fontWeight: FontWeight.w500),
                     ),
                     subtitle: Text(
-                      '$duration - $status',
+                      '$duration - ${s.status}',
                       style: const TextStyle(fontSize: 12),
                     ),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () => _showProofs(s['id'] as String),
+                    onTap: () => _showProofs(s.id),
                   ),
                 );
               },
@@ -139,22 +135,20 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                   itemCount: proofs.length,
                   itemBuilder: (ctx, i) {
                     final p = proofs[i];
-                    final imageUrl = p['image_url'] as String? ?? '';
-                    final aiDecision = p['ai_decision'] ?? 'pending';
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (imageUrl.isNotEmpty)
+                          if (p.imageUrl.isNotEmpty)
                             GestureDetector(
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => ProofImageViewer(
-                                    imageUrl: imageUrl,
+                                    imageUrl: p.imageUrl,
                                     taskDescription:
-                                        p['task_description'] as String? ?? '',
+                                        p.taskDescription ?? '',
                                     aiResult: p,
                                   ),
                                 ),
@@ -164,7 +158,7 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                                   top: Radius.circular(8),
                                 ),
                                 child: Image.network(
-                                  imageUrl,
+                                  p.imageUrl,
                                   height: 180,
                                   width: double.infinity,
                                   fit: BoxFit.cover,
@@ -177,7 +171,7 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  p['task_description'] as String? ?? '',
+                                  p.taskDescription ?? '',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -190,24 +184,24 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color:
-                                        (aiDecision == 'approved'
+                                        (p.aiDecision == 'approved'
                                                 ? AppColors.success
-                                                : aiDecision == 'rejected'
+                                                : p.aiDecision == 'rejected'
                                                 ? AppColors.danger
                                                 : AppColors.accent)
                                             .withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    aiDecision == 'approved'
+                                    p.isApproved
                                         ? 'Approved'
-                                        : aiDecision == 'rejected'
+                                        : p.isRejected
                                         ? 'Rejected'
                                         : 'Waiting for parent',
                                     style: TextStyle(
-                                      color: aiDecision == 'approved'
+                                      color: p.isApproved
                                           ? AppColors.success
-                                          : aiDecision == 'rejected'
+                                          : p.isRejected
                                           ? AppColors.danger
                                           : AppColors.accent,
                                       fontSize: 12,

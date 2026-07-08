@@ -5,6 +5,7 @@ import '../services/lock_preset_service.dart';
 import '../theme/app_theme.dart';
 import '../models/app_pack.dart';
 import 'lock_active_screen.dart';
+import '../models/models.dart';
 
 class LockConfigScreen extends StatefulWidget {
   final String childId;
@@ -27,7 +28,7 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
   int _maxLift = 120;
   String _approvalMode = 'balanced';
   final Set<String> _selectedPacks = {};
-  List<Map<String, dynamic>> _presets = [];
+  List<LockPreset> _presets = [];
   bool _loadingPresets = false;
 
   @override
@@ -71,7 +72,7 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
       ),
     );
     if (name != null && name.isNotEmpty) {
-      await _presetService.savePreset(
+      await _presetService.createPreset(
         name: name,
         minLockMinutes: _minLock,
         maxLiftMinutes: _maxLift,
@@ -87,15 +88,14 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
     }
   }
 
-  Future<void> _loadPreset(Map<String, dynamic> preset) async {
+  Future<void> _loadPreset(LockPreset preset) async {
     setState(() {
-      _minLock = preset['min_lock_minutes'] as int? ?? 60;
-      _maxLift = preset['max_lift_minutes'] as int? ?? 120;
-      _approvalMode = preset['approval_mode'] as String? ?? 'balanced';
+      _minLock = preset.minLockMinutes;
+      _maxLift = preset.maxLiftMinutes;
+      _approvalMode = preset.approvalMode;
       _selectedPacks.clear();
-      final packs = preset['selected_packs'] as List<dynamic>? ?? [];
-      for (final p in packs) {
-        _selectedPacks.add(p.toString());
+      for (final p in preset.selectedPacks) {
+        _selectedPacks.add(p);
       }
     });
   }
@@ -192,10 +192,10 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
                 itemBuilder: (ctx, i) {
                   final p = _presets[i];
                   return InputChip(
-                    label: Text(p['name'] ?? ''),
+                    label: Text(p.name),
                     onPressed: () => _loadPreset(p),
                     deleteIcon: const Icon(Icons.close, size: 16),
-                    onDeleted: () => _deletePreset(p['id']),
+                    onDeleted: () => _deletePreset(p.id),
                   );
                 },
               ),
@@ -291,7 +291,7 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
         context,
         MaterialPageRoute(
           builder: (_) => LockActiveScreen(
-            sessionId: session['id'],
+            sessionId: session.id,
             childName: widget.childName,
           ),
         ),

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../models/models.dart';
 
 class ProofImageViewer extends StatefulWidget {
   final String imageUrl;
   final String taskDescription;
-  final Map<String, dynamic>? aiResult;
+  final ProofSubmission? aiResult;
 
   const ProofImageViewer({
     super.key,
@@ -36,11 +37,9 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
   List<String> get _allUrls {
     final urls = <String>[];
     if (widget.imageUrl.isNotEmpty) urls.add(widget.imageUrl);
-    final imageUrls = widget.aiResult?['image_urls'] as List<dynamic>?;
-    if (imageUrls != null) {
-      for (final u in imageUrls) {
-        final s = u.toString();
-        if (!urls.contains(s)) urls.add(s);
+    if (widget.aiResult != null) {
+      for (final u in widget.aiResult!.imageUrls) {
+        if (!urls.contains(u)) urls.add(u);
       }
     }
     return urls;
@@ -48,11 +47,11 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final decision = widget.aiResult?['decision'] ?? 'pending';
-    final parentDecision = widget.aiResult?['parent_decision'] ?? 'pending';
-    final confidence = widget.aiResult?['confidence'] ?? 0.0;
-    final reason = widget.aiResult?['reason'] ?? '';
-    final parentNote = widget.aiResult?['parent_note'] as String? ?? '';
+    final decision = widget.aiResult?.aiDecision ?? 'pending';
+    final parentDecision = widget.aiResult?.parentDecision ?? 'pending';
+    final confidence = widget.aiResult?.aiConfidence ?? 0.0;
+    final reason = widget.aiResult?.aiReason ?? '';
+    final parentNote = widget.aiResult?.parentNote ?? '';
     final allUrls = _allUrls;
 
     return Scaffold(
