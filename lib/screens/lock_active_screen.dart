@@ -201,14 +201,42 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.childName} — Lock Active'),
-        actions: [
-          TextButton(onPressed: _unlock, child: const Text('Unlock Early')),
-        ],
-      ),
-      body: _loading
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('End Lock?'),
+            content: const Text(
+              'The homework lock is still active. Ending early will unlock all apps.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Stay Locked'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                child: const Text('Unlock Early'),
+              ),
+            ],
+          ),
+        );
+        if (confirm == true) {
+          await _unlock();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('${widget.childName} — Lock Active'),
+          actions: [
+            TextButton(onPressed: _unlock, child: const Text('Unlock Early')),
+          ],
+        ),
+        body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadAll,

@@ -9,6 +9,7 @@ import '../services/streak_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
 import '../widgets/milestone_celebration.dart';
+import '../widgets/session_complete_celebration.dart';
 import '../services/milestone_service.dart';
 import 'task_entry_screen.dart';
 import 'kid_history_screen.dart';
@@ -36,10 +37,13 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   int _previousStreak = 0;
   HomeworkSession? _activeSession;
   List<HomeworkTask> _tasks = [];
+  List<ProofSubmission> _proofs = [];
   bool _loading = true;
   Timer? _refreshTimer;
   bool _breakRequested = false;
   MilestoneInfo? _currentMilestone;
+  bool _showSessionComplete = false;
+  bool _hadActiveSession = false;
   final _milestoneService = MilestoneService();
 
   @override
@@ -59,25 +63,41 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   }
 
   Future<void> _checkActive() async {
-    _activeSession =
+    final newSession =
         await _sessionService.getActiveSession(widget.childId);
     if (!mounted) return;
-    if (_activeSession != null) {
-      final tasks = await _proofService.getTasks(_activeSession!.id);
-      if (mounted) setState(() => _tasks = tasks);
+    if (newSession != null) {
+      final tasks = await _proofService.getTasks(newSession!.id);
+      final proofs = await _proofService.getProofsForSession(newSession!.id);
+      if (mounted) setState(() {
+        _tasks = tasks;
+        _proofs = proofs;
+      });
     }
-    final newStreak = await _streakService.computeStreak(widget.childId);
-    if (newStreak > _previousStreak) {
-      final milestone = _milestoneService.wasMilestoneReached(
-        _previousStreak,
-        newStreak,
-      );
-      if (milestone != null) {
-        setState(() => _currentMilestone = milestone);
+    if (_hadActiveSession && newSession == null && _activeSession != null) {
+      final tasksCompleted = _tasks.where((t) => !t.isPending).length;
+      final newStreak = await _streakService.computeStreak(widget.childId);
+      setState(() {
+        _showSessionComplete = true;
+        _streak = newStreak;
+      });
+      _previousStreak = newStreak;
+    } else {
+      final newStreak = await _streakService.computeStreak(widget.childId);
+      if (newStreak > _previousStreak) {
+        final milestone = _milestoneService.wasMilestoneReached(
+          _previousStreak,
+          newStreak,
+        );
+        if (milestone != null) {
+          setState(() => _currentMilestone = milestone);
+        }
       }
+      _previousStreak = newStreak;
+      _streak = newStreak;
     }
-    _previousStreak = newStreak;
-    _streak = newStreak;
+    _hadActiveSession = newSession != null;
+    _activeSession = newSession;
     _loading = false;
   }
 
@@ -353,6 +373,57 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                       ),
                     ),
                   ],
+                  if (_proofs.any((p) => p.parentNote != null && p.parentNote!.isNotEmpty)) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      color: AppColors.info.withOpacity(0.08),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.feedback, size: 18, color: AppColors.info),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Parent Feedback',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: AppColors.info,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ..._proofs
+                              .where((p) => p.parentNote != null && p.parentNote!.isNotEmpty)
+                              .map((p) => Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      p.isApproved ? Icons.check_circle : Icons.info,
+                                      size: 14,
+                                      color: p.isApproved ? AppColors.success : AppColors.accent,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        p.parentNote!,
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: _breakRequested ? null : _requestBreak,
@@ -382,6 +453,13 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
             MilestoneCelebration(
               milestone: _currentMilestone!,
               onDismiss: () => setState(() => _currentMilestone = null),
+            ),
+          if (_showSessionComplete)
+            SessionCompleteCelebration(
+              childName: widget.childName,
+              tasksCompleted: _tasks.where((t) => !t.isPending).length,
+              streakDays: _streak,
+              onDismiss: () => setState(() => _showSessionComplete = false),
             ),
         ],
       ),
