@@ -154,6 +154,89 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     await _loadAll();
   }
 
+  Future<void> _batchApproveAll({String? note}) async {
+    for (final p in _proofs) {
+      if (p.isPending) {
+        await _proofService.updateParentDecision(
+          p.id,
+          'approved',
+          parentNote: note,
+        );
+      }
+    }
+    if (_session != null) {
+      await _notificationService.insertNotification(
+        parentId: _session!.parentId,
+        childId: _session!.childId,
+        type: 'proof_submitted',
+        title: 'All proofs approved',
+        body: '${widget.childName}\'s homework all approved',
+      );
+    }
+    await _loadAll();
+  }
+
+  Future<void> _batchApproveAllWithNote() async {
+    final controller = TextEditingController();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Note (optional)'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            hintText: 'Great work! ...',
+            labelText: 'Note for your child',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Approve All'),
+          ),
+        ],
+      ),
+    );
+    if (note != null) {
+      await _batchApproveAll(note: note.isEmpty ? null : note);
+    }
+  }
+
+  Future<void> _cancelSession() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel Session?'),
+        content: const Text(
+          'This will cancel the current homework session. '
+          'All apps will be unlocked and progress will be lost.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Go Back'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('Cancel Session'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _blockingService.stopBlocking();
+      await _sessionService.cancelSession(widget.sessionId);
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
   Future<void> _promptDecision(String proofId, String decision) async {
     if (decision == 'approved') {
       await _handleDecision(proofId, decision);
@@ -234,6 +317,11 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
           title: Text('${widget.childName} — Lock Active'),
           actions: [
             TextButton(onPressed: _unlock, child: const Text('Unlock Early')),
+            TextButton(
+              onPressed: _cancelSession,
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              child: const Text('Cancel'),
+            ),
           ],
         ),
         body: _loading
@@ -339,29 +427,18 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: () async {
-                          for (final p in _proofs) {
-                            if (p.isPending) {
-                              await _proofService.updateParentDecision(
-                                p.id,
-                                'approved',
-                              );
-                            }
-                          }
-                          if (_session != null) {
-                            await _notificationService.insertNotification(
-                              parentId: _session!.parentId,
-                              childId: _session!.childId,
-                              type: 'proof_submitted',
-                              title: 'All proofs approved',
-                              body:
-                                  '${widget.childName}\'s homework all approved',
-                            );
-                          }
-                          await _loadAll();
-                        },
+                        onPressed: () => _batchApproveAll(),
                         icon: const Icon(Icons.done_all),
                         label: const Text('Approve All'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _batchApproveAllWithNote(),
+                        icon: const Icon(Icons.note_add, size: 18),
+                        label: const Text('Approve All with Note'),
                       ),
                     ),
                   ],

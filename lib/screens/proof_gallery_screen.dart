@@ -3,6 +3,7 @@ import '../models/models.dart';
 import '../services/proof_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/shimmer_loading.dart';
 import 'proof_image_viewer.dart';
 
 class ProofGalleryScreen extends StatefulWidget {
@@ -53,7 +54,17 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
     return Scaffold(
       appBar: AppBar(title: Text('${widget.childName}\'s Proofs')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Padding(
+              padding: EdgeInsets.all(8),
+              child: GridView(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 4,
+                ),
+                children: List.generate(9, (_) => ShimmerLoading(borderRadius: 4)),
+              ),
+            )
           : _allProofs.isEmpty
           ? Center(
               child: Column(

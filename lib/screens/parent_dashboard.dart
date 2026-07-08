@@ -8,6 +8,7 @@ import '../services/schedule_service.dart';
 import '../services/realtime_service.dart';
 import '../main.dart' as app;
 import '../theme/app_theme.dart';
+import '../widgets/shimmer_loading.dart';
 import 'auth_screen.dart';
 import 'lock_config_screen.dart';
 import 'lock_active_screen.dart';
@@ -294,7 +295,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const DashboardShimmer()
           : _children.isEmpty
           ? Center(
               child: Column(

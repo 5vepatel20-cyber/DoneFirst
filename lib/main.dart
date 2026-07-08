@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'supabase_config.dart';
 import 'services/auth_service.dart';
 import 'services/realtime_service.dart';
@@ -80,7 +81,14 @@ class _EntryPointState extends State<EntryPoint> {
     if (_auth.currentUser != null) {
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
-      Navigator.pushReplacementNamed(context, '/auth');
+      final prefs = await SharedPreferences.getInstance();
+      final onboardingDone = prefs.getBool('onboarding_done') ?? false;
+      if (mounted) {
+        Navigator.pushReplacementNamed(
+          context,
+          onboardingDone ? '/auth' : '/onboarding',
+        );
+      }
     }
     setState(() => _checking = false);
   }

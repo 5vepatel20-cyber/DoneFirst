@@ -8,6 +8,7 @@ import '../services/notification_service.dart';
 import '../services/streak_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
+import '../widgets/shimmer_loading.dart';
 import '../widgets/milestone_celebration.dart';
 import '../widgets/session_complete_celebration.dart';
 import '../services/milestone_service.dart';
@@ -135,6 +136,10 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
       body: Stack(
         children: [
           _loading
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: ShimmerCard(lines: 4),
+                )
           ? const Center(child: CircularProgressIndicator())
           : _activeSession == null
           ? Center(

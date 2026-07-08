@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -163,8 +164,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  void _done(BuildContext context) {
-    Navigator.of(context).pushReplacementNamed('/auth');
+  Future<void> _done(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_done', true);
+    if (context.mounted) {
+      Navigator.of(context).pushReplacementNamed('/auth');
+    }
   }
 }
 
