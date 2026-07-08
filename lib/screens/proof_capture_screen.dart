@@ -36,12 +36,20 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picked = await _picker.pickImage(source: ImageSource.camera);
+    final picked = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 70,
+      maxWidth: 1920,
+    );
     if (picked != null) setState(() => _images.add(File(picked.path)));
   }
 
   Future<void> _pickGallery() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+      maxWidth: 1920,
+    );
     if (picked != null) setState(() => _images.add(File(picked.path)));
   }
 

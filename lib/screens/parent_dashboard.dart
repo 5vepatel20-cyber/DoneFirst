@@ -5,6 +5,8 @@ import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../services/notification_service.dart';
 import '../services/schedule_service.dart';
+import '../services/realtime_service.dart';
+import '../main.dart' as app;
 import '../theme/app_theme.dart';
 import 'auth_screen.dart';
 import 'lock_config_screen.dart';
@@ -45,6 +47,18 @@ class _ParentDashboardState extends State<ParentDashboard> {
   void initState() {
     super.initState();
     _loadAll();
+    app.realtimeService.startListening();
+    app.realtimeService.onNewNotification = () {
+      _notificationService.getUnreadCount().then((count) {
+        if (mounted) setState(() => _unreadNotifications = count);
+      });
+    };
+    app.realtimeService.onNewProof = () {
+      setState(() {});
+    };
+    app.realtimeService.onNewBreakRequest = () {
+      _loadAll();
+    };
   }
 
   Future<void> _loadAll() async {

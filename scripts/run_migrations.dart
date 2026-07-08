@@ -51,3 +51,24 @@ void main() async {
 
   print('\nAll migrations complete!');
 }
+
+List<String> _loadMigrations() {
+  final file = File('${Directory.current.path}/schema_migrations.sql');
+  if (!file.existsSync()) {
+    print('ERROR: schema_migrations.sql not found at ${file.path}');
+    exit(1);
+  }
+  final content = file.readAsStringSync();
+  final statements = <String>[];
+  var current = '';
+  for (final line in content.split('\n')) {
+    if (line.trim().startsWith('--')) continue;
+    current += '$line\n';
+    if (line.trim().endsWith(';')) {
+      statements.add(current.trim());
+      current = '';
+    }
+  }
+  if (current.trim().isNotEmpty) statements.add(current.trim());
+  return statements;
+}

@@ -8,6 +8,8 @@ import '../services/notification_service.dart';
 import '../services/streak_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
+import '../widgets/milestone_celebration.dart';
+import '../services/milestone_service.dart';
 import 'task_entry_screen.dart';
 import 'kid_history_screen.dart';
 
@@ -31,11 +33,14 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   final _notificationService = NotificationService();
   final _streakService = StreakService();
   int _streak = 0;
+  int _previousStreak = 0;
   HomeworkSession? _activeSession;
   List<HomeworkTask> _tasks = [];
   bool _loading = true;
   Timer? _refreshTimer;
   bool _breakRequested = false;
+  MilestoneInfo? _currentMilestone;
+  final _milestoneService = MilestoneService();
 
   @override
   void initState() {
@@ -61,7 +66,18 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
       final tasks = await _proofService.getTasks(_activeSession!.id);
       if (mounted) setState(() => _tasks = tasks);
     }
-    _streak = await _streakService.computeStreak(widget.childId);
+    final newStreak = await _streakService.computeStreak(widget.childId);
+    if (newStreak > _previousStreak) {
+      final milestone = _milestoneService.wasMilestoneReached(
+        _previousStreak,
+        newStreak,
+      );
+      if (milestone != null) {
+        setState(() => _currentMilestone = milestone);
+      }
+    }
+    _previousStreak = newStreak;
+    _streak = newStreak;
     _loading = false;
   }
 
@@ -96,7 +112,9 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Hi, ${widget.childName}')),
-      body: _loading
+      body: Stack(
+        children: [
+          _loading
           ? const Center(child: CircularProgressIndicator())
           : _activeSession == null
           ? Center(
@@ -360,6 +378,13 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                 ],
               ),
             ),
+          if (_currentMilestone != null)
+            MilestoneCelebration(
+              milestone: _currentMilestone!,
+              onDismiss: () => setState(() => _currentMilestone = null),
+            ),
+        ],
+      ),
     );
   }
 }

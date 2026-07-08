@@ -8,6 +8,7 @@ import '../services/break_service.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
+import '../widgets/break_timer.dart';
 import 'proof_image_viewer.dart';
 import '../models/models.dart';
 
@@ -36,6 +37,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   HomeworkSession? _session;
   bool _loading = true;
   bool _paused = false;
+  bool _activeBreakTimer = false;
   Timer? _refreshTimer;
 
   @override
@@ -190,8 +192,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     if (decision == 'approved') {
       await _breakService.approveBreak(breakId);
       await _blockingService.stopBlocking();
-      await Future.delayed(const Duration(minutes: 5));
-      await _blockingService.startBlocking();
+      setState(() => _activeBreakTimer = true);
     } else {
       await _breakService.denyBreak(breakId);
     }
@@ -242,6 +243,21 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                       ),
                     ],
                   ),
+                  if (_activeBreakTimer) ...[
+                    const SizedBox(height: 12),
+                    BreakTimer(
+                      onComplete: () async {
+                        setState(() => _activeBreakTimer = false);
+                        await _blockingService.startBlocking();
+                        await _loadAll();
+                      },
+                      onCancel: () async {
+                        setState(() => _activeBreakTimer = false);
+                        await _blockingService.startBlocking();
+                        await _loadAll();
+                      },
+                    ),
+                  ],
                   if (_breakRequests.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Card(

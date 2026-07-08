@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'supabase_config.dart';
 import 'services/auth_service.dart';
+import 'services/realtime_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_mode.dart';
 import 'screens/onboarding_screen.dart';
@@ -8,6 +9,8 @@ import 'screens/auth_screen.dart';
 import 'screens/parent_dashboard.dart';
 import 'screens/settings_screen.dart';
 import 'screens/upgrade_screen.dart';
+
+final realtimeService = RealtimeService();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
