@@ -186,6 +186,23 @@ CREATE POLICY "Service role inserts usage"
   ON mistral_verification_log FOR INSERT
   WITH CHECK (auth.role() = 'service_role');
 
+-- parental_consent: created by migration 9 in schema_migrations.sql.
+-- Parents can read and write their OWN consent records (parent_id must
+-- match auth.uid() on insert, so they can't fake consent on someone
+-- else's behalf). No UPDATE / DELETE — consent records are an audit
+-- trail and must be immutable.
+ALTER TABLE parental_consent ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Parents can read own consent" ON parental_consent;
+DROP POLICY IF EXISTS "Parents can insert own consent" ON parental_consent;
+
+CREATE POLICY "Parents can read own consent"
+  ON parental_consent FOR SELECT
+  USING (parent_id = auth.uid());
+
+CREATE POLICY "Parents can insert own consent"
+  ON parental_consent FOR INSERT
+  WITH CHECK (parent_id = auth.uid());
+
 -- Storage: proof-photos bucket
 -- Force bucket private; idempotent
 UPDATE storage.buckets SET public = false WHERE name = 'proof-photos';
@@ -221,3 +238,8 @@ WHERE schemaname = 'public'
 
 -- Verifies storage.buckets entry
 SELECT name, public FROM storage.buckets WHERE name = 'proof-photos';
+
+-- Run BEFORE this script:
+--   1. schema_migrations.sql migrations 1–6 (already applied)
+--   2. schema_migrations.sql migration 8 (mistral_verification_log)
+--   3. schema_migrations.sql migration 9 (parental_consent)

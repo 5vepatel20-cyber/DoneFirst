@@ -14,7 +14,8 @@ Status legend: ✅ done · ⚠️ done in code, needs infra apply · ❌ not don
 | # | Action | Status | Where |
 |---|---|---|---|
 | 1.1 | Run `rls_policies.sql` against the live Supabase project | ⚠️ | Supabase Dashboard → SQL Editor → New query → paste file → Run |
-| 1.2 | Run `schema_migrations.sql` (migration 8) — creates `mistral_verification_log` table | ❌ | Supabase SQL Editor (file in repo) |
+| 1.2 | Run `schema_migrations.sql` migration 8 — creates `mistral_verification_log` table | ❌ | Supabase SQL Editor (file in repo) |
+| 1.2b | Run `schema_migrations.sql` migration 9 — creates `parental_consent` audit table | ❌ | Supabase SQL Editor |
 | 1.3 | Verify `proof-photos` bucket is private after running 1.1 (file ends with a SELECT that should return `public = false`) | ⚠️ | Should match the query in `rls_policies.sql` |
 | 1.4 | Deploy `verify-proof` Edge Function | ❌ | `supabase functions deploy verify-proof --project-ref wxjtksxugsirpowptpmz` |
 | 1.5 | Deploy `delete-account` Edge Function | ❌ | `supabase functions deploy delete-account --project-ref wxjtksxugsirpowptpmz` |

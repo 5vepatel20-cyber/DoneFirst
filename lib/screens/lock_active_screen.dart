@@ -43,17 +43,92 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   @override
   void initState() {
     super.initState();
+    _blockingService.addListener(_onBlockingChanged);
     _loadAll();
     _refreshTimer = Timer.periodic(
       const Duration(seconds: 10),
       (_) => _loadAll(),
     );
+    // Kid-side permission request. On first run, this prompts for the
+    // OS-level grant (FamilyControls on iOS, UsageStats on Android).
+    // On web this is a no-op. If the user denies, the banner below
+    // explains how to fix it.
+    if (!_blockingService.hasPermission) {
+      _blockingService.requestPermission();
+    }
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _blockingService.removeListener(_onBlockingChanged);
     super.dispose();
+  }
+
+  void _onBlockingChanged() {
+    if (!mounted) return;
+    if (_blockingService.isError && _blockingService.lastError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Blocking error: ${_blockingService.lastError}'),
+          backgroundColor: AppColors.danger,
+          action: SnackBarAction(
+            label: 'Dismiss',
+            textColor: Colors.white,
+            onPressed: _blockingService.acknowledgeError,
+          ),
+        ),
+      );
+    }
+    setState(() {});
+  }
+
+  Widget _buildBlockingStatusBanner() {
+    final status = _blockingService.status;
+    final Color background;
+    final IconData icon;
+    final String text;
+    switch (status) {
+      case BlockingStatus.permissionDenied:
+        background = AppColors.danger.withValues(alpha: 0.1);
+        icon = Icons.block;
+        text =
+            'App blocking is off. Grant the permission in Settings to enforce the lock.';
+        break;
+      case BlockingStatus.permissionGranted:
+        background = AppColors.success.withValues(alpha: 0.08);
+        icon = Icons.shield_outlined;
+        text = 'App blocking ready. Tap Start Lock to begin.';
+        break;
+      case BlockingStatus.blockingActive:
+        background = AppColors.success.withValues(alpha: 0.12);
+        icon = Icons.lock;
+        text = 'Apps are being blocked. Homework time.';
+        break;
+      case BlockingStatus.blockingFailed:
+      case BlockingStatus.blockingError:
+        background = AppColors.danger.withValues(alpha: 0.1);
+        icon = Icons.error_outline;
+        text =
+            'Blocking failed: ${_blockingService.lastError ?? 'unknown error'}';
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+    return Card(
+      color: background,
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text)),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _loadAll() async {
@@ -284,8 +359,10 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
         final confirm = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -311,7 +388,6 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
         if (confirm == true) {
           await _unlock();
         }
-        return confirm != true;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -332,6 +408,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    _buildBlockingStatusBanner(),
                     if (_session != null)
                       SessionTimer(
                         sessionStart: _session!.startedAt,
@@ -380,7 +457,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                     if (_breakRequests.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Card(
-                        color: AppColors.info.withOpacity(0.08),
+                        color: AppColors.info.withValues(alpha: 0.08),
                         child: Padding(
                           padding: const EdgeInsets.all(12),
                           child: Column(
@@ -566,7 +643,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.05),
+                  color: AppColors.primary.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -627,7 +704,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(text, style: TextStyle(color: color, fontSize: 12)),

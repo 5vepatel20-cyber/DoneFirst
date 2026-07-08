@@ -70,3 +70,24 @@ CREATE TABLE IF NOT EXISTS mistral_verification_log (
 
 CREATE INDEX IF NOT EXISTS mistral_verification_log_parent_called_at_idx
   ON mistral_verification_log (parent_id, called_at DESC);
+
+-- Migration 9: Parental consent audit log
+-- COPPA / GDPR-K require verifiable parental consent before collecting
+-- personal data from children. This table is the audit trail.
+--
+-- Inserts go through the client (with parent_id = auth.uid() enforced
+-- by RLS), so they can never be back-dated by a malicious actor
+-- pretending to be someone else. The current policy version is
+-- captured at insert time, so future policy updates can require
+-- re-consent.
+CREATE TABLE IF NOT EXISTS parental_consent (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  parent_id UUID REFERENCES parents(id) ON DELETE CASCADE NOT NULL,
+  consent_type TEXT NOT NULL,
+  consent_version TEXT NOT NULL,
+  policy_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS parental_consent_parent_id_idx
+  ON parental_consent (parent_id, created_at DESC);

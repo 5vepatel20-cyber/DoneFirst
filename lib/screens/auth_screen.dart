@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/consent_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
@@ -26,6 +27,7 @@ class _AuthScreenState extends State<AuthScreen> {
   String? _error;
   bool _obscurePassword = true;
   bool _parentConfirmed = false;
+  final _consentService = ConsentService();
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -48,6 +50,19 @@ class _AuthScreenState extends State<AuthScreen> {
             _emailController.text.trim(),
             _nameController.text.trim(),
           );
+          // Record parental consent (audit trail for COPPA). Failure here
+          // must not block signup — the user already passed the
+          // attestation, and we don't want a DB hiccup to lose the
+          // account. Log the error and move on.
+          try {
+            await _consentService.recordConsent(
+              parentId: user.id,
+              consentType: ConsentService.typeAccountCreation,
+              policyVersion: ConsentService.currentPolicyVersion,
+            );
+          } catch (e) {
+            debugPrint('Consent record failed (non-fatal): $e');
+          }
           if (mounted) {
             Navigator.pushReplacement(
               context,

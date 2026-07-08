@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
+import '../services/consent_service.dart';
 import '../services/profile_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_mode.dart';
@@ -18,6 +19,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _auth = AuthService();
   final _profileService = ProfileService();
+  final _consentService = ConsentService();
   bool _notifyProofSubmitted = true;
   bool _notifyBreakRequested = true;
   bool _notifySessionComplete = true;
@@ -26,6 +28,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loading = true;
   String? _userEmail;
   String? _pin;
+  List<ConsentRecord> _consentHistory = [];
+  bool _loadingConsent = false;
 
   @override
   void initState() {
@@ -47,6 +51,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _familyName = familyName ?? 'My Family';
         _loading = false;
       });
+      // Load consent history in the background; non-fatal if it fails.
+      setState(() => _loadingConsent = true);
+      try {
+        final history = await _consentService.getConsentHistory(user.id);
+        if (mounted) setState(() => _consentHistory = history);
+      } catch (_) {
+        // Parental_consent table may not exist yet (migration 9 not run).
+        // Render empty list silently — the Audit section won't show rows.
+      } finally {
+        if (mounted) setState(() => _loadingConsent = false);
+      }
     }
   }
 
@@ -418,6 +433,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onSelectionChanged: (v) =>
                         setState(() => _defaultMinutes = v.first),
                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
+          _section('Consent Audit'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Consent records are an immutable audit trail of every '
+                    'parental attestation you have made. They are required '
+                    'by COPPA and GDPR-K.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_loadingConsent)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: LinearProgressIndicator(),
+                    )
+                  else if (_consentHistory.isEmpty)
+                    const Text(
+                      'No consent records yet.',
+                      style: TextStyle(
+                          fontSize: 13, color: AppColors.textSecondary),
+                    )
+                  else
+                    ...(_consentHistory.map(
+                      (c) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.check_circle_outline,
+                                size: 16, color: AppColors.success),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    c.displayType,
+                                    style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500),
+                                  ),
+                                  Text(
+                                    '${c.consentVersion} • ${c.createdAt.toLocal().toString().split('.').first}',
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )),
                 ],
               ),
             ),

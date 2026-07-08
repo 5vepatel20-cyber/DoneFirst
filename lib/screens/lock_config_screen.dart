@@ -285,7 +285,23 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
       maxLiftMinutes: _maxLift,
       approvalMode: _approvalMode,
     );
-    await _blockingService.startBlocking();
+    // Try to start blocking on this device. If it fails (permission
+    // denied or plugin error), warn the parent but still proceed —
+    // blocking happens on the kid's device when they open the app.
+    final blocked = await _blockingService.startBlocking();
+    if (!blocked && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _blockingService.lastError ??
+                'App blocking could not start on this device. The kid\'s '
+                    'device needs the permission granted separately.',
+          ),
+          backgroundColor: AppColors.danger,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
     if (mounted) {
       Navigator.push(
         context,
