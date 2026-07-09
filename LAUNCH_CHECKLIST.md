@@ -90,9 +90,9 @@ on Apple Developer enrollment.
 
 ## 8. Optional polish (not blockers)
 
-- Data export feature (parents can download all their data)
-- 30-day retention purge job for `mistral_verification_log`
-- Scheduled job to clean up orphan `proof-photos` storage objects
+- ~~Data export feature (parents can download all their data)~~ — ✅ done in code (`lib/services/data_export_service.dart`, Settings → Your Data)
+- 30-day retention purge job for `mistral_verification_log` — ✅ functions written in `retention_jobs.sql`; pg_cron scheduling is optional
+- Scheduled job to clean up orphan `proof-photos` storage objects — ✅ `find_orphan_proof_photos()` function in `retention_jobs.sql`; bulk delete via Supabase Storage API
 - Co-parent invite accept/decline flow (model exists, no UI)
 - Account deletion token confirmation screen
 
