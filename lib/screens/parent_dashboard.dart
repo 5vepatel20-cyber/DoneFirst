@@ -9,6 +9,7 @@ import '../services/realtime_service.dart';
 import '../main.dart' as app;
 import '../theme/app_theme.dart';
 import '../widgets/shimmer_loading.dart';
+import '../widgets/consent_gate.dart';
 import 'auth_screen.dart';
 import 'lock_config_screen.dart';
 import 'lock_active_screen.dart';
@@ -222,7 +223,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return ConsentGate(
+      child: Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
@@ -498,6 +500,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 ],
               ),
             ),
+    ),
     );
   }
 

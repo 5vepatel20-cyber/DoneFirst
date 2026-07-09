@@ -21,6 +21,22 @@ class ConsentService {
   static const String typeAccountCreation = 'account_creation';
   static const String typeChildDataCollection = 'child_data_collection';
   static const String typeAiVerification = 'ai_verification';
+  static const String typePolicyUpdate = 'policy_update';
+
+  /// True if the most recent consent record for this parent was
+  /// captured at an older policy version than the current one.
+  /// Used to prompt existing users to re-consent after a policy
+  /// version bump.
+  ///
+  /// Returns false (no re-consent needed) when:
+  ///   - The user has no consent records yet (new signup — they
+  ///     consented at signup time at the current version)
+  ///   - The latest consent version matches the current version
+  Future<bool> needsReConsent(String parentId) async {
+    final history = await getConsentHistory(parentId);
+    if (history.isEmpty) return false;
+    return history.first.consentVersion != currentPolicyVersion;
+  }
 
   /// Record a consent event. The RLS policy enforces `parent_id = auth.uid()`,
   /// so a client can only insert consent on its own behalf.
@@ -87,6 +103,8 @@ class ConsentRecord {
         return 'Collection of child data';
       case ConsentService.typeAiVerification:
         return 'AI proof verification via Mistral';
+      case ConsentService.typePolicyUpdate:
+        return 'Re-consent to updated policy';
       default:
         return consentType;
     }
