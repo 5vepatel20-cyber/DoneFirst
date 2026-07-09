@@ -257,6 +257,27 @@ class ProofService {
     return getProofForTask(taskId);
   }
 
+  /// Number of Mistral verification calls this parent has made since
+  /// midnight UTC. Used by the daily-cap UI on the parent dashboard.
+  ///
+  /// Counts rows in mistral_verification_log where called_at is in
+  /// the last 24h. RLS already restricts the SELECT to this parent,
+  /// so a parent cannot see another family's usage.
+  Future<int> getMistralCallsToday() async {
+    final parentId = _supabase.auth.currentUser?.id;
+    if (parentId == null) return 0;
+    final since = DateTime.now()
+        .toUtc()
+        .subtract(const Duration(hours: 24))
+        .toIso8601String();
+    final response = await _supabase
+        .from('mistral_verification_log')
+        .select('id')
+        .eq('parent_id', parentId)
+        .gte('called_at', since);
+    return (response as List).length;
+  }
+
   Future<void> updateParentDecision(
     String proofId,
     String decision, {

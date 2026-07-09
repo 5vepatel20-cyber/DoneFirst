@@ -43,6 +43,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   int _totalSessions = 0;
   int _totalMinutes = 0;
   int _totalApproved = 0;
+  int _mistralCallsToday = 0;
   List<RecurringSchedule> _todaySchedules = [];
 
   @override
@@ -73,6 +74,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
       _monthlySessionCount = await _sessionService.getMonthlySessionCount(
         _auth.currentUser!.id,
       );
+      _mistralCallsToday = await _proofService.getMistralCallsToday();
       _unreadNotifications = await _notificationService.getUnreadCount();
 
       _todaySchedules = await _scheduleService.getTodaySchedules();
@@ -378,14 +380,39 @@ class _ParentDashboardState extends State<ParentDashboard> {
                               onPressed: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const UpgradeScreen(),
-                                ),
+                                  builder: (_) => const UpgradeScreen()),
                               ),
                               child: const Text('Upgrade'),
                             ),
                         ],
                       ),
                     ),
+                  ),
+                  // AI usage card — shows how many Mistral verification
+                  // calls the parent has made in the last 24h. Parents
+                  // who hit the daily cap get an explanation of why
+                  // proofs aren't being auto-approved.
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.smart_toy,
+                        size: 16,
+                        color: _mistralCallsToday >= 40
+                            ? AppColors.danger
+                            : AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$_mistralCallsToday / 50 AI checks today',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _mistralCallsToday >= 40
+                              ? AppColors.danger
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                   if (_totalSessions > 0) ...[
                     const SizedBox(height: 12),
