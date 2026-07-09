@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'supabase_config.dart';
 import 'services/auth_service.dart';
@@ -16,7 +17,23 @@ final realtimeService = RealtimeService();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initSupabase();
-  runApp(const DoneFirstApp());
+
+  // Sentry crash reporting. To enable, build with:
+  //   flutter build apk --dart-define=SENTRY_DSN=https://...@sentry.io/...
+  // If SENTRY_DSN is not set, String.fromEnvironment returns ''
+  // and SentryFlutter.init becomes a no-op (no network calls,
+  // no overhead). See LAUNCH_CHECKLIST.md section 7.1.
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = const String.fromEnvironment('SENTRY_DSN');
+      options.tracesSampleRate = 0.1;
+      options.environment = const String.fromEnvironment(
+        'SENTRY_ENV',
+        defaultValue: 'production',
+      );
+    },
+    appRunner: () => runApp(const DoneFirstApp()),
+  );
 }
 
 class DoneFirstApp extends StatelessWidget {

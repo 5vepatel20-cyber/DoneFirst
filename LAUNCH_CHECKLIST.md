@@ -84,7 +84,7 @@ on Apple Developer enrollment.
 
 | # | Action | Status | Where |
 |---|---|---|---|
-| 7.1 | Add Sentry (or similar) crash reporting | ❌ | `pubspec.yaml` + `main.dart` + DSN from Sentry dashboard |
+| 7.1 | Add Sentry (or similar) crash reporting | ⚠️ | Code is wired (sentry_flutter ^8.14.0). Build with `--dart-define=SENTRY_DSN=...` to enable. Create a Sentry project to get the DSN. |
 | 7.2 | Set up Mistral usage/cost alert | ❌ | Mistral console → usage limits |
 | 7.3 | Set up Supabase usage dashboard and budget alert | ❌ | Supabase Dashboard |
 
