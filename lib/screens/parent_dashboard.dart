@@ -6,7 +6,6 @@ import '../services/session_service.dart';
 import '../services/notification_service.dart';
 import '../services/schedule_service.dart';
 import '../services/proof_service.dart';
-import '../services/realtime_service.dart';
 import '../main.dart' as app;
 import '../theme/app_theme.dart';
 import '../widgets/shimmer_loading.dart';
@@ -632,6 +631,40 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           ),
                         ],
                       ),
+                      if (child.streakCount > 0) ...[
+                        const SizedBox(height: 2),
+                        // Streak chip. Hidden when 0 so we never
+                        // display a discouraging "0 day streak" to
+                        // a kid who hasn't started yet.
+                        Row(
+                          children: [
+                            const Text('🔥', style: TextStyle(fontSize: 12)),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${child.streakCount} day streak',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.accent,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (child.lastStreakDate != null &&
+                                !_streakIsToday(child.lastStreakDate!))
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Text(
+                                  '(at risk)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary
+                                        .withValues(alpha: 0.8),
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -792,5 +825,24 @@ class _ParentDashboardState extends State<ParentDashboard> {
         ],
       ),
     );
+  }
+
+  /// A streak is "today" if last_streak_date is today OR yesterday.
+  /// We give a one-day grace period because the user might open the
+  /// app mid-day before the kid has done their session yet today —
+  /// showing "(at risk)" at 7am would be wrong. By "yesterday" we
+  /// mean: if the kid hasn't done today's session yet, the streak is
+  /// still safe to show as active; the "at risk" warning only
+  /// appears once the streak is actually broken.
+  bool _streakIsToday(DateTime lastStreakDate) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final last = DateTime(
+      lastStreakDate.year,
+      lastStreakDate.month,
+      lastStreakDate.day,
+    );
+    final diff = today.difference(last).inDays;
+    return diff == 0 || diff == 1;
   }
 }
