@@ -91,3 +91,20 @@ CREATE TABLE IF NOT EXISTS parental_consent (
 
 CREATE INDEX IF NOT EXISTS parental_consent_parent_id_idx
   ON parental_consent (parent_id, created_at DESC);
+
+-- Migration 9b: richer parental-consent audit data
+-- The original migration 9 table has only the bare minimum
+-- (consent_type + consent_version). For a defensible COPPA audit
+-- trail we also capture:
+--   - signed_name: the parent's typed full name, which many jurisdictions
+--     (US E-SIGN, EU eIDAS) accept as a valid e-signature when paired
+--     with the rest of the consent record
+--   - acknowledgments: a JSONB map of {key: bool} for each individual
+--     item the parent agreed to, so we can show exactly what they
+--     agreed to at this policy version (not just "they agreed to v1")
+--   - child_name: optional, set when the consent was captured during
+--     child-add rather than at signup
+ALTER TABLE parental_consent
+  ADD COLUMN IF NOT EXISTS signed_name TEXT,
+  ADD COLUMN IF NOT EXISTS acknowledgments JSONB,
+  ADD COLUMN IF NOT EXISTS child_name TEXT;

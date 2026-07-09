@@ -64,7 +64,7 @@ on Apple Developer enrollment.
 |---|---|---|---|
 | 5.1 | Legal review of `PRIVACY.md` and in-app policy copy | ❌ | Send to lawyer |
 | 5.2 | Legal review of `TERMS.md` | ❌ | Send to lawyer |
-| 5.3 | Add real parental-consent flow (current checkbox is attestation only, not consent capture) | ❌ | New screen + persisted consent record |
+| 5.3 | Add real parental-consent flow (current checkbox is attestation only, not consent capture) | ⚠️ | Signup now has a 5-acknowledgment consent card + typed-signature field (auth_screen.dart `_buildConsentCard`). `recordParentalConsent` persists the rich data. Needs migration 9b applied to the live DB to add the `signed_name` / `acknowledgments` / `child_name` columns. |
 | 5.4 | Play Console → Data Safety declaration (use `PRIVACY.md` content) | ❌ | Play Console → App content → Data safety |
 | 5.5 | App Store Connect → App Privacy details (use `PRIVACY.md` content) | ❌ | App Store Connect → App Privacy |
 | 5.6 | Prepare App Store screenshots (6.7", 6.1", 5.5" iPhone + 12.9" iPad) | ❌ | Local |

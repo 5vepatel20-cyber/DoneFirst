@@ -54,6 +54,51 @@ class ConsentService {
     });
   }
 
+  /// Record a full parental-consent capture. Use this when the parent
+  /// goes through the multi-checkbox signup flow — it persists their
+  /// typed signature plus the per-item acknowledgments, which is what
+  /// a regulator would ask for in a COPPA audit.
+  ///
+  /// [acknowledgments] is a free-form map so the UI can present
+  /// whatever set of items matches the current policy version
+  /// without having to update the service. We recommend keys like
+  /// 'is_adult', 'is_guardian', 'consents_child_data',
+  /// 'consents_ai_verification', 'consents_blocking'.
+  Future<void> recordParentalConsent({
+    required String parentId,
+    required String signedName,
+    required Map<String, bool> acknowledgments,
+    String? childName,
+    String consentType = typeAccountCreation,
+    String policyVersion = currentPolicyVersion,
+  }) async {
+    // Filter to only the items the parent actually accepted. We
+    // refuse to write a record with no acknowledgments — that would
+    // mean the consent flow was bypassed, which is the very thing
+    // we're trying to prevent.
+    final accepted = <String, bool>{
+      for (final entry in acknowledgments.entries)
+        if (entry.value) entry.key: true,
+    };
+    if (accepted.isEmpty) {
+      throw ArgumentError(
+        'Refusing to record consent with no acknowledgments.',
+      );
+    }
+    if (signedName.trim().isEmpty) {
+      throw ArgumentError('Signed name is required.');
+    }
+    await _supabase.from('parental_consent').insert({
+      'parent_id': parentId,
+      'consent_type': consentType,
+      'consent_version': policyVersion,
+      'signed_name': signedName.trim(),
+      'acknowledgments': accepted,
+      if (childName != null && childName.trim().isNotEmpty)
+        'child_name': childName.trim(),
+    });
+  }
+
   /// All consent records for a parent, newest first.
   Future<List<ConsentRecord>> getConsentHistory(String parentId) async {
     final response = await _supabase

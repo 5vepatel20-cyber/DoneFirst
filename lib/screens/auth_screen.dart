@@ -21,19 +21,42 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  final _signatureController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSignUp = false;
   bool _loading = false;
   String? _error;
   bool _obscurePassword = true;
-  bool _parentConfirmed = false;
+  // Per-item acknowledgments captured during signup. Each entry
+  // describes a single disclosure the parent is consenting to. We
+  // persist all of them as a JSONB map with recordParentalConsent so
+  // the audit trail can show exactly what they agreed to.
+  bool _ackAdult = false;
+  bool _ackGuardian = false;
+  bool _ackChildData = false;
+  bool _ackAiVerification = false;
+  bool _ackOptionalAnalytics = false;
+  // Whether the consent section is expanded. Defaults to true on
+  // signup so the parent sees the disclosures before typing.
+  bool _consentExpanded = true;
   final _consentService = ConsentService();
+
+  bool get _allRequiredAcks =>
+      _ackAdult && _ackGuardian && _ackChildData && _ackAiVerification;
+
+  bool get _signatureValid =>
+      _signatureController.text.trim().length >= 2 &&
+      _signatureController.text.trim().toLowerCase() != 'delete';
+
+  bool get _signUpReady =>
+      _allRequiredAcks && _signatureValid;
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_isSignUp && !_parentConfirmed) {
-      setState(() => _error =
-          'You must confirm you are 18 or older and a parent or legal guardian.');
+    if (_isSignUp && !_signUpReady) {
+      setState(() {
+        _error = _signUpReadinessError();
+      });
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -50,15 +73,21 @@ class _AuthScreenState extends State<AuthScreen> {
             _emailController.text.trim(),
             _nameController.text.trim(),
           );
-          // Record parental consent (audit trail for COPPA). Failure here
-          // must not block signup — the user already passed the
-          // attestation, and we don't want a DB hiccup to lose the
-          // account. Log the error and move on.
+          // Record the full consent capture. Failure is non-fatal so a
+          // transient DB error doesn't lose the freshly-created
+          // account — we'll re-record at next login if needed.
           try {
-            await _consentService.recordConsent(
+            await _consentService.recordParentalConsent(
               parentId: user.id,
+              signedName: _signatureController.text,
+              acknowledgments: {
+                'is_adult': _ackAdult,
+                'is_guardian': _ackGuardian,
+                'consents_child_data': _ackChildData,
+                'consents_ai_verification': _ackAiVerification,
+                'consents_optional_analytics': _ackOptionalAnalytics,
+              },
               consentType: ConsentService.typeAccountCreation,
-              policyVersion: ConsentService.currentPolicyVersion,
             );
           } catch (e) {
             debugPrint('Consent record failed (non-fatal): $e');
@@ -94,6 +123,26 @@ class _AuthScreenState extends State<AuthScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Human-readable explanation of why the Sign Up button is disabled.
+  String _signUpReadinessError() {
+    if (!_ackAdult) {
+      return 'Please confirm you are 18 or older.';
+    }
+    if (!_ackGuardian) {
+      return 'Please confirm you are a parent or legal guardian.';
+    }
+    if (!_ackChildData) {
+      return 'Please consent to the data we collect.';
+    }
+    if (!_ackAiVerification) {
+      return 'Please consent to AI proof verification.';
+    }
+    if (!_signatureValid) {
+      return 'Please type your full legal name as your signature.';
+    }
+    return 'Please complete the consent section above.';
   }
 
   Future<void> _resetPassword() async {
@@ -207,45 +256,13 @@ class _AuthScreenState extends State<AuthScreen> {
                   onFieldSubmitted: (_) => _submit(),
                 ),
                 if (_isSignUp) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: _parentConfirmed
-                            ? AppColors.primary.withValues(alpha: 0.4)
-                            : AppColors.textSecondary.withValues(alpha: 0.2),
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: CheckboxListTile(
-                      value: _parentConfirmed,
-                      onChanged: _loading
-                          ? null
-                          : (v) => setState(() {
-                                _parentConfirmed = v ?? false;
-                                if (_parentConfirmed && _error != null) {
-                                  _error = null;
-                                }
-                              }),
-                      title: const Text(
-                        'I am 18 or older and a parent or legal guardian.',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                      subtitle: const Text(
-                        'Required to create an account (COPPA).',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 8),
-                      dense: true,
-                    ),
-                  ),
+                  const SizedBox(height: 16),
+                  _buildConsentCard(),
                 ],
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: (_loading ||
-                          (_isSignUp && !_parentConfirmed))
+                          (_isSignUp && !_signUpReady))
                       ? null
                       : _submit,
                   child: _loading
@@ -291,6 +308,183 @@ class _AuthScreenState extends State<AuthScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _signatureController.dispose();
     super.dispose();
+  }
+
+  /// Parental consent capture card. Required checkboxes plus a typed
+  /// signature. The expansion state persists for the duration of the
+  /// signup form so parents can review the disclosures, then collapse
+  /// the card to focus on the form fields.
+  Widget _buildConsentCard() {
+    final allChecked = _allRequiredAcks;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: allChecked
+              ? AppColors.success.withValues(alpha: 0.5)
+              : AppColors.textSecondary.withValues(alpha: 0.2),
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _consentExpanded = !_consentExpanded),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Icon(
+                    allChecked ? Icons.verified_outlined : Icons.gavel,
+                    color: allChecked
+                        ? AppColors.success
+                        : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Parental Consent (required)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _consentExpanded
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    color: AppColors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_consentExpanded) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+              child: Column(
+                children: [
+                  _ackTile(
+                    value: _ackAdult,
+                    onChanged: _loading
+                        ? null
+                        : (v) => setState(() => _ackAdult = v ?? false),
+                    title: 'I am 18 or older.',
+                    subtitle: 'Required for COPPA / GDPR-K.',
+                  ),
+                  _ackTile(
+                    value: _ackGuardian,
+                    onChanged: _loading
+                        ? null
+                        : (v) => setState(() => _ackGuardian = v ?? false),
+                    title:
+                        'I am the parent or legal guardian of any child I add.',
+                    subtitle:
+                        'DoneFirst only collects data on children whose legal parent or guardian uses this account.',
+                  ),
+                  _ackTile(
+                    value: _ackChildData,
+                    onChanged: _loading
+                        ? null
+                        : (v) => setState(() => _ackChildData = v ?? false),
+                    title:
+                        'I consent to DoneFirst storing photos of my child\'s homework and basic profile info.',
+                    subtitle:
+                        'Photos are stored privately and never shared.',
+                  ),
+                  _ackTile(
+                    value: _ackAiVerification,
+                    onChanged: _loading
+                        ? null
+                        : (v) => setState(() => _ackAiVerification = v ?? false),
+                    title:
+                        'I consent to AI proof verification (Mistral) reviewing my child\'s submitted photos.',
+                    subtitle:
+                        'Verification runs on the first photo and the result is shown to you.',
+                  ),
+                  _ackTile(
+                    value: _ackOptionalAnalytics,
+                    onChanged: _loading
+                        ? null
+                        : (v) => setState(
+                              () => _ackOptionalAnalytics = v ?? false,
+                            ),
+                    title:
+                        '(Optional) Share anonymous usage stats so we can improve DoneFirst.',
+                    subtitle:
+                        'You can change this anytime in Settings. Off by default.',
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Type your full legal name as your signature:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _signatureController,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: 'e.g. Jane Patel',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: _signatureValid
+                          ? const Icon(
+                              Icons.check,
+                              color: AppColors.success,
+                              size: 18,
+                            )
+                          : null,
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Policy ${ConsentService.currentPolicyVersion}. '
+                    'You can view the full policy in Settings after signing up.',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _ackTile({
+    required bool value,
+    required ValueChanged<bool?>? onChanged,
+    required String title,
+    required String subtitle,
+  }) {
+    return CheckboxListTile(
+      value: value,
+      onChanged: onChanged,
+      title: Text(title, style: const TextStyle(fontSize: 12)),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(fontSize: 10),
+      ),
+      controlAffinity: ListTileControlAffinity.leading,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      dense: true,
+    );
   }
 }
