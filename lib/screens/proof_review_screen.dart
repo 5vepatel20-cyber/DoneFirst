@@ -333,8 +333,62 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                                subtitle: Text(
-                                  'Min: ${s.minLockMinutes}m | ${s.approvalMode}',
+                                subtitle: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Min: ${s.minLockMinutes}m | '
+                                      '${s.approvalMode}',
+                                    ),
+                                    // Show the subject set for this
+                                    // session inline so parents can see
+                                    // at a glance what the kid worked
+                                    // on — also lets them mentally
+                                    // validate the active subject
+                                    // filter without opening it.
+                                    if ((_sessionSubjects[s.id] ?? const {})
+                                        .isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 4,
+                                        ),
+                                        child: Wrap(
+                                          spacing: 4,
+                                          runSpacing: 4,
+                                          children: (_sessionSubjects[s.id]!)
+                                              .map(
+                                                (subj) => Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 1,
+                                                  ),
+                                                  decoration:
+                                                      BoxDecoration(
+                                                    color: AppColors.accent
+                                                        .withValues(
+                                                            alpha: 0.08),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      4,
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    subj,
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                      color:
+                                                          AppColors.accent,
+                                                    ),
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 trailing: const Icon(
                                   Icons.arrow_forward_ios,
