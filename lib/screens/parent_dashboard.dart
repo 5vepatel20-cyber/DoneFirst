@@ -22,6 +22,7 @@ import 'schedules_screen.dart';
 import 'proof_gallery_screen.dart';
 import 'kid_profile_screen.dart';
 import 'notification_center_screen.dart';
+import 'pending_proofs_screen.dart';
 
 class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
@@ -38,6 +39,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   final _proofService = ProofService();
   List<Child> _children = [];
   final Map<String, bool> _activeLocks = {};
+  final Map<String, int> _pendingProofs = {};
   bool _loading = true;
   int _monthlySessionCount = 0;
   int _unreadNotifications = 0;
@@ -114,6 +116,16 @@ class _ParentDashboardState extends State<ParentDashboard> {
           child.id,
         );
         _activeLocks[child.id] = session != null;
+        // Pending-proof count per child for the inbox chip. If this
+        // throws (e.g. RLS still pending), leave the prior value
+        // alone rather than wipe it to 0.
+        try {
+          final pending =
+              await _proofService.getPendingProofs(child.id);
+          _pendingProofs[child.id] = pending.length;
+        } catch (_) {
+          _pendingProofs[child.id] = _pendingProofs[child.id] ?? 0;
+        }
       }
     } catch (_) {}
     setState(() => _loading = false);
@@ -670,6 +682,62 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 ),
               ],
             ),
+            // Pending-proof inbox banner. Hidden when 0 so we never
+            // say "0 to review" — empty state is the inbox-zero card
+            // on the screen itself.
+            if ((_pendingProofs[childId] ?? 0) > 0) ...[
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PendingProofsScreen(
+                      childId: childId,
+                      childName: childName,
+                    ),
+                  ),
+                ).then((_) => _loadAll()),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.1),
+                    border: Border.all(
+                      color: AppColors.accent.withValues(alpha: 0.3),
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.inbox,
+                        size: 18,
+                        color: AppColors.accent,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${_pendingProofs[childId]} ${_pendingProofs[childId] == 1 ? 'proof' : 'proofs'} to review',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 14,
+                        color: AppColors.accent,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [
