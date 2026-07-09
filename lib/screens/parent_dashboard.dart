@@ -133,38 +133,197 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   Future<void> _addChild() async {
     final controller = TextEditingController();
-    final name = await showDialog<String>(
+    // The palette + emoji set intentionally duplicates the constants
+    // in kid_profile_screen.dart. Inline copy rather than a shared
+    // file because the two screens want slightly different layouts
+    // (a Wrap of swatches vs a dialog-internal row) and centralising
+    // would force a 3rd file for one color list.
+    final List<Color> kidColors = [
+      AppColors.primary,
+      AppColors.accent,
+      AppColors.success,
+      AppColors.info,
+      AppColors.danger,
+      AppColors.warning,
+      const Color(0xFFE91E63),
+      const Color(0xFF00BCD4),
+    ];
+    const List<String> kidEmojis = [
+      '🧑',
+      '👧',
+      '👦',
+      '🧒',
+      '👩',
+      '👨',
+      '🧑‍🎓',
+      '🌟',
+    ];
+    int selectedColor = 0;
+    int selectedEmoji = 0;
+    final result = await showDialog<Map<String, String?>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add Child'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: "Child's Name"),
-          autofocus: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Add Child'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Live preview — updates as the parent picks. Kids
+                  // love picking their own avatar; the preview turns
+                  // abstract swatches into "this is what you'll see".
+                  Center(
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: kidColors[selectedColor]
+                            .withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          kidEmojis[selectedEmoji],
+                          style: const TextStyle(fontSize: 36),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(
+                      labelText: "Child's Name",
+                    ),
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Color',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: List.generate(
+                      kidColors.length,
+                      (i) => GestureDetector(
+                        onTap: () => setLocal(() => selectedColor = i),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: kidColors[i],
+                            shape: BoxShape.circle,
+                            border: selectedColor == i
+                                ? Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  )
+                                : null,
+                            boxShadow: selectedColor == i
+                                ? [
+                                    BoxShadow(
+                                      color: kidColors[i]
+                                          .withValues(alpha: 0.5),
+                                      blurRadius: 6,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Avatar',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: List.generate(
+                      kidEmojis.length,
+                      (i) => GestureDetector(
+                        onTap: () => setLocal(() => selectedEmoji = i),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: selectedEmoji == i
+                                ? AppColors.primary.withValues(alpha: 0.15)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: selectedEmoji == i
+                                  ? AppColors.primary
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              kidEmojis[i],
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, {
+                'name': controller.text.trim(),
+                'color': kidColors[selectedColor]
+                    .toARGB32()
+                    .toRadixString(16),
+                'emoji': kidEmojis[selectedEmoji],
+              }),
+              child: const Text('Add'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Add'),
-          ),
-        ],
       ),
     );
-    if (name != null && name.isNotEmpty) {
-      try {
-        final familyId = await _sessionService.getOrCreateFamily();
-        await _sessionService.addChild(name, familyId);
-        await _loadAll();
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to add child: $e')),
-          );
-        }
+    if (result == null) return;
+    final name = result['name'];
+    if (name == null || name.isEmpty) return;
+    try {
+      final familyId = await _sessionService.getOrCreateFamily();
+      await _sessionService.addChild(
+        name,
+        familyId,
+        color: result['color'],
+        emoji: result['emoji'],
+      );
+      await _loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to add child: $e')),
+        );
       }
     }
   }
@@ -591,20 +750,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       ),
                     ),
                   ),
-                  child: CircleAvatar(
-                    backgroundColor: hasActiveLock
-                        ? AppColors.accent.withValues(alpha:0.15)
-                        : AppColors.success.withValues(alpha:0.1),
-                    child: Text(
-                      childName[0].toUpperCase(),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: hasActiveLock
-                            ? AppColors.accent
-                            : AppColors.success,
-                      ),
-                    ),
-                  ),
+                  child: _ChildAvatar(child: child),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -912,5 +1058,53 @@ class _ParentDashboardState extends State<ParentDashboard> {
     );
     final diff = today.difference(last).inDays;
     return diff == 0 || diff == 1;
+  }
+}
+
+/// Renders a child's avatar using their emoji + chosen color when
+/// present, falling back to the legacy first-letter look for kids who
+/// were added before this feature shipped.
+class _ChildAvatar extends StatelessWidget {
+  final Child child;
+  const _ChildAvatar({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCustomization =
+        child.emoji != null || child.color != null;
+    if (!hasCustomization) {
+      return CircleAvatar(
+        backgroundColor: AppColors.success.withValues(alpha: 0.1),
+        child: Text(
+          child.name.isEmpty ? '?' : child.name[0].toUpperCase(),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.success,
+          ),
+        ),
+      );
+    }
+
+    Color? color;
+    if (child.color != null) {
+      final parsed = int.tryParse(child.color!, radix: 16);
+      if (parsed != null) {
+        color = Color(parsed);
+      }
+    }
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: (color ?? AppColors.primary).withValues(alpha: 0.15),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          child.emoji ?? child.name[0].toUpperCase(),
+          style: const TextStyle(fontSize: 22),
+        ),
+      ),
+    );
   }
 }

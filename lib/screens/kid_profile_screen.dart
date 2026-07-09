@@ -46,10 +46,16 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
     super.initState();
     _nameController = TextEditingController(text: widget.child.name);
     if (widget.child.color != null) {
-      final idx = kidColors.indexWhere(
-        (c) => c.toARGB32() == Color(int.parse(widget.child.color!)).toARGB32(),
-      );
-      if (idx >= 0) _selectedColor = idx;
+      // The color comes back as a base-16 string ("aabbccdd"-style
+      // without the 0x prefix) — int.parse defaults to base-10 so
+      // we need to pass radix: 16 explicitly.
+      final parsed = int.tryParse(widget.child.color!, radix: 16);
+      if (parsed != null) {
+        final idx = kidColors.indexWhere(
+          (c) => c.toARGB32() == Color(parsed).toARGB32(),
+        );
+        if (idx >= 0) _selectedColor = idx;
+      }
     }
     if (widget.child.emoji != null) {
       final idx = kidEmojis.indexOf(widget.child.emoji!);
