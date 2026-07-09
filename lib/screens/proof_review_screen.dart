@@ -25,6 +25,11 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
 
   DateTimeRange? _dateRange;
   final _searchController = TextEditingController();
+  // Filter chip selection. null = all sessions, otherwise a function
+  // on HomeworkSession that returns true if the session belongs in
+  // the filtered set. Keeping it as a predicate (not an enum string)
+  // means the chip row can be extended without touching the model.
+  bool Function(HomeworkSession)? _statusFilter;
 
   @override
   void initState() {
@@ -61,9 +66,20 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
     }
     final query = _searchController.text.trim().toLowerCase();
     if (query.isNotEmpty) {
+      // Match on status (e.g. "active", "completed") or approval mode
+      // (e.g. "balanced", "strict"). Either one is what a parent
+      // searching history is likely to type.
       filtered = filtered
-          .where((s) => s.status.toLowerCase().contains(query))
+          .where(
+            (s) =>
+                s.status.toLowerCase().contains(query) ||
+                s.approvalMode.toLowerCase().contains(query),
+          )
           .toList();
+    }
+    final statusFilter = _statusFilter;
+    if (statusFilter != null) {
+      filtered = filtered.where(statusFilter).toList();
     }
     setState(() => _filteredSessions = filtered);
   }
@@ -84,6 +100,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
   void _clearFilters() {
     _dateRange = null;
     _searchController.clear();
+    _statusFilter = null;
     _applyFilters();
   }
 
@@ -115,7 +132,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'Search by status...',
+                            hintText: 'Search status or approval mode...',
                             prefixIcon: const Icon(Icons.search, size: 20),
                             suffixIcon: _searchController.text.isNotEmpty
                                 ? IconButton(
@@ -149,6 +166,41 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 8),
+                // Result count + status chip row. The chip row is
+                // the only new filter — search and date range were
+                // already there but the user had no way to scope to
+                // "only completed" or "only in-progress".
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Text(
+                        _allSessions.isEmpty
+                            ? ''
+                            : 'Showing ${_filteredSessions.length} of '
+                                '${_allSessions.length}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const Spacer(),
+                      _statusChip('All', null),
+                      const SizedBox(width: 4),
+                      _statusChip(
+                        'Active',
+                        (s) => !s.isCompleted,
+                      ),
+                      const SizedBox(width: 4),
+                      _statusChip(
+                        'Completed',
+                        (s) => s.isCompleted,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Expanded(
                   child: _filteredSessions.isEmpty
                       ? Center(
@@ -369,6 +421,42 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(text, style: TextStyle(color: color, fontSize: 11)),
+    );
+  }
+
+  Widget _statusChip(
+    String label,
+    bool Function(HomeworkSession)? predicate,
+  ) {
+    final isSelected = _statusFilter == predicate;
+    return InkWell(
+      onTap: () {
+        _statusFilter = predicate;
+        _applyFilters();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.15)
+              : Colors.transparent,
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary
+                : AppColors.textSecondary.withValues(alpha: 0.3),
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? AppColors.primary : AppColors.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 }

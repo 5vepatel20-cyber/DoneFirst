@@ -52,8 +52,8 @@ Status legend: ✅ done · ⚠️ done in code, needs infra apply · ❌ not don
 |---|---|---|---|
 | 4.1 | iOS: implement `FamilyControls` + `ManagedSettings` in Swift | ❌ | New Swift code in `ios/Runner/`; requires entitlement from 3.3 |
 | 4.2 | Android: implement `AccessibilityService` + `UsageStats` permission | ❌ | New Kotlin code in `android/app/src/main/kotlin/` |
-| 4.3 | Surface blocking errors — current code silently swallows them | ❌ | `lib/services/blocking_service.dart` |
-| 4.4 | Have the kid-side app request permission on first run (currently only parent-side does) | ❌ | `lib/screens/lock_active_screen.dart` |
+| 4.3 | Surface blocking errors — current code silently swallows them | ✅ | `lib/services/blocking_service.dart` (status enum + `lastError` + SnackBar/banner UI in `lock_active_screen.dart`) |
+| 4.4 | Have the kid-side app request permission on first run (currently only parent-side does) | ✅ | `lock_active_screen.dart` initState calls `requestPermission()` on first paint |
 
 This is the largest remaining blocker — 4-7 weeks of native work, gated
 on Apple Developer enrollment.
