@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
+import '../utils/subjects.dart';
 
 const List<String> weekdayNames = [
   'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
@@ -19,6 +20,12 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
   bool _loading = true;
   Map<String, dynamic>? _stats;
   List<int> _weeklyMinutes = List.filled(7, 0);
+  // Per-subject minutes breakdown. The map is ordered by the
+  // canonical kSubjects list so the UI shows Math before English
+  // regardless of which subject had more study time.
+  final Map<String, int> _subjectMinutes = {
+    for (final s in kSubjects) s: 0,
+  };
 
   @override
   void initState() {
@@ -54,6 +61,18 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
         .eq('child_id', childId)
         .order('created_at', ascending: false);
 
+    // Pull all tasks for all sessions in one go so we can attribute
+    // study time to subjects. Without this we'd be looking at the
+    // session-level row only, which has no subject.
+    final sessionIds =
+        sessions.map((s) => s['id'] as String).toList(growable: false);
+    final List<dynamic> allTasks = sessionIds.isEmpty
+        ? const []
+        : await supabase
+            .from('homework_tasks')
+            .select('subject, session_id')
+            .inFilter('session_id', sessionIds);
+
     final totalSessions = sessions.length;
     int totalMinutes = 0;
     int completed = 0;
@@ -74,6 +93,23 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
       for (final p in proofs) {
         if (p['status'] == 'approved') approvedProofs++;
       }
+    }
+
+    // Per-subject minutes. We sum session duration for every task
+    // tagged with that subject. A 60-min session with 1 Math task +
+    // 1 English task attributes 60 min to each, which roughly
+    // reflects actual studying (they didn't do nothing for half the
+    // time) but does over-count when sessions mix subjects heavily.
+    // For a v1, this is good enough.
+    final sessionMinutes = <String, int>{
+      for (final s in sessions) s['id'] as String: (s['duration_minutes'] as int?) ?? 0,
+    };
+    for (final t in allTasks) {
+      final sid = t['session_id'] as String?;
+      final subject = normalizeSubject(t['subject'] as String?);
+      if (sid == null) continue;
+      _subjectMinutes[subject] =
+          (_subjectMinutes[subject] ?? 0) + (sessionMinutes[sid] ?? 0);
     }
 
     setState(() {
@@ -150,6 +186,8 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
                 const SizedBox(height: 24),
                 _buildWeeklyChart(),
                 const SizedBox(height: 24),
+                _buildSubjectBreakdown(),
+                const SizedBox(height: 24),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -171,6 +209,82 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildSubjectBreakdown() {
+    final entries = _subjectMinutes.entries
+        .where((e) => e.value > 0)
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    if (entries.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'Tag tasks with a subject to see a per-subject breakdown.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          ),
+        ),
+      );
+    }
+    final total = entries.fold<int>(0, (sum, e) => sum + e.value);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Time by Subject',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            ...entries.map((e) {
+              final pct = total == 0 ? 0.0 : e.value / total;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            e.key,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${e.value} min',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: pct,
+                        minHeight: 6,
+                        backgroundColor:
+                            AppColors.primary.withValues(alpha: 0.1),
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 

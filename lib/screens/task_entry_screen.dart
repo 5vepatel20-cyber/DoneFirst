@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/proof_service.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
+import '../utils/subjects.dart';
 import 'proof_capture_screen.dart';
 
 class TaskEntryScreen extends StatefulWidget {
@@ -20,20 +21,10 @@ class TaskEntryScreen extends StatefulWidget {
 class _TaskEntryScreenState extends State<TaskEntryScreen> {
   final _proofService = ProofService();
   final _controller = TextEditingController();
-  String _selectedSubject = 'General';
+  String _selectedSubject = kDefaultSubject;
   List<HomeworkTask> _tasks = [];
 
-  static const List<String> subjects = [
-    'General',
-    'Math',
-    'Science',
-    'English',
-    'History',
-    'Foreign Language',
-    'Art',
-    'Music',
-    'Other',
-  ];
+  static const List<String> subjects = kSubjects;
 
   @override
   void initState() {
