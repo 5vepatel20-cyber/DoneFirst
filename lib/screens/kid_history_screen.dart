@@ -5,6 +5,7 @@ import '../services/proof_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/proof_thumbnail.dart';
 import 'proof_image_viewer.dart';
 
 class KidHistoryScreen extends StatefulWidget {
@@ -153,15 +154,13 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                                   ),
                                 ),
                               ),
-                              child: ClipRRect(
+                              child: ProofThumbnail(
+                                url: p.imageUrl,
+                                height: 180,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
                                 borderRadius: const BorderRadius.vertical(
                                   top: Radius.circular(8),
-                                ),
-                                child: Image.network(
-                                  p.imageUrl,
-                                  height: 180,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
                                 ),
                               ),
                             ),

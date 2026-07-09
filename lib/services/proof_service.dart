@@ -102,12 +102,24 @@ class ProofService {
     }
   }
 
+  /// Pending proofs for a child across all their sessions. A proof is
+  /// pending when parent_decision = 'pending'.
+  ///
+  /// Joins through homework_tasks -> homework_sessions so we filter on
+  /// the session's child_id (NOT on `homework_tasks.session_id`, which
+  /// is the session's primary key — that would match proofs whose
+  /// task belongs to a session whose id happens to equal the child
+  /// id, which is almost never true and would silently return wrong
+  /// rows).
   Future<List<ProofSubmission>> getPendingProofs(String childId) async {
     final response = await _supabase
         .from('proof_submissions')
-        .select('*, homework_tasks!inner(description)')
+        .select(
+          '*, homework_tasks!inner(description, session_id,'
+          ' homework_sessions!inner(child_id))',
+        )
         .eq('parent_decision', 'pending')
-        .eq('homework_tasks.session_id', childId)
+        .eq('homework_tasks.homework_sessions.child_id', childId)
         .order('created_at', ascending: false);
     return response.map((m) {
       final p = ProofSubmission.fromMap(m);

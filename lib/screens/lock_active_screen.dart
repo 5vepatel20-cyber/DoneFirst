@@ -9,6 +9,7 @@ import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
 import '../widgets/break_timer.dart';
+import '../widgets/proof_thumbnail.dart';
 import 'proof_image_viewer.dart';
 import '../models/models.dart';
 
@@ -627,14 +628,11 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                     ),
                   ),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    proof.imageUrl,
-                    height: 150,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
+                child: ProofThumbnail(
+                  url: proof.imageUrl,
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
                 ),
               ),
             ],

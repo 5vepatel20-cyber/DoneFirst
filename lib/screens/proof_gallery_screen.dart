@@ -4,6 +4,7 @@ import '../services/proof_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shimmer_loading.dart';
+import '../widgets/proof_thumbnail.dart';
 import 'proof_image_viewer.dart';
 
 class ProofGalleryScreen extends StatefulWidget {
@@ -141,14 +142,10 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          ClipRRect(
+                          ProofThumbnail(
+                            url: allUrls.first,
+                            fit: BoxFit.cover,
                             borderRadius: BorderRadius.circular(2),
-                            child: Image.network(
-                              allUrls.first,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  Container(color: Colors.grey.shade200),
-                            ),
                           ),
                           Positioned(
                             bottom: 0,

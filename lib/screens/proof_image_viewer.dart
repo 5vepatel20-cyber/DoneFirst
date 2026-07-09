@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
+import '../widgets/proof_thumbnail.dart';
 
 class ProofImageViewer extends StatefulWidget {
   final String imageUrl;
@@ -78,13 +79,21 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
                     children: allUrls
                         .map(
                           (url) => InteractiveViewer(
-                            child: Image.network(url, fit: BoxFit.contain),
+                            child: ProofThumbnail(
+                              url: url,
+                              fit: BoxFit.contain,
+                              borderRadius: BorderRadius.zero,
+                            ),
                           ),
                         )
                         .toList(),
                   )
                 : InteractiveViewer(
-                    child: Image.network(widget.imageUrl, fit: BoxFit.contain),
+                    child: ProofThumbnail(
+                      url: widget.imageUrl,
+                      fit: BoxFit.contain,
+                      borderRadius: BorderRadius.zero,
+                    ),
                   ),
           ),
           if (allUrls.length > 1)
