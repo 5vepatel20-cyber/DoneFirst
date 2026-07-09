@@ -3,6 +3,7 @@ import '../models/models.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/subjects.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/proof_thumbnail.dart';
 import 'proof_image_viewer.dart';
@@ -30,6 +31,11 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
   // the filtered set. Keeping it as a predicate (not an enum string)
   // means the chip row can be extended without touching the model.
   bool Function(HomeworkSession)? _statusFilter;
+  // Per-session subject index, populated in _load(). A session
+  // "matches" a subject filter if any of its tasks used that subject.
+  final Map<String, Set<String>> _sessionSubjects = {};
+  // null = show all subjects. Otherwise one of kSubjects.
+  String? _subjectFilter;
 
   @override
   void initState() {
@@ -47,6 +53,16 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       _allSessions = await _sessionService.getHistory(widget.childId);
+      // Build a session-id → set-of-subjects index so the subject
+      // filter is O(1) per session instead of re-querying tasks
+      // for every chip tap.
+      _sessionSubjects.clear();
+      for (final s in _allSessions) {
+        final tasks = await _proofService.getTasks(s.id);
+        _sessionSubjects[s.id] = tasks
+            .map((t) => normalizeSubject(t.subject))
+            .toSet();
+      }
       _applyFilters();
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
@@ -81,6 +97,16 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
     if (statusFilter != null) {
       filtered = filtered.where(statusFilter).toList();
     }
+    final subjectFilter = _subjectFilter;
+    if (subjectFilter != null) {
+      filtered = filtered.where((s) {
+        // Session matches if any of its tasks used this subject.
+        // A session with no tasks at all is hidden when a subject
+        // filter is active — there's nothing to show for "Math"
+        // if the session never had a Math task.
+        return _sessionSubjects[s.id]?.contains(subjectFilter) ?? false;
+      }).toList();
+    }
     setState(() => _filteredSessions = filtered);
   }
 
@@ -101,6 +127,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
     _dateRange = null;
     _searchController.clear();
     _statusFilter = null;
+    _subjectFilter = null;
     _applyFilters();
   }
 
@@ -196,6 +223,25 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                       _statusChip(
                         'Completed',
                         (s) => s.isCompleted,
+                      ),
+                    ],
+                  ),
+                ),
+                // Subject filter row. Horizontally scrollable so the
+                // chip list scales as we add more subjects without
+                // overflowing on small screens.
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      _subjectChip('All subjects', null),
+                      ...kSubjects.map(
+                        (s) => Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: _subjectChip(s, s),
+                        ),
                       ),
                     ],
                   ),
@@ -454,6 +500,45 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
             fontSize: 11,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
             color: isSelected ? AppColors.primary : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Subject filter chip. null = no filter (show all). Visually
+  /// identical to _statusChip but reads/writes a different state
+  /// field; inlined here rather than parameterised because
+  /// unifying them would force the status filter to use String
+  /// state too and lose the predicate-based extensibility.
+  Widget _subjectChip(String label, String? value) {
+    final isSelected = _subjectFilter == value;
+    return InkWell(
+      onTap: () {
+        _subjectFilter = value;
+        _applyFilters();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.accent.withValues(alpha: 0.15)
+              : Colors.transparent,
+          border: Border.all(
+            color: isSelected
+                ? AppColors.accent
+                : AppColors.textSecondary.withValues(alpha: 0.3),
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? AppColors.accent : AppColors.textSecondary,
           ),
         ),
       ),
