@@ -34,6 +34,10 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
   // Per-session subject index, populated in _load(). A session
   // "matches" a subject filter if any of its tasks used that subject.
   final Map<String, Set<String>> _sessionSubjects = {};
+  // Per-session search index — concatenated lowercase task descriptions.
+  // Lets the search box match on what the kid actually wrote (e.g.
+  // "math" or "essay") instead of only status / approval mode strings.
+  final Map<String, String> _sessionSearchText = {};
   // null = show all subjects. Otherwise one of kSubjects.
   String? _subjectFilter;
 
@@ -57,11 +61,20 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
       // filter is O(1) per session instead of re-querying tasks
       // for every chip tap.
       _sessionSubjects.clear();
+      _sessionSearchText.clear();
       for (final s in _allSessions) {
         final tasks = await _proofService.getTasks(s.id);
         _sessionSubjects[s.id] = tasks
             .map((t) => normalizeSubject(t.subject))
             .toSet();
+        // Concatenate task descriptions into one searchable string
+        // per session. Tokenizing is unnecessary — substring match
+        // (contains) is what the filter below uses, and the index
+        // is built once at load time so each keystroke stays O(N).
+        _sessionSearchText[s.id] = tasks
+            .map((t) => t.description)
+            .join(' ')
+            .toLowerCase();
       }
       _applyFilters();
     } catch (e) {
@@ -82,14 +95,16 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
     }
     final query = _searchController.text.trim().toLowerCase();
     if (query.isNotEmpty) {
-      // Match on status (e.g. "active", "completed") or approval mode
-      // (e.g. "balanced", "strict"). Either one is what a parent
-      // searching history is likely to type.
+      // Match on any of: session status (e.g. "active", "completed"),
+      // approval mode (e.g. "balanced", "strict"), or anything the
+      // kid typed in a task description (e.g. "math", "essay"). The
+      // description index is built once in _load() so this stays O(N).
       filtered = filtered
           .where(
             (s) =>
                 s.status.toLowerCase().contains(query) ||
-                s.approvalMode.toLowerCase().contains(query),
+                s.approvalMode.toLowerCase().contains(query) ||
+                (_sessionSearchText[s.id] ?? '').contains(query),
           )
           .toList();
     }
@@ -159,7 +174,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'Search status or approval mode...',
+                            hintText: 'Search tasks, status, or approval mode...',
                             prefixIcon: const Icon(Icons.search, size: 20),
                             suffixIcon: _searchController.text.isNotEmpty
                                 ? IconButton(
