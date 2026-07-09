@@ -340,38 +340,117 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _deleteAccount() async {
-    final confirm = await showDialog<bool>(
+    final confirmController = TextEditingController();
+    final passwordController = TextEditingController();
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Account?'),
-        content: const Text(
-          'All your data will be permanently deleted. This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+      builder: (ctx) {
+        var matches = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: const Text('Delete Account?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'All your data will be permanently deleted — including '
+                  'your children, sessions, proofs, schedules, presets, '
+                  'and consent records. This cannot be undone.',
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Type DELETE to confirm:',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: confirmController,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    labelText: 'DELETE',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (v) {
+                    final ok = v.trim() == 'DELETE';
+                    if (ok != matches) {
+                      setLocal(() => matches = ok);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Enter your password:',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: matches && passwordController.text.isNotEmpty
+                    ? () => Navigator.pop(ctx, true)
+                    : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                ),
+                child: const Text('Delete Forever'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+        );
+      },
     );
-    if (confirm == true) {
-      try {
-        await _auth.deleteAccount();
-        if (mounted)
-          Navigator.pushNamedAndRemoveUntil(context, '/auth', (_) => false);
-      } catch (e) {
-        if (mounted)
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    confirmController.dispose();
+    passwordController.dispose();
+    if (confirmed != true) return;
+    try {
+      // Re-authenticate the user with the password they just typed.
+      // Supabase considers the access token expired if it's been a while
+      // since the user last used the app, and a stale token would make
+      // the delete-account Edge Function reject the call. Re-sign-in
+      // guarantees a fresh token.
+      final email = _userEmail;
+      if (email == null) {
+        throw StateError('No current user — cannot re-authenticate.');
       }
+      await _supabaseReauthForDelete(email, passwordController.text);
+      await _auth.deleteAccount();
+      if (mounted)
+        Navigator.pushNamedAndRemoveUntil(context, '/auth', (_) => false);
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     }
+  }
+
+  /// Sign the user in with their email + password so the access token
+  /// is fresh before invoking the destructive Edge Function. We don't
+  /// keep the user signed in afterwards — _auth.deleteAccount() ends
+  /// with signOut() anyway.
+  Future<void> _supabaseReauthForDelete(
+    String email,
+    String password,
+  ) async {
+    await Supabase.instance.client.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
   }
 
   @override
