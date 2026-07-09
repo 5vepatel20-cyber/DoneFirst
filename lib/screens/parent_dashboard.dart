@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../services/notification_service.dart';
 import '../services/schedule_service.dart';
+import '../services/proof_service.dart';
 import '../services/realtime_service.dart';
 import '../main.dart' as app;
 import '../theme/app_theme.dart';
@@ -35,6 +36,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   final _sessionService = SessionService();
   final _notificationService = NotificationService();
   final _scheduleService = ScheduleService();
+  final _proofService = ProofService();
   List<Child> _children = [];
   final Map<String, bool> _activeLocks = {};
   bool _loading = true;

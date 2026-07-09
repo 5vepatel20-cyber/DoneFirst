@@ -23,6 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _profileService = ProfileService();
   final _consentService = ConsentService();
   final _exportService = DataExportService();
+  static const String _appVersion = '1.0.0';
   bool _notifyProofSubmitted = true;
   bool _notifyBreakRequested = true;
   bool _notifySessionComplete = true;
@@ -453,6 +454,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// Resend the Supabase signup confirmation email. Used when the
+  /// email didn't arrive (spam, typo before they edited the to-field,
+  /// mail provider delay).
+  Future<void> _resendVerification() async {
+    final email = _userEmail;
+    if (email == null) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No email on file.')));
+      return;
+    }
+    try {
+      await Supabase.instance.client.auth.resend(
+        type: OtpType.email,
+        email: email,
+      );
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verification email re-sent to $email.'),
+          ),
+        );
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  /// Copy a pre-formatted support address to the clipboard. We don't
+  /// ship a separate in-app helpdesk yet — at this stage the launch
+  /// team handles feedback by hand. Adding url_launcher for a mailto:
+  /// isn't worth the extra dep for one screen.
+  Future<void> _reportProblem() async {
+    const supportEmail = 'support@donefirst.app';
+    await Clipboard.setData(
+      const ClipboardData(text: supportEmail),
+    );
+    if (mounted)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('support@donefirst.app copied. Email us there.'),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading)
@@ -748,6 +797,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               subtitle: const Text('Permanently delete all data'),
               onTap: _deleteAccount,
+            ),
+          ),
+          const SizedBox(height: 32),
+          _section('About'),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('App version'),
+                  subtitle: Text(
+                    'DoneFirst $_appVersion',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.email_outlined),
+                  title: const Text('Resend verification email'),
+                  subtitle: const Text(
+                    "Didn't get the confirmation email? Send it again.",
+                  ),
+                  onTap: _resendVerification,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.bug_report_outlined),
+                  title: const Text('Report a problem'),
+                  subtitle: const Text(
+                    'Tell us what went wrong (opens your email app)',
+                  ),
+                  onTap: _reportProblem,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 32),
