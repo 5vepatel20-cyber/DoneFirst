@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/schedule_service.dart';
 import '../theme/app_theme.dart';
 
 const List<String> weekdayNames = [

@@ -1,5 +1,3 @@
-import '../models/models.dart';
-
 class MilestoneInfo {
   final int streak;
   final String title;

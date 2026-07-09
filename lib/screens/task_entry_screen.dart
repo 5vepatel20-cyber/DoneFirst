@@ -67,7 +67,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
     // Delete old proof if exists
     final oldProof = await _proofService.getLatestProof(taskId);
     if (oldProof != null) {
-      await _proofService.deleteProof(oldProof!.id);
+      await _proofService.deleteProof(oldProof.id);
     }
     // Reset task status to pending
     await _proofService.deleteTask(taskId);
