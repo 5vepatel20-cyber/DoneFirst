@@ -83,17 +83,26 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
       totalMinutes += (s['duration_minutes'] as int?) ?? 0;
       if (s['status'] == 'completed') completed++;
       if (s['status'] == 'cancelled') cancelled++;
+    }
 
-      // Count approved proofs for this session
-      final proofs = await supabase
+    // Count approved proofs once for all sessions in a single query,
+    // then aggregate by session_id client-side. Previously this was
+    // done one query per session inside the loop above (N+1), which
+    // got noticeably slow for kids with a long history.
+    final approvedBySession = <String, int>{};
+    if (sessionIds.isNotEmpty) {
+      final approvedProofsResp = await supabase
           .from('proof_submissions')
-          .select('status')
-          .eq('session_id', s['id']);
-
-      for (final p in proofs) {
-        if (p['status'] == 'approved') approvedProofs++;
+          .select('session_id, status')
+          .inFilter('session_id', sessionIds)
+          .eq('status', 'approved');
+      for (final p in approvedProofsResp) {
+        final sid = p['session_id'] as String?;
+        if (sid == null) continue;
+        approvedBySession[sid] = (approvedBySession[sid] ?? 0) + 1;
       }
     }
+    approvedProofs = approvedBySession.values.fold(0, (a, b) => a + b);
 
     // Per-subject minutes. We sum session duration for every task
     // tagged with that subject. A 60-min session with 1 Math task +
