@@ -119,6 +119,30 @@ serve(async (req) => {
     return json({ decision: 'needs_review', reason: 'Missing imageUrl' }, 400)
   }
 
+  // Only accept image URLs that point at our own Supabase Storage.
+  // Without this check, a client could pass any public URL (e.g. a
+  // huge image hosted elsewhere) and burn the parent's daily Mistral
+  // quota + cost on it.
+  //
+  // Storage URLs come in two flavours:
+  //   - Public bucket:  https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
+  //   - Signed URL:     https://<project>.supabase.co/storage/v1/object/sign/<bucket>/<path>?...
+  //
+  // proof-photos is a private bucket, so only the signed form is valid
+  // for it, but we accept both for forward-compatibility in case a
+  // future bucket becomes public.
+  const supabaseUrl = new URL(SUPABASE_URL)
+  const allowedPrefixes = [
+    `${supabaseUrl.origin}/storage/v1/object/sign/`,
+    `${supabaseUrl.origin}/storage/v1/object/public/`,
+  ]
+  if (!allowedPrefixes.some((p) => imageUrl.startsWith(p))) {
+    return json({
+      decision: 'needs_review',
+      reason: 'imageUrl must be a Supabase Storage URL',
+    }, 400)
+  }
+
   // Call Mistral
   let mistralBody: unknown
   try {
