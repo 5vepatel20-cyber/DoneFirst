@@ -8,6 +8,7 @@ import '../services/profile_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_mode.dart';
 import '../utils/policy_text.dart';
+import '../services/notification_preferences_service.dart';
 import 'upgrade_screen.dart';
 import 'coparent_screen.dart';
 
@@ -23,6 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _profileService = ProfileService();
   final _consentService = ConsentService();
   final _exportService = DataExportService();
+  final _notificationPrefs = NotificationPreferencesService();
   static const String _appVersion = '1.0.0';
   bool _notifyProofSubmitted = true;
   bool _notifyBreakRequested = true;
@@ -66,6 +68,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // Render empty list silently — the Audit section won't show rows.
       } finally {
         if (mounted) setState(() => _loadingConsent = false);
+      }
+      // Notification prefs are stored locally; reading SharedPreferences
+      // is fast but we still do it off the load path.
+      final notifPrefs = await _notificationPrefs.getPrefs();
+      if (mounted) {
+        setState(() {
+          _notifyProofSubmitted =
+              notifPrefs[NotificationPreferencesService.typeProofSubmitted] ??
+                  true;
+          _notifyBreakRequested =
+              notifPrefs[NotificationPreferencesService.typeBreakRequested] ??
+                  true;
+          _notifySessionComplete =
+              notifPrefs[NotificationPreferencesService.typeSessionComplete] ??
+                  true;
+        });
       }
     }
   }
@@ -594,21 +612,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'When your child submits homework photo',
                   ),
                   value: _notifyProofSubmitted,
-                  onChanged: (v) => setState(() => _notifyProofSubmitted = v),
+                  onChanged: (v) async {
+                    setState(() => _notifyProofSubmitted = v);
+                    await _notificationPrefs.setEnabled(
+                      NotificationPreferencesService.typeProofSubmitted,
+                      v,
+                    );
+                  },
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
                   title: const Text('Break requested'),
                   subtitle: const Text('When your child asks for a break'),
                   value: _notifyBreakRequested,
-                  onChanged: (v) => setState(() => _notifyBreakRequested = v),
+                  onChanged: (v) async {
+                    setState(() => _notifyBreakRequested = v);
+                    await _notificationPrefs.setEnabled(
+                      NotificationPreferencesService.typeBreakRequested,
+                      v,
+                    );
+                  },
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
                   title: const Text('Session complete'),
                   subtitle: const Text('When all tasks are done'),
                   value: _notifySessionComplete,
-                  onChanged: (v) => setState(() => _notifySessionComplete = v),
+                  onChanged: (v) async {
+                    setState(() => _notifySessionComplete = v);
+                    await _notificationPrefs.setEnabled(
+                      NotificationPreferencesService.typeSessionComplete,
+                      v,
+                    );
+                  },
                 ),
               ],
             ),

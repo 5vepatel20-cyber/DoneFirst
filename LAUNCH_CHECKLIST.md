@@ -95,6 +95,7 @@ on Apple Developer enrollment.
 - Scheduled job to clean up orphan `proof-photos` storage objects — ✅ `find_orphan_proof_photos()` function in `retention_jobs.sql`; bulk delete via Supabase Storage API
 - ~~Co-parent invite accept/decline flow (model exists, no UI)~~ — ✅ done in code (`lib/screens/coparent_screen.dart` has Accept/Decline for received invites and Cancel for sent)
 - Account deletion token confirmation screen
+- ~~Per-type notification preferences (in Settings → Notifications)~~ — ✅ done in code (`lib/services/notification_preferences_service.dart`, settings toggles persist to SharedPreferences, NotificationService gates inserts + filters reads)
 
 ---
 
