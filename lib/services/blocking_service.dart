@@ -91,18 +91,14 @@ class BlockingService extends ChangeNotifier {
     }
   }
 
-  /// Start blocking. Does NOT auto-request permission — the call site
-  /// is the only place that should decide whether to ask the user.
-  /// Returns true if blocking is now active. On failure, [lastError]
-  /// is populated and [status] becomes [BlockingStatus.blockingFailed].
-  ///
-  /// Pre-launch this method implicitly prompted the user for the OS
-  /// grant on first call, which surprised parents in the middle of
-  /// starting a session. Now callers must invoke [requestPermission]
-  /// explicitly if they want to gate on it. Native enforcement code
-  /// (Android AccessibilityService / iOS FamilyControls) isn't shipped
-  /// yet, so most calls effectively no-op anyway.
+  /// Start blocking. Requests permission first if we don't have it.
+  /// Returns true if blocking is now active. On failure, [lastError] is
+  /// populated and [status] becomes [BlockingStatus.blockingFailed].
   Future<bool> startBlocking() async {
+    if (!_status.hasPermission) {
+      final granted = await requestPermission();
+      if (!granted) return false;
+    }
     _setStatus(BlockingStatus.startingBlock);
     try {
       await _screenTime.startBlocking();
