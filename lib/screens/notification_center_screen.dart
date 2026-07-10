@@ -35,12 +35,36 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
   Future<void> _markRead(String id) async {
     await _notificationService.markAsRead(id);
-    await _load();
+    if (!mounted) return;
+    setState(() {
+      // Local flip avoids a full reload — the row already exists in
+      // memory and there's no other state to recompute.
+      final i = _notifications.indexWhere((n) => n.id == id);
+      if (i >= 0) {
+        _notifications[i] = AppNotification(
+          id: _notifications[i].id,
+          parentId: _notifications[i].parentId,
+          childId: _notifications[i].childId,
+          type: _notifications[i].type,
+          title: _notifications[i].title,
+          body: _notifications[i].body,
+          read: true,
+          createdAt: _notifications[i].createdAt,
+        );
+      }
+    });
   }
 
   Future<void> _markAllRead() async {
     await _notificationService.markAllAsRead();
     await _load();
+  }
+
+  Future<void> _delete(String id) async {
+    // Dismiss-then-delete so the row leaves the UI immediately
+    // rather than snapping back if the delete is slow.
+    setState(() => _notifications.removeWhere((n) => n.id == id));
+    await _notificationService.deleteNotification(id);
   }
 
   IconData _iconForType(String type) {
@@ -89,32 +113,43 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _notifications.isEmpty
-          ? const EmptyState(
-              icon: Icons.notifications_none,
-              title: 'No notifications',
-              subtitle: 'Activity appears here',
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _notifications.length,
-              itemBuilder: (ctx, i) {
-                final n = _notifications[i];
-                final type = n.type;
-                final isRead = n.read;
-                return Dismissible(
-                  key: Key(n.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 16),
-                    decoration: BoxDecoration(
-                      color: AppColors.danger,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.delete, color: Colors.white),
+          ? RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  SizedBox(height: 120),
+                  EmptyState(
+                    icon: Icons.notifications_none,
+                    title: 'No notifications',
+                    subtitle: 'Activity appears here',
                   ),
-                  onDismissed: (_) {},
-                  child: Card(
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _notifications.length,
+                itemBuilder: (ctx, i) {
+                  final n = _notifications[i];
+                  final type = n.type;
+                  final isRead = n.read;
+                  return Dismissible(
+                    key: Key(n.id),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.delete, color: Colors.white),
+                    ),
+                    onDismissed: (_) => _delete(n.id),
+                    child: Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     color: isRead ? null : AppColors.primary.withValues(alpha:0.03),
                     child: ListTile(
@@ -164,6 +199,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 );
               },
             ),
+          ),
     );
   }
 }
