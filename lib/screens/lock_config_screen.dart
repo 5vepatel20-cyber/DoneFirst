@@ -10,10 +10,23 @@ import '../models/models.dart';
 class LockConfigScreen extends StatefulWidget {
   final String childId;
   final String childName;
+  // Optional pre-fill values. When supplied (e.g. from
+  // SchedulesScreen "Start Now" tapping today's schedule), the
+  // form opens with these defaults selected so the parent doesn't
+  // re-pick values the schedule already specified. Falls back to
+  // balanced/60/120 when not provided — same as the original
+  // hard-coded defaults.
+  final int? initialMinLock;
+  final int? initialMaxLift;
+  final String? initialApprovalMode;
+
   const LockConfigScreen({
     super.key,
     required this.childId,
     required this.childName,
+    this.initialMinLock,
+    this.initialMaxLift,
+    this.initialApprovalMode,
   });
 
   @override
@@ -24,9 +37,9 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
   final _sessionService = SessionService();
   final _blockingService = BlockingService();
   final _presetService = LockPresetService();
-  int _minLock = 60;
-  int _maxLift = 120;
-  String _approvalMode = 'balanced';
+  late int _minLock;
+  late int _maxLift;
+  late String _approvalMode;
   final Set<String> _selectedPacks = {};
   List<LockPreset> _presets = [];
   bool _loadingPresets = false;
@@ -34,6 +47,9 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
   @override
   void initState() {
     super.initState();
+    _minLock = widget.initialMinLock ?? 60;
+    _maxLift = widget.initialMaxLift ?? 120;
+    _approvalMode = widget.initialApprovalMode ?? 'balanced';
     _loadPresets();
   }
 

@@ -298,6 +298,14 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                                 builder: (_) => LockConfigScreen(
                                   childId: widget.childId,
                                   childName: widget.childName,
+                                  // Pre-fill from this schedule so the
+                                  // parent doesn't re-pick duration and
+                                  // approval mode they already set on the
+                                  // schedule. Packs aren't part of the
+                                  // schedule today so they still default
+                                  // to empty.
+                                  initialMinLock: s.durationMinutes,
+                                  initialApprovalMode: s.approvalMode,
                                 ),
                               ),
                             ),
