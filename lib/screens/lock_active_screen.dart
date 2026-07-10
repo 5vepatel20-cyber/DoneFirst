@@ -50,13 +50,14 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       const Duration(seconds: 10),
       (_) => _loadAll(),
     );
-    // Kid-side permission request. On first run, this prompts for the
-    // OS-level grant (FamilyControls on iOS, UsageStats on Android).
-    // On web this is a no-op. If the user denies, the banner below
-    // explains how to fix it.
-    if (!_blockingService.hasPermission) {
-      _blockingService.requestPermission();
-    }
+    // Permission is intentionally NOT auto-requested here. Asking a
+    // kid to grant an OS-level grant at the moment their homework
+    // timer starts is hostile UX, and the native blocking code that
+    // would honor the grant (AccessibilityService on Android,
+    // FamilyControls on iOS) isn't shipped yet anyway — see launch
+    // checklist items 4.1 and 4.2. Until those land, the lock timer
+    // and proofs work either way; native enforcement is a soft
+    // capability that turns on later without an in-app prompt.
   }
 
   @override
@@ -91,10 +92,17 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     final String text;
     switch (status) {
       case BlockingStatus.permissionDenied:
-        background = AppColors.danger.withValues(alpha: 0.1);
-        icon = Icons.block;
+        // Soft, informational. Pre-launch this banner read
+        // "App blocking is off. Grant the permission in Settings to
+        // enforce the lock." — that asks the kid to grant an OS
+        // permission with no clear payoff, since the native blocking
+        // code isn't shipped yet. Replaced with a neutral note so
+        // the lock screen doesn't look broken.
+        background = AppColors.textSecondary.withValues(alpha: 0.08);
+        icon = Icons.info_outline;
         text =
-            'App blocking is off. Grant the permission in Settings to enforce the lock.';
+            'App blocking is optional on this device. The timer and '
+            'proofs work regardless.';
         break;
       case BlockingStatus.permissionGranted:
         background = AppColors.success.withValues(alpha: 0.08);
@@ -108,6 +116,9 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
         break;
       case BlockingStatus.blockingFailed:
       case BlockingStatus.blockingError:
+        // Native-side errors are still surfaced so the kid (or
+        // their parent, depending on which device) sees when a
+        // blocking session can't actually start.
         background = AppColors.danger.withValues(alpha: 0.1);
         icon = Icons.error_outline;
         text =
