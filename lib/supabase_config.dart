@@ -5,5 +5,11 @@ Future<void> initSupabase() async {
     url: 'https://wxjtksxugsirpowptpmz.supabase.co',
     publishableKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4anRrc3h1Z3NpcnBvd3B0cG16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMzMzMTgsImV4cCI6MjA5ODkwOTMxOH0.Ng9onu4901Q1yY0YnrM1XLyo5yOBoQbUariFqG-M3go',
+    // PKCE is required for OAuth on web (Supabase docs) and harmless
+    // for the native password flow. Without it, signInWithOAuth on
+    // web starts but never completes the round-trip.
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
   );
 }

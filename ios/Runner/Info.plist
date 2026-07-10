@@ -70,5 +70,23 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Google Sign In callback URL scheme. The scheme is the reversed
+	     iOS OAuth client ID from Google Cloud. iOS requires the URL
+	     scheme in Info.plist at build time (it can't be injected at
+	     runtime via --dart-define), so swap the placeholder below
+	     for `com.googleusercontent.apps.<YOUR_IOS_CLIENT_ID>` before
+	     building for iOS. Supabase will redirect back to this scheme
+	     after the OAuth round-trip. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.IOS_CLIENT_ID_PLACEHOLDER</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

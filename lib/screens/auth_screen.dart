@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/consent_service.dart';
@@ -5,6 +6,7 @@ import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
 import '../widgets/error_banner.dart';
+import 'consent_capture_screen.dart';
 import 'parent_dashboard.dart';
 import 'verify_email_screen.dart';
 
@@ -166,6 +168,69 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  /// Triggers the Google sign-in flow. After Supabase returns a
+  /// User, routes first-time Google users to the consent capture
+  /// screen, returning users straight to the dashboard.
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final user = await _auth.signInWithGoogle();
+      if (!mounted) return;
+      // Web OAuth is async via redirect — on the initial tap there
+      // is no User yet. AuthScreen will be torn down by the redirect;
+      // on return, main.dart's EntryPoint routes to /dashboard
+      // directly because _auth.currentUser is non-null.
+      if (user == null) {
+        if (kIsWeb) return;
+        setState(() {
+          _error = 'Google sign-in returned no user.';
+          _loading = false;
+        });
+        return;
+      }
+      // For native flows, decide between consent (new) and dashboard
+      // (returning). isFreshGoogleSignIn uses createdAt proximity.
+      if (!AuthService.isFreshGoogleSignIn(user)) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ParentDashboard()),
+        );
+        return;
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ConsentCaptureScreen(
+            parentId: user.id,
+            displayName: AuthService.deriveDisplayName(user),
+            email: user.email ?? '',
+          ),
+        ),
+      );
+    } on GoogleSignInCancelledException {
+      // User dismissed the Google account picker — treat as soft
+      // cancel, no error banner.
+      if (mounted) setState(() => _loading = false);
+    } on GoogleSignInConfigException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+          _loading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -283,6 +348,64 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 16),
+                // "Or" divider so the OAuth path is visually a peer
+                // of the password path, not a footnote.
+                Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        'OR',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary
+                              .withValues(alpha: 0.8),
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Google sign-in button. Outlined to play nicely with
+                // the primary FilledButton above. Disabled while
+                // _loading is true so a tap during the OAuth
+                // round-trip can't queue a second attempt.
+                OutlinedButton.icon(
+                  onPressed: _loading ? null : _signInWithGoogle,
+                  icon: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: // Inline "G" so we don't pull a font asset.
+                        Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4285F4),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'G',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  label: Text(_isSignUp
+                      ? 'Sign up with Google'
+                      : 'Sign in with Google'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(
+                      color: AppColors.textSecondary.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: () => setState(() {
