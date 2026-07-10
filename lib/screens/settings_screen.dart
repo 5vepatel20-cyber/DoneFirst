@@ -503,10 +503,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String email,
     String password,
   ) async {
-    await Supabase.instance.client.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
+    await _auth.verifyPassword(email, password);
   }
 
   /// Resend the Supabase signup confirmation email. Used when the

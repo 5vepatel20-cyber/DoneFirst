@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/pin_attempt_tracker.dart';
 import '../theme/app_theme.dart';
+import '../widgets/forgot_pin_flow.dart';
 
 /// Gates a screen behind a 4-digit parent PIN. After 5 wrong
 /// attempts the gate locks for 30 seconds (see PinAttemptTracker).
@@ -111,6 +112,25 @@ class _PinScreenState extends State<PinScreen> {
     await _refreshLockoutState();
   }
 
+  /// Runs the password-based PIN reset flow. On success the new
+  /// PIN is saved and we pop back to whatever called us — the
+  /// parent will tap into Settings again and PinGuard will pick
+  /// up the new PIN. Failure leaves us on PinScreen so the parent
+  /// can try a different password or Cancel out.
+  Future<void> _forgotPin() async {
+    if (_lockedOut) return;
+    final reset = await ForgotPinFlow.run(context);
+    if (!mounted) return;
+    if (reset) {
+      // Successful reset — clear any active lockout so a kid
+      // who happened to lock the screen can't immediately use
+      // the recovery path as a back-door rate-limit reset.
+      await _tracker.reset();
+      if (!mounted) return;
+      Navigator.pop(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -172,6 +192,19 @@ class _PinScreenState extends State<PinScreen> {
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Cancel'),
+              ),
+              const SizedBox(height: 4),
+              // Forgot PIN? — runs password-based recovery. For
+              // Google-only accounts the flow shows a help dialog
+              // instead (see ForgotPinFlow.run). Disabled during
+              // lockout so the kid can't churn through password
+              // attempts to brute-force the recovery.
+              TextButton(
+                onPressed: _lockedOut ? null : _forgotPin,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                ),
+                child: const Text('Forgot PIN?', style: TextStyle(fontSize: 12)),
               ),
             ],
           ),

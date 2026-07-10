@@ -192,6 +192,34 @@ class AuthService {
 
     await _supabase.auth.signOut();
   }
+
+  /// Verify the parent's password without disturbing their current
+  /// session. Used by sensitive flows (Delete Account, Forgot PIN)
+  /// where we need proof of identity but don't want to actually log
+  /// them out and back in.
+  ///
+  /// Supabase's `signInWithPassword` is what we have available. If
+  /// there's an active session it refreshes the access token; if not
+  /// it creates one. Either way, success means the password matched
+  /// the account's stored hash. Failure throws AuthException with
+  /// `InvalidCredentials` — callers should catch and show a
+  /// generic "wrong password" message so we don't leak which
+  /// accounts exist.
+  Future<void> verifyPassword(String email, String password) async {
+    await _supabase.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  /// True when the current user signed up via a provider that has
+  /// no password (Google, Apple, etc.). Used by Forgot PIN to
+  /// decide whether to offer password-based recovery or steer the
+  /// user toward signing out and back in.
+  bool get currentUserUsesPassword {
+    final identities = _supabase.auth.currentUser?.identities ?? [];
+    return identities.any((i) => i.provider == 'email');
+  }
 }
 
 /// Thrown when Google Sign In is called without the OAuth client IDs
