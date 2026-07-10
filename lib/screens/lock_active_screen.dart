@@ -332,18 +332,54 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       return;
     }
     final noteController = TextEditingController();
+    // Common-reason chips. Tapping one overwrites the note text so
+    // the parent can still tweak it before sending. Most rejections
+    // fall into one of these buckets; typing the same sentence 5
+    // times a night adds up. "Custom…" appends a back to keep the
+    // field editable — without it, a custom reject would require
+    // clearing the chip first.
     final note = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Reason for rejection'),
-        content: TextField(
-          controller: noteController,
-          autofocus: true,
-          maxLines: 2,
-          decoration: const InputDecoration(
-            hintText: 'Tell your child what to fix...',
-            labelText: 'Note (optional)',
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final r in const [
+                  'Too blurry',
+                  'Wrong subject',
+                  'Incomplete work',
+                  'Didn\'t show the work',
+                  'Needs to be darker',
+                  'Try again',
+                ])
+                  ActionChip(
+                    label: Text(r, style: const TextStyle(fontSize: 12)),
+                    onPressed: () {
+                      noteController.text = r;
+                      noteController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: noteController.text.length),
+                      );
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteController,
+              autofocus: true,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                hintText: 'Tell your child what to fix...',
+                labelText: 'Note (optional)',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
