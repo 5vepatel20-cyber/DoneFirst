@@ -10,6 +10,7 @@ import '../main.dart' as app;
 import '../theme/app_theme.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/consent_gate.dart';
+import '../widgets/pin_guard.dart';
 import 'auth_screen.dart';
 import 'lock_config_screen.dart';
 import 'lock_active_screen.dart';
@@ -489,9 +490,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.push(
+            onPressed: () => PinGuard.push(
               context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              destination: const SettingsScreen(),
             ),
             tooltip: 'Settings',
           ),
@@ -681,19 +682,17 @@ class _ParentDashboardState extends State<ParentDashboard> {
                                     if (!hasActive)
                                       TextButton(
                                         onPressed: () {
-                                          Navigator.push(
+                                          PinGuard.push(
                                             context,
-                                            MaterialPageRoute(
-                                              builder: (_) => LockConfigScreen(
-                                                childId: childId,
-                                                childName: childName,
-                                                // Pre-fill from the
-                                                // schedule so the parent
-                                                // doesn't re-pick what the
-                                                // schedule already says.
-                                                initialMinLock: s.durationMinutes,
-                                                initialApprovalMode: s.approvalMode,
-                                              ),
+                                            destination: LockConfigScreen(
+                                              childId: childId,
+                                              childName: childName,
+                                              // Pre-fill from the
+                                              // schedule so the parent
+                                              // doesn't re-pick what the
+                                              // schedule already says.
+                                              initialMinLock: s.durationMinutes,
+                                              initialApprovalMode: s.approvalMode,
                                             ),
                                           ).then((_) => _loadAll());
                                         },
@@ -955,13 +954,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           label: const Text('View Lock'),
                         )
                       : FilledButton.icon(
-                          onPressed: () => Navigator.push(
+                          onPressed: () => PinGuard.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => LockConfigScreen(
-                                childId: childId,
-                                childName: childName,
-                              ),
+                            destination: LockConfigScreen(
+                              childId: childId,
+                              childName: childName,
                             ),
                           ),
                           icon: const Icon(Icons.lock, size: 18),

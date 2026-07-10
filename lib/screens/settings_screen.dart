@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../theme/theme_mode.dart';
 import '../utils/policy_text.dart';
 import '../services/notification_preferences_service.dart';
+import '../widgets/pin_guard.dart';
 import 'upgrade_screen.dart';
 import 'coparent_screen.dart';
 import 'help_screen.dart';
@@ -386,6 +387,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _deleteAccount() async {
+    // PIN gate before showing the destructive dialog. If a parent
+    // PIN is set, require it before Delete Account is even
+    // reachable — typing "DELETE" + a password together is still
+    // vulnerable to a kid with the password memorized.
+    final pinOk = await PinGuard.confirmInline(
+      context,
+      actionLabel: 'Continue',
+    );
+    if (!pinOk) return;
     final confirmController = TextEditingController();
     final passwordController = TextEditingController();
     final confirmed = await showDialog<bool>(
