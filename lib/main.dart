@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'supabase_config.dart';
@@ -6,9 +7,11 @@ import 'services/auth_service.dart';
 import 'services/realtime_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_mode.dart';
+import 'screens/splash_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/parent_dashboard.dart';
+import 'screens/session_complete_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/upgrade_screen.dart';
 
@@ -65,6 +68,22 @@ class DoneFirstApp extends StatelessWidget {
               return MaterialPageRoute(builder: (_) => const SettingsScreen());
             case '/upgrade':
               return MaterialPageRoute(builder: (_) => const UpgradeScreen());
+            case '/session-complete':
+              // Caller pushes with arguments in the route settings
+              // (childName, tasksCompleted, streakDays,
+              // minutesStudied). For simplicity we instantiate with
+              // placeholders; the canonical entry is from kid_home
+              // after a session wraps.
+              final args = settings.arguments as Map<String, dynamic>? ?? {};
+              return MaterialPageRoute(
+                builder: (_) => SessionCompleteScreen(
+                  childName: args['childName'] as String? ?? '',
+                  tasksCompleted: args['tasksCompleted'] as int? ?? 0,
+                  streakDays: args['streakDays'] as int? ?? 0,
+                  minutesStudied: args['minutesStudied'] as int?,
+                  onDone: () => Navigator.of(_).pop(),
+                ),
+              );
             default:
               return MaterialPageRoute(builder: (_) => const EntryPoint());
           }
@@ -92,9 +111,21 @@ class _EntryPointState extends State<EntryPoint> {
   }
 
   Future<void> _checkAuth() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
+    // Light status bar on the splash — once we route away the new
+    // screen will set its own style via AnnotatedRegion.
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
 
+    // Hold the splash for at least 600ms so the logo animation
+    // doesn't flicker on fast devices. Auth check happens in parallel.
+    await Future.wait([
+      Future.delayed(const Duration(milliseconds: 600)),
+      _resolveRoute(),
+    ]);
+    if (mounted) setState(() => _checking = false);
+  }
+
+  Future<void> _resolveRoute() async {
+    if (!mounted) return;
     if (_auth.currentUser != null) {
       Navigator.pushReplacementNamed(context, '/dashboard');
     } else {
@@ -107,50 +138,13 @@ class _EntryPointState extends State<EntryPoint> {
         );
       }
     }
-    setState(() => _checking = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_checking) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha:0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle_outline,
-                  size: 48,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'DoneFirst',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Homework first. Apps after.',
-                style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 32),
-              const CircularProgressIndicator(),
-            ],
-          ),
-        ),
-      );
-    }
+    // The Splash is the entry-point visual; routing happens once
+    // the auth check resolves and pushes a replacement route.
+    if (_checking) return const SplashScreen();
     return const SizedBox.shrink();
   }
 }

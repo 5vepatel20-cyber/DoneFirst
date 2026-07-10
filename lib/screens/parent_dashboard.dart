@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
@@ -434,13 +435,21 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
-                Icons.check_circle_outline,
-                size: 20,
+                LucideIcons.sprout,
+                size: 16,
                 color: AppColors.primary,
               ),
             ),
             const SizedBox(width: 8),
-            const Text('DoneFirst'),
+            const Text(
+              'DoneFirst',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+                color: AppColors.textPrimary,
+              ),
+            ),
           ],
         ),
         actions: [

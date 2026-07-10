@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/auth_service.dart';
 import '../services/consent_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
+import '../widgets/brand_logo.dart';
 import '../widgets/error_banner.dart';
 import 'consent_capture_screen.dart';
 import 'parent_dashboard.dart';
@@ -233,196 +236,210 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+    final body = SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenPadding,
+        vertical: 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Brand mark + wordmark, small, inline. Padding lifts
+            // the whole form off the top edge.
+            Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha:0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_circle_outline,
-                    size: 40,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
+                const BrandLogo.signIn(),
+                const SizedBox(width: 10),
+                Text(
                   'DoneFirst',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Homework first. Apps after.',
-                  style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 32),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: ErrorBanner(
-                      message: _error!,
-                      onDismiss: () => setState(() => _error = null),
-                    ),
-                  ),
-                if (_isSignUp)
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Your Name',
-                      prefixIcon: Icon(Icons.person),
-                    ),
-                    textInputAction: TextInputAction.next,
-                    validator: Validators.name,
-                  ),
-                if (_isSignUp) const SizedBox(height: 12),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  validator: Validators.email,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        size: 18,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
-                  obscureText: _obscurePassword,
-                  textInputAction: TextInputAction.done,
-                  validator: _isSignUp ? Validators.password : null,
-                  onFieldSubmitted: (_) => _submit(),
-                ),
-                if (_isSignUp) ...[
-                  const SizedBox(height: 16),
-                  _buildConsentCard(),
-                ],
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: (_loading ||
-                          (_isSignUp && !_signUpReady))
-                      ? null
-                      : _submit,
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(_isSignUp ? 'Sign Up' : 'Sign In'),
-                ),
-                if (!_isSignUp) ...[
-                  const SizedBox(height: 4),
-                  TextButton(
-                    onPressed: _loading ? null : _resetPassword,
-                    child: const Text(
-                      'Forgot password?',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                // "Or" divider so the OAuth path is visually a peer
-                // of the password path, not a footnote.
-                Row(
-                  children: [
-                    const Expanded(child: Divider()),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'OR',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary
-                              .withValues(alpha: 0.8),
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ),
-                    const Expanded(child: Divider()),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Google sign-in button. Outlined to play nicely with
-                // the primary FilledButton above. Disabled while
-                // _loading is true so a tap during the OAuth
-                // round-trip can't queue a second attempt.
-                OutlinedButton.icon(
-                  onPressed: _loading ? null : _signInWithGoogle,
-                  icon: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: // Inline "G" so we don't pull a font asset.
-                        Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4285F4),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'G',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  label: Text(_isSignUp
-                      ? 'Sign up with Google'
-                      : 'Sign in with Google'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    side: BorderSide(
-                      color: AppColors.textSecondary.withValues(alpha: 0.3),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextButton(
-                  onPressed: () => setState(() {
-                    _isSignUp = !_isSignUp;
-                    _error = null;
-                  }),
-                  child: Text(
-                    _isSignUp
-                        ? 'Already have an account? Sign in'
-                        : "New? Create an account",
-                  ),
+                  style: AppText.screenTitle(),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 28),
+            // Greeting — Bricolage 27px (-0.02em) per the handoff.
+            Text(
+              _isSignUp ? 'Create your account' : 'Welcome back',
+              style: GoogleFonts.bricolageGrotesque(
+                fontSize: 27,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+                color: AppColors.ink,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _isSignUp
+                  ? 'Set up the parent dashboard in about a minute.'
+                  : 'Sign in to manage your family\'s homework locks.',
+              style: AppText.bodySecondary(),
+            ),
+            const SizedBox(height: 24),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ErrorBanner(
+                  message: _error!,
+                  onDismiss: () => setState(() => _error = null),
+                ),
+              ),
+            if (_isSignUp)
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Your name',
+                  prefixIcon: Icon(LucideIcons.user, size: 18),
+                ),
+                textInputAction: TextInputAction.next,
+                validator: Validators.name,
+              ),
+            if (_isSignUp) const SizedBox(height: 12),
+            TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(LucideIcons.mail, size: 18),
+              ),
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              validator: Validators.email,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _passwordController,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(LucideIcons.lock, size: 18),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                    size: 18,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
+              obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
+              validator: _isSignUp ? Validators.password : null,
+              onFieldSubmitted: (_) => _submit(),
+            ),
+            if (_isSignUp) ...[
+              const SizedBox(height: 16),
+              _buildConsentCard(),
+            ],
+            if (!_isSignUp)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _loading ? null : _resetPassword,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 8,
+                    ),
+                  ),
+                  child: Text(
+                    'Forgot password?',
+                    style: AppText.body(color: AppColors.forest),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 20),
+            // Primary CTA — full width per the handoff.
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: (_loading || (_isSignUp && !_signUpReady))
+                    ? null
+                    : _submit,
+                child: _loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(_isSignUp ? 'Create account' : 'Sign in'),
+              ),
+            ),
+            const SizedBox(height: 18),
+            // "Or" divider — peer of the password path, not a
+            // footnote. Hairlines are sage-tinted (#EEF1E9) so the
+            // divider doesn't fight the form for attention.
+            Row(
+              children: [
+                const Expanded(child: Divider(color: AppColors.line)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'OR',
+                    style: AppText.eyebrow(),
+                  ),
+                ),
+                const Expanded(child: Divider(color: AppColors.line)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // Google sign-in. Outlined to play against the filled
+            // primary above; the on-brand "G" tile stays because
+            // we don't want to fetch the Google SVG asset.
+            OutlinedButton.icon(
+              onPressed: _loading ? null : _signInWithGoogle,
+              icon: SizedBox(
+                width: 18,
+                height: 18,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4285F4),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'G',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              label: Text(
+                _isSignUp ? 'Sign up with Google' : 'Sign in with Google',
+              ),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(44),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: TextButton(
+                onPressed: () => setState(() {
+                  _isSignUp = !_isSignUp;
+                  _error = null;
+                }),
+                child: Text(
+                  _isSignUp
+                      ? 'Already have an account? Sign in'
+                      : 'New to DoneFirst? Create account',
+                  style: AppText.body(color: AppColors.forest),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
+    );
+
+    return Scaffold(
+      // Paper background matches the rest of the parent flow.
+      backgroundColor: AppColors.paper,
+      body: SafeArea(child: body),
     );
   }
 
