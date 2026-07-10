@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import '../services/consent_service.dart';
 import '../services/data_export_service.dart';
 import '../services/profile_service.dart';
+import '../services/parent_preferences_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_mode.dart';
 import '../utils/policy_text.dart';
@@ -26,12 +27,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _consentService = ConsentService();
   final _exportService = DataExportService();
   final _notificationPrefs = NotificationPreferencesService();
+  final _parentPrefs = ParentPreferencesService();
   static const String _appVersion = '1.0.0';
   bool _notifyProofSubmitted = true;
   bool _notifyBreakRequested = true;
   bool _notifySessionComplete = true;
   bool _autoApproveMath = false;
-  int _defaultMinutes = 60;
+  int _defaultMinutes = ParentPreferencesService.defaultMinutes;
   bool _loading = true;
   String? _userEmail;
   String? _pin;
@@ -73,6 +75,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Notification prefs are stored locally; reading SharedPreferences
       // is fast but we still do it off the load path.
       final notifPrefs = await _notificationPrefs.getPrefs();
+      // Read the three parent prefs (PIN, autoApproveMath, default
+      // duration) in parallel — three independent SharedPreferences
+      // lookups that have no inter-dependencies.
+      final parentPrefsResults = await Future.wait([
+        _parentPrefs.getPin(),
+        _parentPrefs.getAutoApproveMath(),
+        _parentPrefs.getDefaultMinutes(),
+      ]);
       if (mounted) {
         setState(() {
           _notifyProofSubmitted =
@@ -84,6 +94,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _notifySessionComplete =
               notifPrefs[NotificationPreferencesService.typeSessionComplete] ??
                   true;
+          _pin = parentPrefsResults[0] as String?;
+          _autoApproveMath = parentPrefsResults[1] as bool;
+          _defaultMinutes = parentPrefsResults[2] as int;
         });
       }
     }
@@ -171,11 +184,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (pin != null && pin.length == 4) {
-      setState(() => _pin = pin);
-      if (mounted)
+      // PinScreen isn't wired into the navigation flow yet, but the
+      // value should still survive an app restart so it works when
+      // we do. Validate it's 4 digits before persisting so the saved
+      // value can be trusted by future readers.
+      if (!RegExp(r'^\d{4}$').hasMatch(pin)) {
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('PIN must be 4 digits.')),
+          );
+        return;
+      }
+      await _parentPrefs.setPin(pin);
+      if (mounted) {
+        setState(() => _pin = pin);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('PIN saved')));
+      }
     }
   }
 
@@ -588,7 +614,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? 'Protect parent screens with PIN'
                         : 'PIN is set',
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  trailing: _pin == null
+                      ? const Icon(Icons.arrow_forward_ios, size: 16)
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: AppColors.danger,
+                                size: 20,
+                              ),
+                              tooltip: 'Remove PIN',
+                              onPressed: () async {
+                                await _parentPrefs.setPin(null);
+                                if (!mounted) return;
+                                setState(() => _pin = null);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('PIN removed')),
+                                );
+                              },
+                            ),
+                            const Icon(Icons.arrow_forward_ios, size: 16),
+                          ],
+                        ),
                   onTap: _setPin,
                 ),
                 const Divider(height: 1),
@@ -671,7 +720,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Skip approval when Mistral AI detects math homework',
                   ),
                   value: _autoApproveMath,
-                  onChanged: (v) => setState(() => _autoApproveMath = v),
+                  onChanged: (v) async {
+                    setState(() => _autoApproveMath = v);
+                    await _parentPrefs.setAutoApproveMath(v);
+                  },
                 ),
               ],
             ),
@@ -697,8 +749,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ButtonSegment(value: 120, label: Text('2 hr')),
                     ],
                     selected: {_defaultMinutes},
-                    onSelectionChanged: (v) =>
-                        setState(() => _defaultMinutes = v.first),
+                    onSelectionChanged: (v) async {
+                      setState(() => _defaultMinutes = v.first);
+                      await _parentPrefs.setDefaultMinutes(v.first);
+                    },
                   ),
                 ],
               ),
@@ -881,7 +935,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.bug_report_outlined),
                   title: const Text('Report a problem'),
                   subtitle: const Text(
-                    'Tell us what went wrong (opens your email app)',
+                    'Copies our support email so you can write us.',
                   ),
                   onTap: _reportProblem,
                 ),
