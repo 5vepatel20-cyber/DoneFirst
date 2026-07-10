@@ -25,6 +25,11 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
   final _proofService = ProofService();
   final List<_ProofWithDate> _allProofs = [];
   bool _loading = true;
+  // null = show every status. One of 'approved' | 'rejected' |
+  // 'pending' to filter the grid. Decoupled from the enum used by
+  // the model so we can show a friendly "All" pill without a
+  // fourth enum value.
+  String? _statusFilter;
 
   @override
   void initState() {
@@ -43,10 +48,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
     };
     // Pull proofs in parallel for every session instead of one
     // round-trip per session. With N sessions of M proofs each,
-    // this drops from N+1 round-trips to ~N parallel queries
-    // (Supabase multiplexes over HTTP, but the await-storm avoidance
-    // is the main win — the previous code waited for each session's
-    // proofs before starting the next).
+    // this drops from N+1 round-trips to ~N parallel queries.
     final proofLists = await Future.wait(
       sessions.map((s) => _proofService.getProofsForSession(s.id)),
     );
@@ -57,16 +59,39 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
         allProofs.add(_ProofWithDate(p, date));
       }
     }
-    if (mounted)
+    if (mounted) {
       setState(() {
         _allProofs.clear();
         _allProofs.addAll(allProofs);
         _loading = false;
       });
+    }
+  }
+
+  /// The proof list after the active status filter is applied.
+  /// Computed on every build — _allProofs is bounded by the kid's
+  /// lifetime history, so this is cheap.
+  List<_ProofWithDate> get _filteredProofs {
+    final filter = _statusFilter;
+    if (filter == null) return _allProofs;
+    return _allProofs.where((pw) {
+      final p = pw.proof;
+      switch (filter) {
+        case 'approved':
+          return p.isApproved;
+        case 'rejected':
+          return p.isRejected;
+        case 'pending':
+          return p.isPending;
+        default:
+          return true;
+      }
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredProofs;
     return Scaffold(
       appBar: AppBar(title: Text('${widget.childName}\'s Proofs')),
       body: _loading
@@ -114,114 +139,190 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                 ],
               ),
             )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: GridView.builder(
-                padding: const EdgeInsets.all(8),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 4,
-                  mainAxisSpacing: 4,
-                ),
-                itemCount: _allProofs.length,
-                  itemBuilder: (ctx, i) {
-                  final pw = _allProofs[i];
-                  final p = pw.proof;
-                  final allUrls = p.imageUrls.isNotEmpty ? p.imageUrls : [p.imageUrl];
-                  final photoCount = allUrls.length;
-
-                  final borderColor = p.isApproved
-                      ? AppColors.success
-                      : p.isRejected
-                      ? AppColors.danger
-                      : p.aiDecision == 'approved'
-                      ? AppColors.info
-                      : AppColors.accent;
-
-                  return GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ProofImageViewer(
-                          imageUrl: allUrls.first,
-                          taskDescription: p.taskDescription ?? '',
-                          aiResult: p,
-                        ),
-                      ),
+          : Column(
+              children: [
+                // Status filter chips. Mirrors the chip row on
+                // proof_review_screen so parents have the same
+                // vocabulary across screens. Lives in a horizontal
+                // scroll so the row survives small screens / long
+                // future status lists.
+                SizedBox(
+                  height: 44,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: borderColor, width: 2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ProofThumbnail(
-                            url: allUrls.first,
-                            fit: BoxFit.cover,
-                            borderRadius: BorderRadius.circular(2),
+                    children: [
+                      _filterChip('All', null),
+                      const SizedBox(width: 4),
+                      _filterChip('Approved', 'approved'),
+                      const SizedBox(width: 4),
+                      _filterChip('Rejected', 'rejected'),
+                      const SizedBox(width: 4),
+                      _filterChip('Pending', 'pending'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No proofs match this filter',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
                           ),
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 2,
-                              ),
-                              color: Colors.black54,
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    pw.date,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 9,
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: GridView.builder(
+                            padding: const EdgeInsets.all(8),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 4,
+                              mainAxisSpacing: 4,
+                            ),
+                            itemCount: filtered.length,
+                            itemBuilder: (ctx, i) {
+                              final pw = filtered[i];
+                              final p = pw.proof;
+                              final allUrls = p.imageUrls.isNotEmpty
+                                  ? p.imageUrls
+                                  : [p.imageUrl];
+                              final photoCount = allUrls.length;
+
+                              final borderColor = p.isApproved
+                                  ? AppColors.success
+                                  : p.isRejected
+                                  ? AppColors.danger
+                                  : p.aiDecision == 'approved'
+                                  ? AppColors.info
+                                  : AppColors.accent;
+
+                              return GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ProofImageViewer(
+                                      imageUrl: allUrls.first,
+                                      taskDescription:
+                                          p.taskDescription ?? '',
+                                      aiResult: p,
                                     ),
                                   ),
-                                  if (photoCount > 1)
-                                    Text(
-                                      '1/$photoCount',
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 9,
-                                      ),
+                                ),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: borderColor,
+                                      width: 2,
                                     ),
-                                ],
-                              ),
-                            ),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      ProofThumbnail(
+                                        url: allUrls.first,
+                                        fit: BoxFit.cover,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                      Positioned(
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4,
+                                            vertical: 2,
+                                          ),
+                                          color: Colors.black54,
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                pw.date,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 9,
+                                                ),
+                                              ),
+                                              if (photoCount > 1)
+                                                Text(
+                                                  '1/$photoCount',
+                                                  style: const TextStyle(
+                                                    color: Colors.white70,
+                                                    fontSize: 9,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      if (p.isApproved)
+                                        const Positioned(
+                                          top: 2,
+                                          right: 2,
+                                          child: Icon(
+                                            Icons.check_circle,
+                                            color: AppColors.success,
+                                            size: 16,
+                                          ),
+                                        ),
+                                      if (p.isRejected)
+                                        const Positioned(
+                                          top: 2,
+                                          right: 2,
+                                          child: Icon(
+                                            Icons.cancel,
+                                            color: AppColors.danger,
+                                            size: 16,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                          if (p.isApproved)
-                            const Positioned(
-                              top: 2,
-                              right: 2,
-                              child: Icon(
-                                Icons.check_circle,
-                                color: AppColors.success,
-                                size: 16,
-                              ),
-                            ),
-                          if (p.isRejected)
-                            const Positioned(
-                              top: 2,
-                              right: 2,
-                              child: Icon(
-                                Icons.cancel,
-                                color: AppColors.danger,
-                                size: 16,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
+                        ),
+                ),
+              ],
             ),
+    );
+  }
+
+  Widget _filterChip(String label, String? value) {
+    final isSelected = _statusFilter == value;
+    return InkWell(
+      onTap: () => setState(() => _statusFilter = value),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.15)
+              : Colors.transparent,
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary
+                : AppColors.textSecondary.withValues(alpha: 0.3),
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? AppColors.primary : AppColors.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 }
