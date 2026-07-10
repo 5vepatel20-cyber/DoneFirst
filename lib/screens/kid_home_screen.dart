@@ -35,6 +35,10 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   final _notificationService = NotificationService();
   final _streakService = StreakService();
   int _streak = 0;
+  // True when the current streak is being held up by a grace day.
+  // Surfaced in the streak card so the kid (and parent) can see
+  // that the streak didn't break — it just got help.
+  bool _streakGraceUsed = false;
   int _previousStreak = 0;
   HomeworkSession? _activeSession;
   List<HomeworkTask> _tasks = [];
@@ -69,10 +73,11 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
     // can fire alongside the session lookup.
     final results = await Future.wait([
       _sessionService.getActiveSession(widget.childId),
-      _streakService.computeStreak(widget.childId),
+      _streakService.computeStreakResult(widget.childId),
     ]);
     final newSession = results[0] as HomeworkSession?;
-    final newStreak = results[1] as int;
+    final newStreak = (results[1] as StreakResult).streak;
+    final newStreakGraceUsed = (results[1] as StreakResult).graceUsed;
     if (!mounted) return;
     if (newSession != null) {
       // Tasks + proofs for this session are independent — fetch in
@@ -81,15 +86,18 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
         _proofService.getTasks(newSession.id),
         _proofService.getProofsForSession(newSession.id),
       ]);
-      if (mounted) setState(() {
-        _tasks = sessionResults[0] as List<HomeworkTask>;
-        _proofs = sessionResults[1] as List<ProofSubmission>;
-      });
+      if (mounted) {
+        setState(() {
+          _tasks = sessionResults[0] as List<HomeworkTask>;
+          _proofs = sessionResults[1] as List<ProofSubmission>;
+        });
+      }
     }
     if (_hadActiveSession && newSession == null && _activeSession != null) {
       setState(() {
         _showSessionComplete = true;
         _streak = newStreak;
+        _streakGraceUsed = newStreakGraceUsed;
       });
       _previousStreak = newStreak;
     } else {
@@ -103,7 +111,10 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
         }
       }
       _previousStreak = newStreak;
-      _streak = newStreak;
+      setState(() {
+        _streak = newStreak;
+        _streakGraceUsed = newStreakGraceUsed;
+      });
     }
     _hadActiveSession = newSession != null;
     _activeSession = newSession;
@@ -212,6 +223,23 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                                 color: AppColors.accent,
                               ),
                             ),
+                            if (_streakGraceUsed) ...[
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.shield_outlined,
+                                size: 14,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'grace kept it going',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
                             if (_streak >= 7)
                               const Text(
                                 ' Unstoppable!',
