@@ -46,40 +46,60 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       });
   }
 
-  Future<void> _add() async {
-    int? selectedDay;
-    int duration = 60;
-    String approvalMode = 'balanced';
+  /// Shared dialog for both add and edit. Returns null on cancel.
+  /// When [allowPickDay] is false the day-of-week row is hidden (edit
+  /// mode), so the parent can't accidentally change the day. When
+  /// [initialDuration] / [initialApprovalMode] are supplied they
+  /// pre-fill the segmented buttons; otherwise the defaults match
+  /// the add flow.
+  static Future<({int dayOfWeek, int durationMinutes, String approvalMode})?>
+      _showScheduleDialog({
+    required BuildContext context,
+    required String title,
+    int? initialDay,
+    int? initialDuration,
+    String? initialApprovalMode,
+    bool allowPickDay = true,
+  }) async {
+    int? selectedDay = initialDay;
+    int duration = initialDuration ?? 60;
+    String approvalMode = initialApprovalMode ?? 'balanced';
 
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDState) => AlertDialog(
-          title: const Text('Add Recurring Schedule'),
+          title: Text(title),
           content: SizedBox(
             width: double.maxFinite,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Day of Week',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 4,
-                  children: List.generate(
-                    7,
-                    (i) => ChoiceChip(
-                      label: Text(weekdayNames[i]),
-                      selected: selectedDay == i + 1,
-                      onSelected: (v) =>
-                          setDState(() => selectedDay = v ? i + 1 : null),
+                if (allowPickDay) ...[
+                  const Text(
+                    'Day of Week',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 4,
+                    children: List.generate(
+                      7,
+                      (i) => ChoiceChip(
+                        label: Text(weekdayNames[i]),
+                        selected: selectedDay == i + 1,
+                        onSelected: (v) => setDState(
+                          () => selectedDay = v ? i + 1 : null,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 const Text(
                   'Duration',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
@@ -121,19 +141,59 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Add'),
+              child: Text(allowPickDay ? 'Add' : 'Save'),
             ),
           ],
         ),
       ),
     );
 
-    if (result == true && selectedDay != null) {
+    if (result != true) return null;
+    // Edit mode guarantees selectedDay stays at initialDay; add mode
+    // requires a chosen day.
+    final day = allowPickDay ? selectedDay : initialDay;
+    if (day == null) return null;
+    return (
+      dayOfWeek: day,
+      durationMinutes: duration,
+      approvalMode: approvalMode,
+    );
+  }
+
+  Future<void> _add() async {
+    final result = await _showScheduleDialog(
+      context: context,
+      title: 'Add Recurring Schedule',
+    );
+    if (result != null) {
       await _scheduleService.addSchedule(
         childId: widget.childId,
-        dayOfWeek: selectedDay!,
-        durationMinutes: duration,
-        approvalMode: approvalMode,
+        dayOfWeek: result.dayOfWeek,
+        durationMinutes: result.durationMinutes,
+        approvalMode: result.approvalMode,
+      );
+      await _load();
+    }
+  }
+
+  Future<void> _edit(RecurringSchedule s) async {
+    // Only duration + approval mode are mutable — the day of week
+    // would require a delete-and-recreate (the service's
+    // updateSchedule intentionally doesn't accept dayOfWeek because
+    // for a weekly schedule "wrong day" almost always means "I meant
+    // to add a different one", which is better expressed by adding).
+    final result = await _showScheduleDialog(
+      context: context,
+      title: 'Edit Schedule (${s.dayName})',
+      initialDuration: s.durationMinutes,
+      initialApprovalMode: s.approvalMode,
+      allowPickDay: false,
+    );
+    if (result != null) {
+      await _scheduleService.updateSchedule(
+        s.id,
+        durationMinutes: result.durationMinutes,
+        approvalMode: result.approvalMode,
       );
       await _load();
     }
@@ -245,11 +305,17 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                           ),
                         const SizedBox(width: 4),
                         IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          tooltip: 'Edit schedule',
+                          onPressed: () => _edit(s),
+                        ),
+                        IconButton(
                           icon: const Icon(
                             Icons.delete_outline,
                             size: 20,
                             color: AppColors.danger,
                           ),
+                          tooltip: 'Delete schedule',
                           onPressed: () async {
                             await _scheduleService.deleteSchedule(s.id);
                             await _load();
