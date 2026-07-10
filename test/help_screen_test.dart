@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:donefirst/screens/help_screen.dart';
+import 'package:donefirst/screens/upgrade_screen.dart';
 import 'package:donefirst/theme/app_theme.dart';
 
 void main() {
@@ -84,5 +85,20 @@ void main() {
     expect(find.text('How do I export or delete my data?'), findsOneWidget);
     expect(find.text('How many free sessions do I get per month?'),
         findsOneWidget);
+  });
+
+  testWidgets('free-sessions FAQ answer matches UpgradeScreen.freeLimit',
+      (tester) async {
+    // Defensive: help used to hardcode '10' while UpgradeScreen
+    // actually said 3, so a parent who read help would expect 10 but
+    // hit 3. Now the answer interpolates UpgradeScreen.freeLimit
+    // — if anyone flips the constant, the help text follows.
+    await _pump(tester);
+    await tester.tap(
+      find.text('How many free sessions do I get per month?'),
+    );
+    await tester.pumpAndSettle();
+    final expected = '${UpgradeScreen.freeLimit} sessions per parent account';
+    expect(find.textContaining(expected), findsOneWidget);
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'upgrade_screen.dart';
 
 /// In-app help + FAQ. Lives in Settings so it's reachable from one
 /// tap when a parent is stuck, instead of having to email support.
@@ -147,10 +148,10 @@ class HelpScreen extends StatelessWidget {
         _FaqItem(
           question: 'How many free sessions do I get per month?',
           answer:
-              "10 sessions per parent account, per calendar month. The "
-              "counter is on the parent dashboard so you always know "
-              "how many you have left. Sessions that didn't reach the "
-              "minimum lock duration don't count.",
+              '${UpgradeScreen.freeLimit} sessions per parent account, per '
+              'calendar month. The counter is on the parent dashboard so '
+              "you always know how many you have left. Sessions that "
+              "didn't reach the minimum lock duration don't count.",
         ),
         _FaqItem(
           question: 'What does Upgrade unlock?',
