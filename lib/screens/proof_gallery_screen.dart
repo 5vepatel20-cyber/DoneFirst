@@ -34,11 +34,26 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
 
   Future<void> _load() async {
     final sessions = await _sessionService.getHistory(widget.childId);
+    // Build a date-by-session index up front so we can attribute
+    // each proof to its session's start date in O(1) instead of
+    // re-deriving it for every row.
+    final dateBySession = <String, String>{
+      for (final s in sessions)
+        s.id: s.startedAt.toIso8601String().substring(0, 10),
+    };
+    // Pull proofs in parallel for every session instead of one
+    // round-trip per session. With N sessions of M proofs each,
+    // this drops from N+1 round-trips to ~N parallel queries
+    // (Supabase multiplexes over HTTP, but the await-storm avoidance
+    // is the main win — the previous code waited for each session's
+    // proofs before starting the next).
+    final proofLists = await Future.wait(
+      sessions.map((s) => _proofService.getProofsForSession(s.id)),
+    );
     final allProofs = <_ProofWithDate>[];
-    for (final s in sessions) {
-      final proofs = await _proofService.getProofsForSession(s.id);
-      final date = s.startedAt.toIso8601String().substring(0, 10);
-      for (final p in proofs) {
+    for (var i = 0; i < sessions.length; i++) {
+      final date = dateBySession[sessions[i].id] ?? '';
+      for (final p in proofLists[i]) {
         allProofs.add(_ProofWithDate(p, date));
       }
     }

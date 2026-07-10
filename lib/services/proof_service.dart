@@ -89,17 +89,19 @@ class ProofService {
     String decision, {
     String? parentNote,
   }) async {
+    if (proofIds.isEmpty) return;
     final update = {
       'parent_decision': decision,
       'parent_acted_at': DateTime.now().toIso8601String(),
       if (parentNote != null) 'parent_note': parentNote,
     };
-    for (final id in proofIds) {
-      await _supabase
-          .from('proof_submissions')
-          .update(update)
-          .eq('id', id);
-    }
+    // One update for the whole batch instead of one per ID. The
+    // pending_proofs_screen can pass up to a few dozen at once, so
+    // this turns a worst-case N-query storm into a single round-trip.
+    await _supabase
+        .from('proof_submissions')
+        .update(update)
+        .inFilter('id', proofIds);
   }
 
   /// Pending proofs for a child across all their sessions. A proof is
@@ -132,16 +134,17 @@ class ProofService {
     List<String> taskIds,
   ) async {
     if (taskIds.isEmpty) return [];
-    final results = <ProofSubmission>[];
-    for (final taskId in taskIds) {
-      final response = await _supabase
-          .from('proof_submissions')
-          .select()
-          .eq('task_id', taskId)
-          .order('created_at', ascending: false);
-      results.addAll(response.map((m) => ProofSubmission.fromMap(m)));
-    }
-    return results;
+    // One query for the whole batch. The previous implementation
+    // fired one SELECT per task — for a session with N tasks that's
+    // N+1 round-trips including the task-id lookup in
+    // getProofsForSession. Order by created_at desc so the newest
+    // proof within the batch still surfaces first.
+    final response = await _supabase
+        .from('proof_submissions')
+        .select()
+        .inFilter('task_id', taskIds)
+        .order('created_at', ascending: false);
+    return response.map((m) => ProofSubmission.fromMap(m)).toList();
   }
 
   Future<ProofSubmission?> getProofForTask(String taskId) async {
@@ -191,13 +194,15 @@ class ProofService {
   }
 
   Future<List<ProofSubmission>> getProofsForSession(String sessionId) async {
-    final tasks = await _supabase
-        .from('homework_tasks')
-        .select('id')
-        .eq('session_id', sessionId);
-    final taskIds = tasks.map((t) => t['id'] as String).toList();
-    if (taskIds.isEmpty) return [];
-    return getProofsForTasks(taskIds);
+    // Proofs carry session_id directly (see ProofSubmission model),
+    // so we can skip the task-id intermediate that the old code
+    // used to do. One query instead of two.
+    final response = await _supabase
+        .from('proof_submissions')
+        .select()
+        .eq('session_id', sessionId)
+        .order('created_at', ascending: false);
+    return response.map((m) => ProofSubmission.fromMap(m)).toList();
   }
 
   Future<String> uploadImage(dynamic img, String taskId) async {
