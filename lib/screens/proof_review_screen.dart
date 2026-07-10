@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../models/models.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
@@ -150,11 +151,11 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Session History'),
+        title: Text('Session history', style: AppText.screenTitle()),
         actions: [
           if (_dateRange != null || _searchController.text.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.clear_all),
+              icon: const Icon(LucideIcons.filterX, size: 18),
               onPressed: _clearFilters,
               tooltip: 'Clear filters',
             ),
@@ -175,10 +176,10 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                           controller: _searchController,
                           decoration: InputDecoration(
                             hintText: 'Search tasks, status, or approval mode...',
-                            prefixIcon: const Icon(Icons.search, size: 20),
+                            prefixIcon: const Icon(LucideIcons.search, size: 18),
                             suffixIcon: _searchController.text.isNotEmpty
                                 ? IconButton(
-                                    icon: const Icon(Icons.clear, size: 18),
+                                    icon: const Icon(LucideIcons.x, size: 16),
                                     onPressed: () {
                                       _searchController.clear();
                                       _applyFilters();
@@ -197,7 +198,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                       const SizedBox(width: 8),
                       OutlinedButton.icon(
                         onPressed: _pickDateRange,
-                        icon: const Icon(Icons.date_range, size: 18),
+                        icon: const Icon(LucideIcons.calendar, size: 18),
                         label: Text(
                           _dateRange != null
                               ? '${_dateRange!.start.month}/${_dateRange!.start.day}'
@@ -275,7 +276,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
-                                  Icons.history,
+                                  LucideIcons.history,
                                   size: 48,
                                   color: AppColors.primary,
                                 ),
@@ -320,8 +321,8 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                   ),
                                   child: Icon(
                                     s.isCompleted
-                                        ? Icons.check_circle
-                                        : Icons.play_circle,
+                                        ? LucideIcons.checkCircle2
+                                        : LucideIcons.playCircle,
                                     color: s.isCompleted
                                         ? AppColors.success
                                         : AppColors.accent,
@@ -391,7 +392,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                   ],
                                 ),
                                 trailing: const Icon(
-                                  Icons.arrow_forward_ios,
+                                  LucideIcons.chevronRight,
                                   size: 16,
                                 ),
                                 onTap: () => _showSessionProofs(s.id),
@@ -498,7 +499,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                                     child: Row(
                                       children: [
                                         const Icon(
-                                          Icons.comment,
+                                          LucideIcons.messageSquare,
                                           size: 12,
                                           color: AppColors.primary,
                                         ),

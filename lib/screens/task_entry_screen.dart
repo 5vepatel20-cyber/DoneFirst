@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/proof_service.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
@@ -69,7 +70,13 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Today\'s Homework')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(LucideIcons.x, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('Today\'s homework', style: AppText.screenTitle()),
+      ),
       body: Column(
         children: [
           Padding(
@@ -91,7 +98,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                     const SizedBox(width: 8),
                     IconButton.filled(
                       onPressed: _addTask,
-                      icon: const Icon(Icons.add),
+                      icon: const Icon(LucideIcons.plus, size: 16),
                     ),
                   ],
                 ),
@@ -100,7 +107,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                   value: _selectedSubject,
                   decoration: const InputDecoration(
                     labelText: 'Subject',
-                    prefixIcon: Icon(Icons.book, size: 20),
+                    prefixIcon: Icon(LucideIcons.bookOpen, size: 18),
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 8,
@@ -135,7 +142,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
-                            Icons.edit_note,
+                            LucideIcons.pencil,
                             size: 40,
                             color: AppColors.primary,
                           ),
@@ -177,7 +184,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                             color: AppColors.danger,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.delete, color: Colors.white),
+                          child: const Icon(LucideIcons.trash2, color: Colors.white, size: 18),
                         ),
                         onDismissed: (_) => _deleteTask(taskId),
                         child: Card(
@@ -185,8 +192,8 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                           child: ListTile(
                             leading: Icon(
                               isDone
-                                  ? Icons.check_circle
-                                  : Icons.radio_button_unchecked,
+                                  ? LucideIcons.checkCircle2
+                                  : LucideIcons.circle,
                               color: isDone
                                   ? AppColors.success
                                   : AppColors.accent,
@@ -209,13 +216,13 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                               children: [
                                 if (isDone)
                                   IconButton(
-                                    icon: const Icon(Icons.refresh, size: 20),
+                                    icon: const Icon(LucideIcons.refreshCw, size: 16),
                                     tooltip: 'Retake',
                                     onPressed: () =>
                                         _retakeProof(taskId, description),
                                   )
                                 else ...[
-                                  FilledButton(
+                                  FilledButton.icon(
                                     onPressed: () {
                                       Navigator.push(
                                         context,
@@ -227,7 +234,12 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                                         ),
                                       ).then((_) => _loadTasks());
                                     },
-                                    child: const Text('Submit Proof'),
+                                    icon: const Icon(LucideIcons.camera, size: 16),
+                                    label: const Text('Proof'),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.grass,
+                                      foregroundColor: Colors.white,
+                                    ),
                                   ),
                                 ],
                               ],

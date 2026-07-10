@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/session_service.dart';
 import '../services/blocking_service.dart';
 import '../services/lock_preset_service.dart';
 import '../theme/app_theme.dart';
-import '../models/app_pack.dart';
+import '../widgets/segmented_group.dart';
 import 'lock_active_screen.dart';
 import '../models/models.dart';
 
@@ -66,7 +67,7 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Save Preset'),
+        title: const Text('Save preset'),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -110,8 +111,10 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
       _maxLift = preset.maxLiftMinutes;
       _approvalMode = preset.approvalMode;
       _selectedPacks.clear();
-      for (final p in preset.selectedPacks) {
-        _selectedPacks.add(p);
+      // selectedPacks is List<String> (pack names), not
+      // List<AppPack>, so copy directly.
+      for (final name in preset.selectedPacks) {
+        _selectedPacks.add(name);
       }
     });
   }
@@ -124,172 +127,211 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Lock — ${widget.childName}')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(LucideIcons.x, size: 20),
+          onPressed: () => Navigator.pop(context),
+          tooltip: 'Close',
+        ),
+        title: const _LockConfigTitle(),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.screenPadding,
+          vertical: 8,
+        ),
         children: [
-          _section('Duration'),
-          const SizedBox(height: 8),
-          Text(
-            'Minimum lock time',
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 30, label: Text('30m')),
-              ButtonSegment(value: 45, label: Text('45m')),
-              ButtonSegment(value: 60, label: Text('1h')),
-              ButtonSegment(value: 90, label: Text('1.5h')),
-              ButtonSegment(value: 120, label: Text('2h')),
-            ],
-            selected: {_minLock},
-            onSelectionChanged: (v) => setState(() => _minLock = v.first),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Auto-lift after (optional)',
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 0, label: Text('Never')),
-              ButtonSegment(value: 90, label: Text('90m')),
-              ButtonSegment(value: 120, label: Text('2h')),
-              ButtonSegment(value: 180, label: Text('3h')),
-            ],
-            selected: {_maxLift},
-            onSelectionChanged: (v) =>
-                setState(() => _maxLift = v.first == 0 ? 0 : v.first),
-          ),
+          _buildMinLockSection(),
+          const SizedBox(height: AppSpacing.blockGap),
+          _buildAutoLiftSection(),
+          const SizedBox(height: AppSpacing.blockGap + 4),
+          _buildApprovalModeSection(),
+          const SizedBox(height: AppSpacing.blockGap + 4),
+          _buildPresetsSection(),
+          const SizedBox(height: AppSpacing.blockGap + 4),
+          _buildAppPacksSection(),
+          const SizedBox(height: AppSpacing.blockGap + 8),
+          _buildStartButton(),
           const SizedBox(height: 24),
-          _section('Approval Mode'),
-          const SizedBox(height: 8),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'strict', label: Text('Strict')),
-              ButtonSegment(value: 'balanced', label: Text('Balanced')),
-              ButtonSegment(value: 'parent_only', label: Text('Parent Only')),
-            ],
-            selected: {_approvalMode},
-            onSelectionChanged: (v) => setState(() => _approvalMode = v.first),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _approvalMode == 'strict'
-                ? 'Apps locked for full min duration even if homework done early.'
-                : _approvalMode == 'balanced'
-                ? 'Apps unlock early if proof approved and minimum time passed.'
-                : 'Apps unlock only after parent approves each proof.',
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 24),
-          _section('Presets'),
-          const SizedBox(height: 8),
-          if (_loadingPresets)
-            const Center(child: CircularProgressIndicator())
-          else if (_presets.isNotEmpty) ...[
-            SizedBox(
-              height: 60,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _presets.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (ctx, i) {
-                  final p = _presets[i];
-                  return InputChip(
-                    label: Text(p.name),
-                    onPressed: () => _loadPreset(p),
-                    deleteIcon: const Icon(Icons.close, size: 16),
-                    onDeleted: () => _deletePreset(p.id),
-                  );
-                },
-              ),
-            ),
-          ] else
-            const Text(
-              'Save your current settings as a preset for quick reuse',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _savePreset,
-            icon: const Icon(Icons.save, size: 18),
-            label: const Text('Save Current as Preset'),
-          ),
-          const SizedBox(height: 24),
-          _section('Apps to Block'),
-          const SizedBox(height: 8),
-          Text(
-            'Select distraction packs',
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ...AppPack.defaults.map(
-            (pack) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: CheckboxListTile(
-                title: Text(
-                  pack.name,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                subtitle: Text(
-                  pack.description,
-                  style: const TextStyle(fontSize: 12),
-                ),
-                secondary: Icon(
-                  pack.icon,
-                  color: AppColors.primary.withValues(alpha:0.7),
-                ),
-                value: _selectedPacks.contains(pack.name),
-                onChanged: (v) {
-                  setState(() {
-                    if (v == true) {
-                      _selectedPacks.add(pack.name);
-                    } else {
-                      _selectedPacks.remove(pack.name);
-                    }
-                  });
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: _startLock,
-            icon: const Icon(Icons.lock),
-            label: Text(
-              _selectedPacks.isEmpty
-                  ? 'Start Homework Lock'
-                  : 'Lock ${_selectedPacks.length} pack(s)',
-            ),
-          ),
-          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  Widget _section(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
+  // ── Header ────────────────────────────────────────────────────────
+  // Title is rendered in two lines: "Set up lock" (eyebrow) + "for
+  // {child}" (screen title). Compact title row so we don't add
+  // vertical chrome to an already-tall form.
+  Widget _buildMinLockSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('MINIMUM LOCK TIME', style: AppText.eyebrow()),
+        const SizedBox(height: 8),
+        AppSegmentedGroup<int>(
+          options: const [
+            AppSegment(value: 30, label: '30m'),
+            AppSegment(value: 45, label: '45m'),
+            AppSegment(value: 60, label: '1h'),
+            AppSegment(value: 90, label: '1.5h'),
+            AppSegment(value: 120, label: '2h'),
+          ],
+          selected: _minLock,
+          onSelected: (v) => setState(() => _minLock = v),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAutoLiftSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('AUTO LIFT AFTER (OPTIONAL)', style: AppText.eyebrow()),
+        const SizedBox(height: 8),
+        AppSegmentedGroup<int>(
+          options: const [
+            AppSegment(value: 0, label: 'Never'),
+            AppSegment(value: 90, label: '90m'),
+            AppSegment(value: 120, label: '2h'),
+            AppSegment(value: 180, label: '3h'),
+          ],
+          selected: _maxLift,
+          onSelected: (v) => setState(() => _maxLift = v),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildApprovalModeSection() {
+    final modes = const {
+      'strict': 'Strict',
+      'balanced': 'Balanced',
+      'parent_only': 'Parent',
+    };
+    final descriptions = const {
+      'strict': 'Apps locked for full min duration even if homework done early.',
+      'balanced': 'Apps unlock early if proof approved and minimum time passed.',
+      'parent_only': 'Apps unlock only after parent approves each proof.',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('APPROVAL MODE', style: AppText.eyebrow()),
+        const SizedBox(height: 8),
+        AppSegmentedGroup<String>(
+          options: modes.entries
+              .map((e) => AppSegment(value: e.key, label: e.value))
+              .toList(),
+          selected: _approvalMode,
+          onSelected: (v) => setState(() => _approvalMode = v),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          descriptions[_approvalMode] ?? '',
+          style: AppText.bodySecondary(size: 12),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPresetsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('PRESETS', style: AppText.eyebrow()),
+        const SizedBox(height: 10),
+        if (_loadingPresets)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          )
+        else if (_presets.isEmpty)
+          Text(
+            'Save your current settings as a preset for quick reuse.',
+            style: AppText.bodySecondary(size: 12),
+          )
+        else
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _presets.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (ctx, i) {
+                final p = _presets[i];
+                return _PresetChip(
+                  label: p.name,
+                  onTap: () => _loadPreset(p),
+                  onDelete: () => _deletePreset(p.id),
+                );
+              },
+            ),
+          ),
+        const SizedBox(height: 10),
+        // Dashed "Save current" — visually distinct from the saved
+        // presets so the parent knows it's an action, not a chip.
+        _DashedButton(
+          icon: LucideIcons.bookmark,
+          label: 'Save current as preset',
+          onTap: _savePreset,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAppPacksSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('APPS TO BLOCK', style: AppText.eyebrow()),
+        const SizedBox(height: 4),
+        Text(
+          'Pick the distraction categories to lock during this session.',
+          style: AppText.bodySecondary(size: 12),
+        ),
+        const SizedBox(height: 10),
+        ...AppPack.defaults.map((pack) {
+          final selected = _selectedPacks.contains(pack.name);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _AppPackRow(
+              pack: pack,
+              selected: selected,
+              onTap: () => setState(() {
+                if (selected) {
+                  _selectedPacks.remove(pack.name);
+                } else {
+                  _selectedPacks.add(pack.name);
+                }
+              }),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildStartButton() {
+    final label = _selectedPacks.isEmpty
+        ? 'Start homework lock'
+        : 'Lock ${_selectedPacks.length} '
+            '${_selectedPacks.length == 1 ? 'pack' : 'packs'}';
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: _startLock,
+        icon: const Icon(LucideIcons.lock, size: 18),
+        label: Text(label),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(48),
+        ),
       ),
     );
   }
@@ -301,9 +343,6 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
       maxLiftMinutes: _maxLift,
       approvalMode: _approvalMode,
     );
-    // Try to start blocking on this device. If it fails (permission
-    // denied or plugin error), warn the parent but still proceed —
-    // blocking happens on the kid's device when they open the app.
     final blocked = await _blockingService.startBlocking();
     if (!blocked && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -329,5 +368,292 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
         ),
       );
     }
+  }
+}
+
+/// AppBar title rendered as "Set up lock" (eyebrow) over
+/// "for {childName}" (screen title). Extracted so the build method
+/// reads top-down without a nested widget literal.
+class _LockConfigTitle extends StatelessWidget {
+  const _LockConfigTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    // Pull childName from the LockConfigScreen route. Going through
+    // ModalRoute keeps the title in sync if the parent route's
+    // arguments ever change.
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final name = args is LockConfigScreen
+        ? args.childName
+        : (ModalRoute.of(context)?.settings.name ?? '');
+
+    // We can't directly read the child's name off the AppBar
+    // builder — the title widget is rebuilt each time the route
+    // argument changes. As a fallback we display a short hint
+    // when we can't get the name; the surrounding page chrome
+    // still tells the parent which child this is.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('SET UP LOCK', style: AppText.eyebrow()),
+        Text(
+          name.isNotEmpty ? 'for $name' : 'Lock',
+          style: AppText.screenTitle(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Preset chip — outlined pill with a delete X. Tapping the chip
+/// body loads the preset; tapping the X deletes.
+class _PresetChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _PresetChip({
+    required this.label,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.card,
+      shape: StadiumBorder(
+        side: BorderSide(color: AppColors.hair2),
+      ),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: AppText.listTitle()),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: onDelete,
+                customBorder: const CircleBorder(),
+                child: const Padding(
+                  padding: EdgeInsets.all(2),
+                  child: Icon(
+                    LucideIcons.x,
+                    size: 12,
+                    color: AppColors.muted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dashed-border action button used for "Save current as preset".
+/// Drawn via a CustomPainter so we control the dash cadence.
+class _DashedButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _DashedButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.button),
+        child: CustomPaint(
+          painter: _DashedBorderPainter(),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.button),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: AppColors.forest),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: AppText.listTitle(color: AppColors.forest),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.hair
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, size.width, size.height),
+          const Radius.circular(AppRadius.button),
+        ),
+      );
+
+    _drawDashedPath(canvas, path, paint, dash: 6, gap: 4);
+  }
+
+  void _drawDashedPath(
+    Canvas canvas,
+    Path path,
+    Paint paint, {
+    required double dash,
+    required double gap,
+  }) {
+    for (final metric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        final next = distance + dash;
+        canvas.drawPath(
+          metric.extractPath(distance, next.clamp(0, metric.length)),
+          paint,
+        );
+        distance = next + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+/// One row in the "Apps to block" list. Handoff design:
+/// 36x36 sageFill icon tile + title + examples on the right.
+/// Selected state shows a forest check on the right and tints the
+/// row background to #F1F6EF so the eye can quickly count what's
+/// chosen.
+class _AppPackRow extends StatelessWidget {
+  final AppPack pack;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _AppPackRow({
+    required this.pack,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? const Color(0xFFF1F6EF) : AppColors.card,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: selected ? AppColors.forest : AppColors.hair2,
+              width: selected ? 1.5 : 0.5,
+            ),
+            borderRadius: BorderRadius.circular(AppRadius.card),
+          ),
+          child: Row(
+            children: [
+              _PackIcon(icon: pack.icon),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(pack.name, style: AppText.listTitle()),
+                    const SizedBox(height: 2),
+                    Text(
+                      pack.description,
+                      style: AppText.bodySecondary(size: 11.5),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              _CheckMark(selected: selected),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PackIcon extends StatelessWidget {
+  final IconData icon;
+  const _PackIcon({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: AppColors.sageFill,
+        borderRadius: BorderRadius.circular(AppRadius.iconTile),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: 20, color: AppColors.forest),
+    );
+  }
+}
+
+class _CheckMark extends StatelessWidget {
+  final bool selected;
+  const _CheckMark({required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.forest : Colors.transparent,
+        border: Border.all(
+          color: selected ? AppColors.forest : AppColors.faint,
+          width: 1.5,
+        ),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      alignment: Alignment.center,
+      child: selected
+          ? const Icon(
+              LucideIcons.check,
+              size: 14,
+              color: Colors.white,
+            )
+          : null,
+    );
   }
 }

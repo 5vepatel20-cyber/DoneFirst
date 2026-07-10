@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../models/models.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
@@ -56,14 +57,16 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.childName}\'s History')),
+      appBar: AppBar(
+        title: Text('My history', style: AppText.screenTitle()),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? RetryWidget(message: _error!, onRetry: _load)
           : _sessions.isEmpty
           ? const EmptyState(
-              icon: Icons.history,
+              icon: LucideIcons.history,
               title: 'No sessions yet',
               subtitle: 'Complete homework to see your history',
             )
@@ -93,10 +96,10 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                       ),
                       child: Icon(
                         s.isCompleted
-                            ? Icons.check_circle
+                            ? LucideIcons.checkCircle2
                             : s.isActive
-                            ? Icons.play_circle
-                            : Icons.cancel,
+                            ? LucideIcons.playCircle
+                            : LucideIcons.xCircle,
                         color: s.isCompleted
                             ? AppColors.success
                             : s.isActive
@@ -112,7 +115,7 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                       '$duration - ${s.status}',
                       style: const TextStyle(fontSize: 12),
                     ),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    trailing: const Icon(LucideIcons.chevronRight, size: 16),
                     onTap: () => _showProofs(s.id),
                   ),
                 );

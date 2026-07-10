@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../models/models.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
@@ -101,7 +102,13 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
   Widget build(BuildContext context) {
     final childName = widget.child.name;
     return Scaffold(
-      appBar: AppBar(title: Text('$childName\'s Profile')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(LucideIcons.x, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('$childName\'s profile', style: AppText.screenTitle()),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -137,7 +144,7 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
             controller: _nameController,
             decoration: const InputDecoration(
               labelText: 'Name',
-              prefixIcon: Icon(Icons.person),
+              prefixIcon: Icon(LucideIcons.user, size: 18),
             ),
           ),
           const SizedBox(height: 24),
@@ -226,7 +233,7 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.save),
+                : const Icon(LucideIcons.check, size: 16),
             label: const Text('Save Profile'),
           ),
         ],

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
@@ -441,13 +442,23 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text('${widget.childName} — Lock Active'),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${widget.childName}', style: AppText.screenTitle()),
+              const SizedBox(height: 2),
+              Text('Lock active', style: AppText.eyebrow()),
+            ],
+          ),
           actions: [
-            TextButton(onPressed: _unlock, child: const Text('Unlock Early')),
-            TextButton(
-              onPressed: _cancelSession,
-              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-              child: const Text('Cancel'),
+            TextButton.icon(
+              onPressed: _unlock,
+              icon: const Icon(LucideIcons.unlock, size: 16),
+              label: const Text('Unlock'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.danger,
+              ),
             ),
           ],
         ),
@@ -474,7 +485,9 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                           child: OutlinedButton.icon(
                             onPressed: _togglePause,
                             icon: Icon(
-                              _paused ? Icons.play_arrow : Icons.pause,
+                              _paused
+                                  ? LucideIcons.play
+                                  : LucideIcons.pause,
                             ),
                             label: Text(_paused ? 'Resume' : 'Pause'),
                           ),
@@ -483,7 +496,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _extendSession,
-                            icon: const Icon(Icons.timer_outlined),
+                            icon: const Icon(LucideIcons.timer, size: 16),
                             label: const Text('Extend'),
                           ),
                         ),
@@ -507,42 +520,57 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                     if (_breakRequests.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Card(
-                        color: AppColors.info.withValues(alpha: 0.08),
+                        color: AppColors.warnFill,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.card),
+                          side: const BorderSide(color: AppColors.warnBd),
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.all(12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Break Requests',
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    LucideIcons.coffee,
+                                    size: 16,
+                                    color: AppColors.warn,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Break request',
+                                    style: AppText.cardHeader(
+                                      color: AppColors.warn,
+                                      size: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 8),
                               ...(_breakRequests.map(
                                 (br) => Row(
                                   children: [
                                     const Expanded(
-                                      child: Text('Child wants a break'),
+                                      child: Text(
+                                        'Child wants a 5 minute break',
+                                      ),
                                     ),
                                     TextButton(
                                       onPressed: () =>
                                           _handleBreak(br.id, 'approved'),
-                                      child: const Text(
-                                        'Allow',
-                                        style: TextStyle(
-                                          color: AppColors.success,
-                                        ),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: AppColors.ok,
                                       ),
+                                      child: const Text('Allow'),
                                     ),
                                     TextButton(
                                       onPressed: () =>
                                           _handleBreak(br.id, 'rejected'),
-                                      child: const Text(
-                                        'Deny',
-                                        style: TextStyle(
-                                          color: AppColors.danger,
-                                        ),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: AppColors.danger,
                                       ),
+                                      child: const Text('Deny'),
                                     ),
                                   ],
                                 ),
@@ -558,47 +586,32 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                         width: double.infinity,
                         child: FilledButton.icon(
                           onPressed: () => _batchApproveAll(),
-                          icon: const Icon(Icons.done_all),
-                          label: const Text('Approve All'),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _batchApproveAllWithNote(),
-                          icon: const Icon(Icons.note_add, size: 18),
-                          label: const Text('Approve All with Note'),
+                          icon: const Icon(LucideIcons.checkCheck, size: 18),
+                          label: const Text('Approve all'),
                         ),
                       ),
                     ],
                     const SizedBox(height: 12),
                     if (_proofs.isEmpty)
-                      const Card(
+                      Card(
                         child: Padding(
-                          padding: EdgeInsets.all(32),
+                          padding: const EdgeInsets.all(32),
                           child: Column(
                             children: [
-                              Icon(
-                                Icons.hourglass_empty,
+                              const Icon(
+                                LucideIcons.hourglass,
                                 size: 48,
-                                color: AppColors.accent,
+                                color: AppColors.muted,
                               ),
-                              SizedBox(height: 12),
+                              const SizedBox(height: 12),
                               Text(
-                                'Waiting for proof submissions...',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: AppColors.textPrimary,
-                                ),
+                                'Waiting for proof submissions…',
+                                style: AppText.listTitle(),
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
                               Text(
                                 'Auto-refreshes every 10s',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
+                                style: AppText.bodySecondary(size: 12),
                               ),
                             ],
                           ),
@@ -649,11 +662,17 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 ),
                 if (!proof.isPending)
                   Icon(
-                    proof.isApproved ? Icons.check_circle : Icons.cancel,
+                    proof.isApproved
+                        ? LucideIcons.checkCircle2
+                        : LucideIcons.xCircle,
                     color: parentColor,
                   )
                 else
-                  const Icon(Icons.hourglass_bottom, color: AppColors.accent),
+                  const Icon(
+                    LucideIcons.hourglass,
+                    size: 18,
+                    color: AppColors.muted,
+                  ),
               ],
             ),
             const SizedBox(height: 6),

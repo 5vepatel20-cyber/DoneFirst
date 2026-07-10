@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/proof_service.dart';
 import '../services/notification_service.dart';
@@ -101,7 +102,17 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Proof: ${widget.taskDescription}')),
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Add proof', style: AppText.screenTitle()),
+            const SizedBox(height: 2),
+            Text(widget.taskDescription, style: AppText.bodySecondary()),
+          ],
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -135,13 +146,13 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                           const SizedBox(height: 24),
                           FilledButton.icon(
                             onPressed: _pickImage,
-                            icon: const Icon(Icons.camera_alt),
+                            icon: const Icon(LucideIcons.camera),
                             label: const Text('Take Photo'),
                           ),
                           const SizedBox(height: 8),
                           OutlinedButton.icon(
                             onPressed: _pickGallery,
-                            icon: const Icon(Icons.photo_library),
+                            icon: const Icon(LucideIcons.image, size: 16),
                             label: const Text('Choose from Gallery'),
                           ),
                         ],
@@ -170,7 +181,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                               child: const Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.add, color: AppColors.primary),
+                                  Icon(LucideIcons.plus, color: AppColors.forest),
                                   SizedBox(height: 4),
                                   Text(
                                     'Add more',
@@ -228,7 +239,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Note for parent (optional)',
                     hintText: 'Tell your parent about this...',
-                    prefixIcon: Icon(Icons.comment, size: 20),
+                    prefixIcon: Icon(LucideIcons.messageSquare, size: 18),
                   ),
                   maxLines: 2,
                 ),
@@ -243,7 +254,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.cloud_upload),
+                      : const Icon(LucideIcons.uploadCloud, size: 18),
                   label: Text(
                     _submitting
                         ? 'Uploading...'
