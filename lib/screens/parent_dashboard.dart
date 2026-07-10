@@ -74,19 +74,28 @@ class _ParentDashboardState extends State<ParentDashboard> {
       final children = await _sessionService.getChildren(_auth.currentUser!.id);
       setState(() => _children = children);
 
-      _monthlySessionCount = await _sessionService.getMonthlySessionCount(
-        _auth.currentUser!.id,
-      );
-      _mistralCallsToday = await _proofService.getMistralCallsToday();
-      _unreadNotifications = await _notificationService.getUnreadCount();
+      // Fan-out: monthly count, mistral usage, unread notifications,
+      // today's schedules, and the parent's family_id are all
+      // independent reads. Fire them in parallel so the dashboard
+      // loads in max(latencies) instead of sum(latencies).
+      final parentId = _auth.currentUser!.id;
+      final results = await Future.wait([
+        _sessionService.getMonthlySessionCount(parentId),
+        _proofService.getMistralCallsToday(),
+        _notificationService.getUnreadCount(),
+        _scheduleService.getTodaySchedules(),
+        Supabase.instance.client
+            .from('parents')
+            .select('family_id')
+            .eq('id', parentId)
+            .single(),
+      ]);
+      _monthlySessionCount = results[0] as int;
+      _mistralCallsToday = results[1] as int;
+      _unreadNotifications = results[2] as int;
+      _todaySchedules = (results[3] as List).cast<RecurringSchedule>();
+      final family = results[4] as Map<String, dynamic>;
 
-      _todaySchedules = await _scheduleService.getTodaySchedules();
-
-      final family = await Supabase.instance.client
-          .from('parents')
-          .select('family_id')
-          .eq('id', _auth.currentUser!.id)
-          .single();
       if (family['family_id'] != null) {
         final allChildren = await Supabase.instance.client
             .from('children')
@@ -94,38 +103,53 @@ class _ParentDashboardState extends State<ParentDashboard> {
             .eq('family_id', family['family_id']);
         final childIds = allChildren.map((c) => c['id'] as String).toList();
         if (childIds.isNotEmpty) {
-          final allSessions = await Supabase.instance.client
-              .from('homework_sessions')
-              .select('id, duration_minutes')
-              .inFilter('child_id', childIds);
+          // Two more independent reads — sessions for total stats,
+          // approved proofs for the totals row. Run in parallel.
+          final totalsResults = await Future.wait([
+            Supabase.instance.client
+                .from('homework_sessions')
+                .select('id, duration_minutes')
+                .inFilter('child_id', childIds),
+            Supabase.instance.client
+                .from('proof_submissions')
+                .select('id')
+                .eq('parent_decision', 'approved'),
+          ]);
+          final allSessions = totalsResults[0] as List;
+          final approvedProofs = totalsResults[1] as List;
           _totalSessions = allSessions.length;
           _totalMinutes = allSessions.fold<int>(
             0,
             (sum, s) => sum + ((s['duration_minutes'] as int?) ?? 0),
           );
-          final approvedProofs = await Supabase.instance.client
-              .from('proof_submissions')
-              .select('id')
-              .eq('parent_decision', 'approved');
           _totalApproved = approvedProofs.length;
         }
       }
 
-      for (final child in _children) {
-        final session = await _sessionService.getActiveSession(
-          child.id,
-        );
-        _activeLocks[child.id] = session != null;
-        // Pending-proof count per child for the inbox chip. If this
-        // throws (e.g. RLS still pending), leave the prior value
-        // alone rather than wipe it to 0.
-        try {
-          final pending =
-              await _proofService.getPendingProofs(child.id);
-          _pendingProofs[child.id] = pending.length;
-        } catch (_) {
-          _pendingProofs[child.id] = _pendingProofs[child.id] ?? 0;
-        }
+      // Per-child loads run in parallel instead of serial. Each
+      // child is independent (active-session check + pending-proofs
+      // count), so there's no reason to wait for child A before
+      // starting child B. For a 3-kid family this drops three
+      // round-trip pairs to two parallel round-trip pairs.
+      final perChild = await Future.wait(
+        _children.map((child) async {
+          final session =
+              await _sessionService.getActiveSession(child.id);
+          int pending = _pendingProofs[child.id] ?? 0;
+          // Pending-proof count per child for the inbox chip. If this
+          // throws (e.g. RLS still pending), leave the prior value
+          // alone rather than wipe it to 0.
+          try {
+            final proofs =
+                await _proofService.getPendingProofs(child.id);
+            pending = proofs.length;
+          } catch (_) {}
+          return MapEntry(child.id, (session != null, pending));
+        }),
+      );
+      for (final entry in perChild) {
+        _activeLocks[entry.key] = entry.value.$1;
+        _pendingProofs[entry.key] = entry.value.$2;
       }
     } catch (_) {}
     setState(() => _loading = false);
