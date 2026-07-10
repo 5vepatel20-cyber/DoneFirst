@@ -64,27 +64,35 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   }
 
   Future<void> _checkActive() async {
-    final newSession =
-        await _sessionService.getActiveSession(widget.childId);
+    // Active session lookup is the gating read — only after we know
+    // its id can we fetch tasks + proofs. Streak is independent and
+    // can fire alongside the session lookup.
+    final results = await Future.wait([
+      _sessionService.getActiveSession(widget.childId),
+      _streakService.computeStreak(widget.childId),
+    ]);
+    final newSession = results[0] as HomeworkSession?;
+    final newStreak = results[1] as int;
     if (!mounted) return;
     if (newSession != null) {
-      final tasks = await _proofService.getTasks(newSession!.id);
-      final proofs = await _proofService.getProofsForSession(newSession!.id);
+      // Tasks + proofs for this session are independent — fetch in
+      // parallel instead of two sequential round-trips.
+      final sessionResults = await Future.wait([
+        _proofService.getTasks(newSession.id),
+        _proofService.getProofsForSession(newSession.id),
+      ]);
       if (mounted) setState(() {
-        _tasks = tasks;
-        _proofs = proofs;
+        _tasks = sessionResults[0] as List<HomeworkTask>;
+        _proofs = sessionResults[1] as List<ProofSubmission>;
       });
     }
     if (_hadActiveSession && newSession == null && _activeSession != null) {
-      final tasksCompleted = _tasks.where((t) => !t.isPending).length;
-      final newStreak = await _streakService.computeStreak(widget.childId);
       setState(() {
         _showSessionComplete = true;
         _streak = newStreak;
       });
       _previousStreak = newStreak;
     } else {
-      final newStreak = await _streakService.computeStreak(widget.childId);
       if (newStreak > _previousStreak) {
         final milestone = _milestoneService.wasMilestoneReached(
           _previousStreak,
