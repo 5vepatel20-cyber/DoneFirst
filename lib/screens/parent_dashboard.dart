@@ -687,6 +687,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
                                               builder: (_) => LockConfigScreen(
                                                 childId: childId,
                                                 childName: childName,
+                                                // Pre-fill from the
+                                                // schedule so the parent
+                                                // doesn't re-pick what the
+                                                // schedule already says.
+                                                initialMinLock: s.durationMinutes,
+                                                initialApprovalMode: s.approvalMode,
                                               ),
                                             ),
                                           ).then((_) => _loadAll());
