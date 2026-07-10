@@ -133,9 +133,18 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   }
 
   Future<void> _loadAll() async {
-    _session = await _sessionService.getSessionById(widget.sessionId);
-    _proofs = await _proofService.getProofsForSession(widget.sessionId);
-    _breakRequests = await _breakService.getPendingRequests(widget.sessionId);
+    // Session + proofs + break requests are independent — fire them
+    // in parallel. The screen polls every 10s, so this latency shows
+    // up as perceived "jank" when the kid or parent taps something
+    // while a refresh is mid-flight.
+    final results = await Future.wait([
+      _sessionService.getSessionById(widget.sessionId),
+      _proofService.getProofsForSession(widget.sessionId),
+      _breakService.getPendingRequests(widget.sessionId),
+    ]);
+    _session = results[0] as HomeworkSession?;
+    _proofs = results[1] as List<ProofSubmission>;
+    _breakRequests = results[2] as List<BreakRequest>;
     if (mounted)
       setState(() {
         _paused = _session?.isPaused ?? false;
@@ -231,14 +240,18 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   }
 
   Future<void> _batchApproveAll({String? note}) async {
-    for (final p in _proofs) {
-      if (p.isPending) {
-        await _proofService.updateParentDecision(
-          p.id,
-          'approved',
-          parentNote: note,
-        );
-      }
+    // Collect pending IDs up front and fire a single batch update
+    // via the service — one round-trip instead of one per proof.
+    final pendingIds = _proofs
+        .where((p) => p.isPending)
+        .map((p) => p.id)
+        .toList(growable: false);
+    if (pendingIds.isNotEmpty) {
+      await _proofService.batchApproveOrReject(
+        pendingIds,
+        'approved',
+        parentNote: note,
+      );
     }
     if (_session != null) {
       await _notificationService.insertNotification(
