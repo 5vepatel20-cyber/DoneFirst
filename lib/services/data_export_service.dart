@@ -35,63 +35,65 @@ class DataExportService {
         .maybeSingle();
 
     final familyId = parentRow?['family_id'] as String?;
-    final familyRow = familyId == null
-        ? null
-        : await _supabase
-            .from('families')
-            .select()
-            .eq('id', familyId)
-            .maybeSingle();
 
-    final childrenRows = familyId == null
-        ? const <Map<String, dynamic>>[]
-        : await _supabase
-            .from('children')
-            .select()
-            .eq('family_id', familyId);
+    // All the family-level reads are independent — fan out and join.
+    final familyResults = await Future.wait([
+      Future.value(familyId),
+      familyId == null
+          ? Future.value(null)
+          : _supabase.from('families').select().eq('id', familyId).maybeSingle(),
+      familyId == null
+          ? Future.value(<Map<String, dynamic>>[])
+          : _supabase.from('children').select().eq('family_id', familyId),
+    ]);
+    final familyRow = familyResults[1] as Map<String, dynamic>?;
+    final childrenRows = familyResults[2] as List<Map<String, dynamic>>;
 
-    final children = <Map<String, dynamic>>[];
-    for (final child in childrenRows) {
+    // Per-child work (sessions + recurring_schedules) is independent
+    // across children, so fire in parallel.
+    final children = await Future.wait(childrenRows.map((child) async {
       final childId = child['id'] as String;
-      final sessions = await _buildSessionsForChild(childId);
-      final schedules = await _supabase
-          .from('recurring_schedules')
-          .select()
-          .eq('child_id', childId);
-      children.add({
+      final results = await Future.wait([
+        _buildSessionsForChild(childId),
+        _supabase
+            .from('recurring_schedules')
+            .select()
+            .eq('child_id', childId),
+      ]);
+      return {
         ...child,
-        'sessions': sessions,
-        'recurring_schedules': schedules,
-      });
-    }
+        'sessions': results[0],
+        'recurring_schedules': results[1],
+      };
+    }));
 
-    final presets = await _supabase
-        .from('lock_presets')
-        .select()
-        .eq('parent_id', userId);
-
-    final notifications = await _supabase
-        .from('notifications')
-        .select()
-        .eq('parent_id', userId);
-
-    // Consent + usage log may not exist yet if migrations 8/9 haven't
-    // been run. Swallow errors gracefully so the rest of the export
-    // still works.
-    final consentRecords = await _trySelect(
-      table: 'parental_consent',
-      filter: (q) => q.eq('parent_id', userId),
-      orderBy: 'created_at',
-      ascending: false,
-    );
-
-    final usageRows = await _trySelect(
-      table: 'mistral_verification_log',
-      filter: (q) => q
-          .eq('parent_id', userId)
-          .gte('called_at',
-              DateTime.now().toUtc().subtract(const Duration(days: 30)).toIso8601String()),
-    );
+    // All remaining parent-level reads are independent.
+    final tailResults = await Future.wait([
+      _supabase.from('lock_presets').select().eq('parent_id', userId),
+      _supabase.from('notifications').select().eq('parent_id', userId),
+      // Consent + usage log may not exist yet if migrations 8/9
+      // haven't been run. Swallow errors gracefully so the rest of
+      // the export still works.
+      _trySelect(
+        table: 'parental_consent',
+        filter: (q) => q.eq('parent_id', userId),
+        orderBy: 'created_at',
+        ascending: false,
+      ),
+      _trySelect(
+        table: 'mistral_verification_log',
+        filter: (q) => q
+            .eq('parent_id', userId)
+            .gte('called_at', DateTime.now()
+                .toUtc()
+                .subtract(const Duration(days: 30))
+                .toIso8601String()),
+      ),
+    ]);
+    final presets = tailResults[0];
+    final notifications = tailResults[1];
+    final consentRecords = tailResults[2];
+    final usageRows = tailResults[3];
 
     return {
       'exportVersion': exportVersion,
@@ -131,27 +133,57 @@ class DataExportService {
         .eq('child_id', childId)
         .order('started_at', ascending: false);
 
-    final out = <Map<String, dynamic>>[];
-    for (final session in sessions) {
-      final sessionId = session['id'] as String;
-      final tasks = await _supabase
+    if (sessions.isEmpty) return const [];
+
+    // Previously: 3 sequential awaits per session (tasks, proofs,
+    // break_requests). For a kid with N sessions that's 3N round-trips
+    // on top of the initial sessions query. Now: one batched query
+    // per child-side table, grouped by session_id client-side.
+    final sessionIds = sessions
+        .map((s) => s['id'] as String)
+        .toList(growable: false);
+
+    final childData = await Future.wait([
+      _supabase
           .from('homework_tasks')
           .select()
-          .eq('session_id', sessionId);
-      final proofs = await _supabase
+          .inFilter('session_id', sessionIds),
+      _supabase
           .from('proof_submissions')
           .select()
-          .eq('session_id', sessionId);
-      final breaks = await _supabase
+          .inFilter('session_id', sessionIds),
+      _supabase
           .from('break_requests')
           .select()
-          .eq('session_id', sessionId);
-      out.add({
+          .inFilter('session_id', sessionIds),
+    ]);
+    final tasksBySession = _groupBySessionId(childData[0]);
+    final proofsBySession = _groupBySessionId(childData[1]);
+    final breaksBySession = _groupBySessionId(childData[2]);
+
+    return sessions.map((session) {
+      final sid = session['id'] as String;
+      return {
         ...session,
-        'tasks': tasks,
-        'proofs': proofs,
-        'break_requests': breaks,
-      });
+        'tasks': tasksBySession[sid] ?? const <Map<String, dynamic>>[],
+        'proofs': proofsBySession[sid] ?? const <Map<String, dynamic>>[],
+        'break_requests': breaksBySession[sid] ?? const <Map<String, dynamic>>[],
+      };
+    }).toList();
+  }
+
+  /// Groups rows that have a `session_id` field by that field.
+  /// Used by _buildSessionsForChild to attach child-side rows
+  /// (tasks / proofs / break_requests) to their owning session
+  /// after a single batched inFilter query.
+  Map<String, List<Map<String, dynamic>>> _groupBySessionId(
+    List<Map<String, dynamic>> rows,
+  ) {
+    final out = <String, List<Map<String, dynamic>>>{};
+    for (final row in rows) {
+      final sid = row['session_id'] as String?;
+      if (sid == null) continue;
+      out.putIfAbsent(sid, () => []).add(row);
     }
     return out;
   }
