@@ -207,6 +207,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _changePassword() async {
+    // Changing the password from a kid's session would lock the
+    // parent out of their own account. Require the parent PIN
+    // before letting this action run.
+    final pinOk = await PinGuard.confirmInline(
+      context,
+      actionLabel: 'Continue',
+    );
+    if (!pinOk) return;
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmController = TextEditingController();
@@ -289,6 +297,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _exportData() async {
+    // Export contains kids' names, schedules, all sessions, and
+    // consent records — gate it the same way as Delete Account.
+    final pinOk = await PinGuard.confirmInline(
+      context,
+      actionLabel: 'Continue',
+    );
+    if (!pinOk) return;
     setState(() => _exporting = true);
     try {
       final json = await _exportService.exportAsJsonString();
@@ -605,9 +620,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Co-Parent'),
                   subtitle: const Text('Invite a partner to manage together'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => Navigator.push(
+                  onTap: () => PinGuard.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const CoparentScreen()),
+                    destination: const CoparentScreen(),
                   ),
                 ),
                 const Divider(height: 1),
