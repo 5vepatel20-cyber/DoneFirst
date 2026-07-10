@@ -91,6 +91,35 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
                   ? 'These will count toward your free-sessions quota.'
                   : 'The kid will see they were rejected.',
             ),
+            // Quick-reason chips for bulk reject only. Tapping fills
+            // the note so the parent can still tweak before sending.
+            // Approvals don't need a reason; skipping chips there
+            // keeps the dialog tighter.
+            if (decision == 'rejected') ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  for (final r in const [
+                    'Too blurry',
+                    'Wrong subject',
+                    'Incomplete work',
+                    'Didn\'t show the work',
+                    'Try again',
+                  ])
+                    ActionChip(
+                      label: Text(r, style: const TextStyle(fontSize: 12)),
+                      onPressed: () {
+                        noteController.text = r;
+                        noteController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: noteController.text.length),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             TextField(
               controller: noteController,
@@ -119,16 +148,22 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
         ],
       ),
     );
+    if (confirmed != true) {
+      noteController.dispose();
+      return;
+    }
+
+    // Read text first, then dispose — disposing first is a silent
+    // bug since the controller's backing value isn't always reset
+    // and a future Flutter version could return empty.
+    final noteText = noteController.text.trim();
     noteController.dispose();
-    if (confirmed != true) return;
 
     try {
       await _proofService.batchApproveOrReject(
         ids,
         decision,
-        parentNote: noteController.text.trim().isEmpty
-            ? null
-            : noteController.text.trim(),
+        parentNote: noteText.isEmpty ? null : noteText,
       );
       if (mounted) {
         setState(() {
