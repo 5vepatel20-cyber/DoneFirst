@@ -213,6 +213,48 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     );
   }
 
+  /// Shown when there's no paired kid device for this child at
+  /// all. The parent's own phone will get the blocking broadcast
+  /// (this screen's banner above handles that), but without a
+  /// paired device the kid's phone won't actually be locked.
+  /// Keep this info-only — no CTA — so the lock view stays
+  /// focused on the timer. The parent can fix this from
+  /// Settings → Devices when they're done with the session.
+  Widget _buildNoKidDeviceBanner() {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: AppColors.warnFill,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        side: const BorderSide(color: AppColors.warnBd, width: 0.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.warn,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'No kid device paired — the lock won\'t be '
+                'enforced on the kid\'s phone until you pair one '
+                'from Settings → Devices.',
+                style: AppText.body(size: 13, color: AppColors.ink),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _loadAll() async {
     // Session + proofs + break requests are independent — fire them
     // in parallel. The screen polls every 10s, so this latency shows
@@ -575,6 +617,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                   children: [
                     _buildBlockingStatusBanner(),
                     if (_kidDevice != null) _buildKidDeviceChip(_kidDevice!),
+                    if (_kidDevice == null) _buildNoKidDeviceBanner(),
                     if (_session != null)
                       SessionTimer(
                         sessionStart: _session!.startedAt,
