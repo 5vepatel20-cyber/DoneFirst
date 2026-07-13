@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../app_globals.dart' as app;
+import '../screens/kid_device_pairing_screen.dart';
 import '../services/kid_device_service.dart';
 import '../theme/app_theme.dart';
+import 'pin_guard.dart';
 
 /// Listens for kid_device_events INSERTs and shows transient
 /// SnackBars for the events a parent cares about:
@@ -96,14 +98,17 @@ class _KidDeviceEventToastListenerState
     // device list. We use rootNavigator so the snackbar overlay
     // (which sits above the route stack) can drive navigation
     // even if the user dismissed whatever screen they were on.
+    // The "View" action from a revoke toast should land on the
+    // device list directly. We PIN-gate the push so an unattended
+    // phone (someone picks it up after a revoke fires) can't
+    // silently generate a new pairing code.
     final nav = app.rootScaffoldMessengerKey.currentContext;
     if (nav == null) return;
-    Navigator.of(nav, rootNavigator: true).pushNamed('/settings');
-    // Then the user can tap "Kid devices" from Settings. A more
-    // direct route would push KidDevicePairingScreen directly,
-    // but we don't import that screen here to keep this widget
-    // dependency-light; routing through Settings is one tap more
-    // but never breaks if the screen is renamed.
+    PinGuard.push(
+      nav,
+      destination: const KidDevicePairingScreen(),
+      title: 'Confirm to view paired devices',
+    );
   }
 
   @override

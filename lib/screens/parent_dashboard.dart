@@ -790,7 +790,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   ],
                   if (_hasUnpairedChildren) ...[
                     const SizedBox(height: 12),
-                    const KidDeviceSetupHintCard(),
+                    KidDeviceSetupHintCard(
+                      firstChildId: _children.isNotEmpty
+                          ? _children.first.id
+                          : null,
+                    ),
                   ],
                   const SizedBox(height: 12),
                   ..._children.map((child) => _buildChildCard(child)),

@@ -9,7 +9,7 @@ import '../models/child.dart';
 import '../services/kid_device_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
-import '../main.dart' as app;
+import '../app_globals.dart' as app;
 import 'kid_device_setup_screen.dart';
 
 /// PIN-gated screen for managing kid-side device pairings. Shows:

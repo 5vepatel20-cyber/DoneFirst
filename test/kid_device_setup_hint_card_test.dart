@@ -29,12 +29,31 @@ void main() {
 
     expect(find.text('Lock apps on your kid\'s phone'), findsOneWidget);
     expect(find.textContaining('Pair the DoneFirst Kid app'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Pair now'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'Setup guide'), findsOneWidget);
 
-    // Tapping the action doesn't throw. We can't easily assert
-    // navigation to the real setup screen here without dragging
-    // the not-yet-built kid-app services into the test graph.
+    // Tapping either action doesn't throw. We can't easily assert
+    // navigation to the real screens here without dragging the
+    // not-yet-built kid-app services into the test graph.
     await tester.tap(find.widgetWithText(OutlinedButton, 'Setup guide'));
     await tester.pump();
+  });
+
+  testWidgets('honours firstChildId when provided', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: KidDeviceSetupHintCard(firstChildId: 'child-xyz'),
+        ),
+      ),
+    );
+
+    // firstChildId isn't directly observable from the UI, but the
+    // card must render the same way — its presence only changes
+    // the destination pushed on Pair-now tap. Smoke-test that
+    // the widget builds without throwing when the parameter is
+    // non-null.
+    expect(find.byType(KidDeviceSetupHintCard), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Pair now'), findsOneWidget);
   });
 }
