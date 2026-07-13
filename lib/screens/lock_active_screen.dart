@@ -12,6 +12,7 @@ import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
 import '../widgets/break_timer.dart';
 import '../widgets/proof_thumbnail.dart';
+import '../widgets/kid_device_event_toast_listener.dart';
 import 'proof_image_viewer.dart';
 import '../models/models.dart';
 import '../main.dart' as app;
@@ -564,9 +565,10 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
             ),
           ],
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
+        body: KidDeviceEventToastListener(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
                 onRefresh: _loadAll,
                 child: ListView(
                   padding: const EdgeInsets.all(16),
@@ -726,6 +728,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                 ),
               ),
       ),
+    ),
     );
   }
 

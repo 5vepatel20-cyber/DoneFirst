@@ -27,6 +27,8 @@ import 'kid_profile_screen.dart';
 import 'notification_center_screen.dart';
 import 'pending_proofs_screen.dart';
 import 'kid_device_pairing_screen.dart';
+import '../widgets/kid_device_event_toast_listener.dart';
+import '../widgets/kid_device_setup_hint_card.dart';
 
 class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
@@ -201,6 +203,21 @@ class _ParentDashboardState extends State<ParentDashboard> {
       }
     } catch (_) {}
     setState(() => _loading = false);
+  }
+
+  /// True if the family has at least one child on the dashboard
+  /// but no paired kid device for any of them. Drives the empty-
+  /// state hint that nudges parents toward the kid-app setup.
+  bool get _hasUnpairedChildren {
+    if (_children.isEmpty) return false;
+    for (final child in _children) {
+      final status = _kidDeviceStatus[child.id];
+      // A paired device shows up with a non-null derived status
+      // ('online' / 'recent' / 'stale' / 'revoked'). null means
+      // we couldn't find one in kid_devices_with_child.
+      if (status != null) return false;
+    }
+    return true;
   }
 
   Future<void> _addChild() async {
@@ -558,10 +575,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
           ),
         ],
       ),
-      body: _loading
-          ? const DashboardShimmer()
-          : _children.isEmpty
-          ? Center(
+      body: KidDeviceEventToastListener(
+        child: _loading
+            ? const DashboardShimmer()
+            : _children.isEmpty
+            ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -770,6 +788,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       ),
                     ),
                   ],
+                  if (_hasUnpairedChildren) ...[
+                    const SizedBox(height: 12),
+                    const KidDeviceSetupHintCard(),
+                  ],
                   const SizedBox(height: 12),
                   ..._children.map((child) => _buildChildCard(child)),
                   Padding(
@@ -783,6 +805,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 ],
               ),
             ),
+      ),
     ),
     );
   }

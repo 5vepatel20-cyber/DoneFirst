@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'app_globals.dart';
 import 'supabase_config.dart';
 import 'services/auth_service.dart';
 import 'services/profile_service.dart';
-import 'services/realtime_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_mode.dart';
 import 'screens/splash_screen.dart';
@@ -18,7 +18,7 @@ import 'screens/settings_screen.dart';
 import 'screens/upgrade_screen.dart';
 import 'screens/kid/kid_root.dart';
 
-final realtimeService = RealtimeService();
+export 'app_globals.dart' show realtimeService, toastService, rootScaffoldMessengerKey;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +73,7 @@ class DoneFirstApp extends StatelessWidget {
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+        scaffoldMessengerKey: rootScaffoldMessengerKey,
         initialRoute: '/',
         onGenerateRoute: (settings) {
           switch (settings.name) {
