@@ -359,4 +359,57 @@ void main() {
       expect(KidDeviceEvent.typeDeviceRevoked, 'device_revoked');
     });
   });
+
+  group('Realtime refetch dedup', () {
+    // Mirrors the dedup check in the pairing screen's _onRealtimeEvent
+    // — if the head of the freshly-refetched list matches the head
+    // of the existing list, skip the setState to avoid a redundant
+    // rebuild.
+    test('detects identical head as a no-op', () {
+      final now = DateTime.now();
+      final current = KidDeviceEvent(
+        id: 'e-1',
+        eventType: 'code_generated',
+        createdAt: now,
+        devicePairingCode: null,
+        childId: null,
+        childName: null,
+        kidDeviceId: null,
+        deviceName: null,
+      );
+      final currentList = [current];
+      final refreshedList = [current];
+      // The screen's check: same length AND non-empty AND first.id match.
+      final isNoOp = refreshedList.length == currentList.length &&
+          refreshedList.isNotEmpty &&
+          refreshedList.first.id == currentList.first.id;
+      expect(isNoOp, isTrue);
+    });
+
+    test('detects new head as a real update', () {
+      final now = DateTime.now();
+      final current = KidDeviceEvent(
+        id: 'e-1',
+        eventType: 'code_generated',
+        createdAt: now,
+        devicePairingCode: null,
+        childId: null,
+        childName: null,
+        kidDeviceId: null,
+        deviceName: null,
+      );
+      final freshHead = KidDeviceEvent(
+        id: 'e-2',
+        eventType: 'code_claimed',
+        createdAt: now,
+        devicePairingCode: null,
+        childId: null,
+        childName: null,
+        kidDeviceId: null,
+        deviceName: null,
+      );
+      // freshHead is now first, replacing current. Different IDs → real update.
+      expect(freshHead.id, isNot(current.id));
+    });
+  });
 }

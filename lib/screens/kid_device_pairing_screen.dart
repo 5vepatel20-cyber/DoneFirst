@@ -9,6 +9,7 @@ import '../models/child.dart';
 import '../services/kid_device_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import '../main.dart' as app;
 import 'kid_device_setup_screen.dart';
 
 /// PIN-gated screen for managing kid-side device pairings. Shows:
@@ -51,12 +52,52 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
   void initState() {
     super.initState();
     _load();
+    // Realtime hookup. The RealtimeService is a process-wide
+    // singleton started by ParentDashboard.initState, so we just
+    // register a callback; we DON'T start/stop listening here.
+    _previousOnNewEvent = app.realtimeService.onNewKidDeviceEvent;
+    app.realtimeService.onNewKidDeviceEvent = _onRealtimeEvent;
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    // Restore the previous callback instead of nulling it outright,
+    // so disposing this screen while another screen (the dashboard)
+    // is also subscribed doesn't blow away their subscription.
+    app.realtimeService.onNewKidDeviceEvent = _previousOnNewEvent;
     super.dispose();
+  }
+
+  /// Cached pointer to whatever callback was registered before
+  /// this screen registered itself. Restored in [dispose] so we
+  /// chain handlers instead of clobbering.
+  void Function(Map<String, dynamic>)? _previousOnNewEvent;
+
+  void _onRealtimeEvent(Map<String, dynamic> newRow) {
+    // RLS keeps realtime scoped to the parent's family, but the
+    // event row only contains the raw columns (no child_name /
+    // device_name join). Cheapest correct path: refetch the
+    // joined view. The list is bounded to 25 events, so this is
+    // a single small query — fine to do per realtime tick.
+    final familyId = newRow['family_id'];
+    if (familyId == null) return;
+    _eventService.listFamilyEvents().then((updated) {
+      if (!mounted) return;
+      // Skip the refetch if the IDs we already have are still
+      // current; this avoids a redundant setState during the
+      // initial open when realtime floods multiple inserts at once.
+      if (updated.length == _events.length &&
+          updated.isNotEmpty &&
+          updated.first.id == _events.first.id) {
+        return;
+      }
+      setState(() => _events = updated);
+    }).catchError((_) {
+      // Realtime refetch failures are non-fatal — the 10s
+      // pull-to-refresh path will heal the feed on the next
+      // user gesture. Swallow to avoid spamming snackbars.
+    });
   }
 
   Future<void> _load() async {

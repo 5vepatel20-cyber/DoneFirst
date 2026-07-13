@@ -74,6 +74,30 @@ class _ParentDashboardState extends State<ParentDashboard> {
     app.realtimeService.onNewBreakRequest = () {
       _loadAll();
     };
+    // kid_devices UPDATE fires on every heartbeat (last_seen_at
+    // bump) and on every revoke (revoked_at set). The fastest
+    // correct path is to refetch that single child — a refetch
+    // of the whole dashboard is overkill and causes a visible
+    // "flash" because we'd reset _loading = true.
+    app.realtimeService.onKidDeviceChanged = _onKidDeviceChanged;
+  }
+
+  void _onKidDeviceChanged(Map<String, dynamic> newRow) {
+    final childId = newRow['child_id'] as String?;
+    if (childId == null) return;
+    // Re-fetch the device row via the joined view so we get
+    // the derived 'online' / 'recent' / 'stale' status string
+    // the dashboard dot already knows how to render.
+    _kidDeviceService.listDevicesForChild(childId).then((devices) {
+      if (!mounted) return;
+      setState(() {
+        _kidDeviceStatus[childId] =
+            devices.isEmpty ? null : devices.first.status;
+      });
+    }).catchError((_) {
+      // Realtime refetch failures are non-fatal; the next
+      // pull-to-refresh or 10s timer will heal the dot.
+    });
   }
 
   Future<void> _loadAll() async {

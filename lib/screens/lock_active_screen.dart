@@ -14,6 +14,7 @@ import '../widgets/break_timer.dart';
 import '../widgets/proof_thumbnail.dart';
 import 'proof_image_viewer.dart';
 import '../models/models.dart';
+import '../main.dart' as app;
 
 class LockActiveScreen extends StatefulWidget {
   final String sessionId;
@@ -61,13 +62,43 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     if (!_blockingService.hasPermission) {
       _blockingService.requestPermission();
     }
+    // Realtime hookup. The RealtimeService is a singleton started
+    // by ParentDashboard, so we just register a callback for the
+    // duration of this screen and restore the prior handler on
+    // dispose.
+    _previousOnKidDeviceChanged = app.realtimeService.onKidDeviceChanged;
+    app.realtimeService.onKidDeviceChanged = _onKidDeviceChanged;
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
     _blockingService.removeListener(_onBlockingChanged);
+    app.realtimeService.onKidDeviceChanged = _previousOnKidDeviceChanged;
     super.dispose();
+  }
+
+  void Function(Map<String, dynamic>)? _previousOnKidDeviceChanged;
+
+  void _onKidDeviceChanged(Map<String, dynamic> newRow) {
+    // Forward to the prior handler (probably the dashboard) so we
+    // chain instead of clobbering.
+    _previousOnKidDeviceChanged?.call(newRow);
+    // If the change is for OUR child, refresh the chip so the
+    // parent sees online/offline flip within ms instead of after
+    // the next 10s timer tick.
+    final changedChild = newRow['child_id'] as String?;
+    if (_session == null || changedChild != _session!.childId) return;
+    final newId = newRow['id'] as String?;
+    // If a row was revoked, also drop it from local state.
+    if (newId == _kidDevice?.id &&
+        newRow['revoked_at'] != null &&
+        newRow['revoked_at'] is String) {
+      if (!mounted) return;
+      setState(() => _kidDevice = null);
+      return;
+    }
+    _refreshKidDevice(_session!.childId);
   }
 
   void _onBlockingChanged() {
