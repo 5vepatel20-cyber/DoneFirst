@@ -29,6 +29,7 @@ import 'pending_proofs_screen.dart';
 import 'kid_device_pairing_screen.dart';
 import '../widgets/kid_device_event_toast_listener.dart';
 import '../widgets/kid_device_setup_hint_card.dart';
+import '../widgets/recent_kid_device_activity_card.dart';
 
 class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
@@ -805,6 +806,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           : null,
                     ),
                   ],
+                  const SizedBox(height: 12),
+                  const RecentKidDeviceActivityCard(),
                   const SizedBox(height: 12),
                   ..._children.map((child) => _buildChildCard(child)),
                   Padding(
