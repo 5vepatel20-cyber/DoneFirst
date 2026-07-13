@@ -235,6 +235,50 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
     }
   }
 
+  Future<void> _showRenameDialog(KidDevice device) async {
+    final controller = TextEditingController(text: device.deviceName ?? '');
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename device'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Device name',
+            hintText: 'e.g. Bedroom tablet, School iPad',
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newName == null) return;
+    // Empty string clears the override and falls back to the
+    // kid-side default. Don't pass through unchanged text — that's
+    // a no-op DB call we can avoid.
+    if (newName.trim() == (device.deviceName ?? '').trim()) return;
+    try {
+      await _service.renameDevice(device.id, newName);
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Couldn’t rename: $e')),
+      );
+    }
+  }
+
   String get _countdownLabel {
     final s = _remaining.inSeconds;
     if (s <= 0) return 'Expired';
@@ -377,6 +421,7 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
                         ..._devices.map((d) => _DeviceRow(
                               device: d,
                               onRevoke: () => _revoke(d),
+                              onRename: () => _showRenameDialog(d),
                             )),
                       const SizedBox(height: 32),
                       _SetupGuideRow(
@@ -612,10 +657,15 @@ class _ChildPairRow extends StatelessWidget {
 }
 
 class _DeviceRow extends StatelessWidget {
-  const _DeviceRow({required this.device, required this.onRevoke});
+  const _DeviceRow({
+    required this.device,
+    required this.onRevoke,
+    required this.onRename,
+  });
 
   final KidDevice device;
   final VoidCallback onRevoke;
+  final VoidCallback onRename;
 
   @override
   Widget build(BuildContext context) {
@@ -670,13 +720,20 @@ class _DeviceRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (!device.isRevoked)
+              if (!device.isRevoked) ...[
+                IconButton(
+                  tooltip: 'Rename',
+                  icon: const Icon(LucideIcons.pencil, size: 16),
+                  color: AppColors.ink2,
+                  onPressed: onRename,
+                ),
                 IconButton(
                   tooltip: 'Revoke',
                   icon: const Icon(LucideIcons.trash2, size: 16),
                   color: AppColors.danger,
                   onPressed: onRevoke,
                 ),
+              ],
             ],
           ),
         ),

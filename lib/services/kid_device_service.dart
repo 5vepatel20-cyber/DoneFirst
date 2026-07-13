@@ -146,6 +146,24 @@ class KidDeviceService {
         .eq('id', deviceId);
   }
 
+  /// Updates the user-friendly label for a paired kid device. The
+  /// kid app submits a default name on pairing (e.g. "Pixel 8")
+  /// but parents often want to rename to something more useful
+  /// like "Bedroom tablet" or "School iPad". Pass null/empty to
+  /// clear the override and fall back to the kid-side default.
+  ///
+  /// RLS keeps this scoped to the parent's family — a co-parent
+  /// can't rename another family's device.
+  Future<void> renameDevice(String deviceId, String? newName) async {
+    final trimmed = newName?.trim();
+    await _supabase
+        .from('kid_devices')
+        .update({
+          'device_name': (trimmed == null || trimmed.isEmpty) ? null : trimmed,
+        })
+        .eq('id', deviceId);
+  }
+
   /// Cancels an unused pairing code (parent changed their mind).
   /// Codes that have been claimed can't be deleted this way — the
   /// kid_devices row stays, and the parent can revoke that instead.
