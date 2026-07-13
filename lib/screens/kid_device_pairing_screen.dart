@@ -9,6 +9,7 @@ import '../models/child.dart';
 import '../services/kid_device_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import 'kid_device_setup_screen.dart';
 
 /// PIN-gated screen for managing kid-side device pairings. Shows:
 ///   • A "Pair new device" CTA per child in the family. Tapping
@@ -31,12 +32,14 @@ class KidDevicePairingScreen extends StatefulWidget {
 
 class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
   final _service = KidDeviceService();
+  final _eventService = KidDeviceEventService();
   final _sessionService = SessionService();
 
   bool _loading = true;
   String? _error;
   List<Child> _children = const [];
   List<KidDevice> _devices = const [];
+  List<KidDeviceEvent> _events = const [];
 
   // Currently-active pairing code (only one shown at a time).
   GeneratedPairingCode? _activeCode;
@@ -63,15 +66,18 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
     });
     try {
       // Pull the parent's children from the existing session path
-      // and the family's kid devices from the new view.
+      // and the family's kid devices + audit events from the new
+      // views. All independent — fire in parallel.
       final results = await Future.wait([
         _sessionService.getChildren(),
         _service.listFamilyDevices(),
+        _eventService.listFamilyEvents(),
       ]);
       if (!mounted) return;
       setState(() {
         _children = results[0] as List<Child>;
         _devices = results[1] as List<KidDevice>;
+        _events = results[2] as List<KidDeviceEvent>;
         _loading = false;
       });
     } catch (e) {
@@ -294,6 +300,32 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
                               device: d,
                               onRevoke: () => _revoke(d),
                             )),
+                      const SizedBox(height: 32),
+                      _SetupGuideRow(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const KidDeviceSetupScreen(),
+                          ),
+                        ),
+                      ),
+                      if (_devices.isEmpty && _events.isEmpty) const SizedBox(height: 32),
+                      Text(
+                        'Recent activity',
+                        style: AppText.cardHeader(size: 15),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_events.isEmpty)
+                        _EmptyState(
+                          icon: LucideIcons.history,
+                          title: 'No activity yet',
+                          subtitle: 'Pairings, claims, and revokes show '
+                              'up here once you start using kid devices.',
+                        )
+                      else
+                        ..._events
+                            .take(8)
+                            .map((e) => _ActivityRow(event: e)),
                     ],
                   ),
                 ),
@@ -647,6 +679,123 @@ class _ErrorView extends StatelessWidget {
             FilledButton(
               onPressed: onRetry,
               child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tappable row that opens the setup guide. Sits between the
+/// paired-devices list and the activity feed — parents who finish
+/// reading the empty state typically wonder "what's next?" and
+/// this is the answer.
+class _SetupGuideRow extends StatelessWidget {
+  const _SetupGuideRow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppColors.sageFill,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    LucideIcons.helpCircle,
+                    size: 18,
+                    color: AppColors.forest,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'How to set up the kid’s device',
+                        style: AppText.cardHeader(size: 14),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Install the app, grant access, run one ADB '
+                        'command — full walk-through with copy-able '
+                        'steps.',
+                        style: AppText.bodySecondary(size: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  LucideIcons.chevronRight,
+                  color: AppColors.muted,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Single line in the recent-activity feed. The event_type drives
+/// the icon + color so the parent can scan the feed at a glance.
+/// Time-ago label right-aligned via Expanded above.
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({required this.event});
+
+  final KidDeviceEvent event;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, color) = switch (event.eventType) {
+      KidDeviceEvent.typeCodeGenerated => (LucideIcons.keyRound, AppColors.forest),
+      KidDeviceEvent.typeCodeClaimed => (LucideIcons.link, AppColors.grass),
+      KidDeviceEvent.typeCodeCancelled => (LucideIcons.x, AppColors.muted),
+      KidDeviceEvent.typeDeviceRevoked => (LucideIcons.trash2, AppColors.danger),
+      _ => (LucideIcons.circle, AppColors.muted),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: AppColors.card,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.hair2),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                event.label(),
+                style: AppText.body(size: 13),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              event.ageLabel(DateTime.now()),
+              style: AppText.bodySecondary(size: 12),
             ),
           ],
         ),

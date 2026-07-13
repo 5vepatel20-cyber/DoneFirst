@@ -110,7 +110,7 @@ class KidDeviceService {
         .order('last_seen_at', ascending: false, nullsFirst: false);
 
     return rows
-        .map((r) => KidDevice.fromMap(r as Map<String, dynamic>))
+        .map((r) => KidDevice.fromMap(r))
         .toList(growable: false);
   }
 
@@ -124,7 +124,7 @@ class KidDeviceService {
         .order('last_seen_at', ascending: false, nullsFirst: false);
 
     return rows
-        .map((r) => KidDevice.fromMap(r as Map<String, dynamic>))
+        .map((r) => KidDevice.fromMap(r))
         .toList(growable: false);
   }
 
@@ -259,4 +259,110 @@ class KidDeviceException implements Exception {
 
   @override
   String toString() => 'KidDeviceException($code): $message';
+}
+
+/// Read-only service for the kid_device_events_with_context view.
+/// Events themselves are inserted by Postgres triggers (see
+/// migration_14); the parent app just renders them. Keeping the
+/// service separate from [KidDeviceService] so a future write
+/// path doesn't accidentally bypass the trigger contract.
+class KidDeviceEventService {
+  final _supabase = Supabase.instance.client;
+
+  /// Latest events for the current family, newest first. Limit
+  /// defaults to 25 — the activity feed shows the recent slice
+  /// only, anything older can wait for a future "view all" screen.
+  Future<List<KidDeviceEvent>> listFamilyEvents({int limit = 25}) async {
+    final rows = await _supabase
+        .from('kid_device_events_with_context')
+        .select()
+        .order('created_at', ascending: false)
+        .limit(limit);
+
+    return rows
+        .map((r) => KidDeviceEvent.fromMap(r))
+        .toList(growable: false);
+  }
+}
+
+/// One row of kid_device_events_with_context. The view joins the
+/// raw event with children + kid_devices for friendly display
+/// labels. [devicePairingCode] is captured even after the code
+/// row is deleted (cancel), so we can show "code 481302 cancelled"
+/// in the feed.
+class KidDeviceEvent {
+  /// Same string identifiers as the migration_14 CHECK constraint.
+  /// Exposed as constants so the UI can switch on them without
+  /// string-typing magic strings in three different files.
+  static const typeCodeGenerated = 'code_generated';
+  static const typeCodeClaimed = 'code_claimed';
+  static const typeCodeCancelled = 'code_cancelled';
+  static const typeDeviceRevoked = 'device_revoked';
+
+  final String id;
+  final String eventType;
+  final DateTime createdAt;
+  final String? devicePairingCode;
+  final String? childId;
+  final String? childName;
+  final String? kidDeviceId;
+  final String? deviceName;
+
+  const KidDeviceEvent({
+    required this.id,
+    required this.eventType,
+    required this.createdAt,
+    required this.devicePairingCode,
+    required this.childId,
+    required this.childName,
+    required this.kidDeviceId,
+    required this.deviceName,
+  });
+
+  factory KidDeviceEvent.fromMap(Map<String, dynamic> map) => KidDeviceEvent(
+        id: map['id'] as String,
+        eventType: map['event_type'] as String,
+        createdAt: DateTime.parse(map['created_at'] as String),
+        devicePairingCode: map['device_pairing_code'] as String?,
+        childId: map['child_id'] as String?,
+        childName: map['child_name'] as String?,
+        kidDeviceId: map['kid_device_id'] as String?,
+        deviceName: map['device_name'] as String?,
+      );
+
+  /// Human-readable one-liner for the activity feed row. Kept here
+  /// (not in the widget) so the wording is testable and easy to
+  /// tweak in one place when we add event types later.
+  String label() {
+    final who = childName ?? 'a kid';
+    final what = deviceName ?? 'a device';
+    final code = devicePairingCode;
+    switch (eventType) {
+      case KidDeviceEvent.typeCodeGenerated:
+        return code == null
+            ? 'Generated a pairing code for $who'
+            : 'Generated pairing code $code for $who';
+      case KidDeviceEvent.typeCodeClaimed:
+        return '$who paired $what';
+      case KidDeviceEvent.typeCodeCancelled:
+        return code == null
+            ? 'Cancelled an unused pairing code'
+            : 'Cancelled pairing code $code';
+      case KidDeviceEvent.typeDeviceRevoked:
+        return 'Revoked $what (was paired to $who)';
+      default:
+        return 'Unknown kid-device event';
+    }
+  }
+
+  /// Humanizer for the timestamp. Mirrors the format used by
+  /// KidDevice.lastSeenLabel so the feed feels consistent.
+  String ageLabel(DateTime now) {
+    final delta = now.difference(createdAt);
+    if (delta.inSeconds < 30) return 'Just now';
+    if (delta.inMinutes < 1) return '${delta.inSeconds}s ago';
+    if (delta.inMinutes < 60) return '${delta.inMinutes} min ago';
+    if (delta.inHours < 24) return '${delta.inHours}h ago';
+    return '${delta.inDays}d ago';
+  }
 }

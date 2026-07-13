@@ -191,4 +191,172 @@ void main() {
       }
     });
   });
+
+  group('KidDeviceEvent.fromMap', () {
+    test('parses a code_generated event', () {
+      final map = {
+        'id': 'e-1',
+        'family_id': 'f-1',
+        'event_type': 'code_generated',
+        'created_at': DateTime.now().toIso8601String(),
+        'device_pairing_code': '481302',
+        'metadata': null,
+        'child_id': 'c-1',
+        'child_name': 'Aarav',
+        'kid_device_id': null,
+        'device_name': null,
+      };
+      final e = KidDeviceEvent.fromMap(map);
+      expect(e.id, 'e-1');
+      expect(e.eventType, 'code_generated');
+      expect(e.devicePairingCode, '481302');
+      expect(e.childName, 'Aarav');
+      expect(e.kidDeviceId, isNull);
+      expect(e.deviceName, isNull);
+    });
+
+    test('parses a device_revoked event with device + child names', () {
+      final map = {
+        'id': 'e-2',
+        'family_id': 'f-1',
+        'event_type': 'device_revoked',
+        'created_at': DateTime.now().toIso8601String(),
+        'device_pairing_code': null,
+        'metadata': null,
+        'child_id': 'c-2',
+        'child_name': 'Mei',
+        'kid_device_id': 'd-9',
+        'device_name': "Mei's Pixel",
+      };
+      final e = KidDeviceEvent.fromMap(map);
+      expect(e.eventType, 'device_revoked');
+      expect(e.deviceName, "Mei's Pixel");
+      expect(e.childName, 'Mei');
+    });
+  });
+
+  group('KidDeviceEvent.label', () {
+    KidDeviceEvent make({
+      required String type,
+      String? code,
+      String? childName,
+      String? deviceName,
+    }) =>
+        KidDeviceEvent(
+          id: 'e',
+          eventType: type,
+          createdAt: DateTime.now(),
+          devicePairingCode: code,
+          childId: 'c',
+          childName: childName,
+          kidDeviceId: deviceName == null ? null : 'd',
+          deviceName: deviceName,
+        );
+
+    test('code_generated includes the code and child name', () {
+      final s = make(
+        type: KidDeviceEvent.typeCodeGenerated,
+        code: '481302',
+        childName: 'Aarav',
+      ).label();
+      expect(s, contains('481302'));
+      expect(s, contains('Aarav'));
+    });
+
+    test('code_claimed reads "{child} paired {device}"', () {
+      final s = make(
+        type: KidDeviceEvent.typeCodeClaimed,
+        childName: 'Mei',
+        deviceName: "Mei's iPad",
+      ).label();
+      expect(s, contains('Mei'));
+      expect(s, contains("Mei's iPad"));
+    });
+
+    test('code_cancelled shows the code if present', () {
+      final s = make(
+        type: KidDeviceEvent.typeCodeCancelled,
+        code: '777777',
+      ).label();
+      expect(s, contains('777777'));
+    });
+
+    test('code_cancelled without a code falls back to friendly copy', () {
+      final s = make(type: KidDeviceEvent.typeCodeCancelled).label();
+      expect(s, isNotEmpty);
+      expect(s.toLowerCase(), contains('cancel'));
+    });
+
+    test('device_revoked names the device', () {
+      final s = make(
+        type: KidDeviceEvent.typeDeviceRevoked,
+        childName: 'Aarav',
+        deviceName: "Aarav's Pixel 8",
+      ).label();
+      expect(s, contains('Aarav'));
+      expect(s, contains("Aarav's Pixel 8"));
+    });
+
+    test('unknown event types still produce a label without crashing', () {
+      final s = make(type: 'mystery_event').label();
+      expect(s, isNotEmpty);
+    });
+  });
+
+  group('KidDeviceEvent.ageLabel', () {
+    test('returns "Just now" within 30 seconds', () {
+      final e = KidDeviceEvent(
+        id: 'e',
+        eventType: 'code_generated',
+        createdAt: DateTime.now().subtract(const Duration(seconds: 5)),
+        devicePairingCode: null,
+        childId: null,
+        childName: null,
+        kidDeviceId: null,
+        deviceName: null,
+      );
+      expect(e.ageLabel(DateTime.now()), 'Just now');
+    });
+
+    test('returns "5 min ago" for 5 minutes old', () {
+      final e = KidDeviceEvent(
+        id: 'e',
+        eventType: 'code_generated',
+        createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+        devicePairingCode: null,
+        childId: null,
+        childName: null,
+        kidDeviceId: null,
+        deviceName: null,
+      );
+      expect(e.ageLabel(DateTime.now()), '5 min ago');
+    });
+
+    test('returns "3d ago" beyond a day', () {
+      final e = KidDeviceEvent(
+        id: 'e',
+        eventType: 'device_revoked',
+        createdAt: DateTime.now().subtract(const Duration(days: 3)),
+        devicePairingCode: null,
+        childId: null,
+        childName: null,
+        kidDeviceId: null,
+        deviceName: null,
+      );
+      expect(e.ageLabel(DateTime.now()), '3d ago');
+    });
+  });
+
+  group('KidDeviceEvent.type constants match migration check', () {
+    // The Postgres CHECK constraint in migration_14 allows exactly
+    // these four event_type values. If anyone renames one, the
+    // constants drift and either the trigger rejects the row or
+    // the UI's switch falls through. This test pins both sides.
+    test('type constants are the four documented values', () {
+      expect(KidDeviceEvent.typeCodeGenerated, 'code_generated');
+      expect(KidDeviceEvent.typeCodeClaimed, 'code_claimed');
+      expect(KidDeviceEvent.typeCodeCancelled, 'code_cancelled');
+      expect(KidDeviceEvent.typeDeviceRevoked, 'device_revoked');
+    });
+  });
 }

@@ -7,6 +7,7 @@ import '../services/session_service.dart';
 import '../services/notification_service.dart';
 import '../services/schedule_service.dart';
 import '../services/proof_service.dart';
+import '../services/kid_device_service.dart';
 import '../main.dart' as app;
 import '../theme/app_theme.dart';
 import '../widgets/shimmer_loading.dart';
@@ -40,9 +41,14 @@ class _ParentDashboardState extends State<ParentDashboard> {
   final _notificationService = NotificationService();
   final _scheduleService = ScheduleService();
   final _proofService = ProofService();
+  final _kidDeviceService = KidDeviceService();
   List<Child> _children = [];
   final Map<String, bool> _activeLocks = {};
   final Map<String, int> _pendingProofs = {};
+  /// kid-device status per child for the dashboard's per-row dot.
+  /// null = no paired device for that child, otherwise the derived
+  /// status string ('online' / 'recent' / 'stale' / 'revoked').
+  final Map<String, String?> _kidDeviceStatus = {};
   bool _loading = true;
   int _monthlySessionCount = 0;
   int _unreadNotifications = 0;
@@ -131,9 +137,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
       // Per-child loads run in parallel instead of serial. Each
       // child is independent (active-session check + pending-proofs
-      // count), so there's no reason to wait for child A before
-      // starting child B. For a 3-kid family this drops three
-      // round-trip pairs to two parallel round-trip pairs.
+      // count + kid-device status), so there's no reason to wait
+      // for child A before starting child B. For a 3-kid family
+      // this drops three round-trip pairs to one parallel batch.
       final perChild = await Future.wait(
         _children.map((child) async {
           final session =
@@ -147,12 +153,27 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 await _proofService.getPendingProofs(child.id);
             pending = proofs.length;
           } catch (_) {}
-          return MapEntry(child.id, (session != null, pending));
+          // Kid-device status for the dashboard dot. Failures
+          // collapse to null (no device) so a transient RLS hiccup
+          // never breaks the row.
+          String? deviceStatus;
+          try {
+            final devices =
+                await _kidDeviceService.listDevicesForChild(child.id);
+            if (devices.isNotEmpty) {
+              deviceStatus = devices.first.status;
+            }
+          } catch (_) {}
+          return MapEntry(
+            child.id,
+            (session != null, pending, deviceStatus),
+          );
         }),
       );
       for (final entry in perChild) {
         _activeLocks[entry.key] = entry.value.$1;
         _pendingProofs[entry.key] = entry.value.$2;
+        _kidDeviceStatus[entry.key] = entry.value.$3;
       }
     } catch (_) {}
     setState(() => _loading = false);
@@ -847,6 +868,44 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           ),
                         ],
                       ),
+                      Builder(builder: (context) {
+                        // Map the kid_devices_with_child view's
+                        // status enum to a coloured dot + short label.
+                        // null = no paired device at all.
+                        final status = _kidDeviceStatus[childId];
+                        final (color, label) = switch (status) {
+                          'online' => (AppColors.grass, 'Device online'),
+                          'recent' => (AppColors.warn, 'Device idle'),
+                          'stale' => (AppColors.muted, 'Device offline'),
+                          'revoked' => (AppColors.danger, 'Device revoked'),
+                          _ => (AppColors.disabled, 'No device paired'),
+                        };
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: color,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: color == AppColors.disabled
+                                      ? AppColors.faint
+                                      : AppColors.ink2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
                       if (child.streakCount > 0) ...[
                         const SizedBox(height: 2),
                         // Streak chip. Hidden when 0 so we never
