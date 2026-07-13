@@ -30,6 +30,7 @@ class AppColors {
 
   // Grass (kid primary)
   static const grass = Color(0xFF2F9E56);
+  static const grassDeep = Color(0xFF257D44);  // LockedScreen bg (5.1:1 vs white)
   static const kidBg = Color(0xFFF1F8F0);
   static const kidLine = Color(0xFFCBE3CD);
   static const kidInk = Color(0xFF183F28);
@@ -98,6 +99,26 @@ class AppText {
         fontWeight: FontWeight.w700,
         letterSpacing: size * -0.02,
         color: color ?? AppColors.ink,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      );
+
+  // Alias for kid screens — they're built around AppText.title(size:)
+  // and we want one canonical name across both modes.
+  static TextStyle title({Color? color, double size = 22}) =>
+      GoogleFonts.bricolageGrotesque(
+        fontSize: size,
+        fontWeight: FontWeight.w700,
+        letterSpacing: size * -0.02,
+        color: color ?? AppColors.ink,
+      );
+
+  // Tabular-figures monospace-ish rendering for the 6-digit pairing
+  // code entry field. Wide letter-spacing so each digit breathes.
+  static TextStyle code({double size = 32}) => GoogleFonts.bricolageGrotesque(
+        fontSize: size,
+        fontWeight: FontWeight.w700,
+        letterSpacing: size * 0.15,
+        color: AppColors.ink,
         fontFeatures: const [FontFeature.tabularFigures()],
       );
 

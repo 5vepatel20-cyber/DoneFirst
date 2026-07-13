@@ -1,12 +1,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Parent-side permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Kid-side permissions (only used when role='kid' at runtime).
+         Declared unconditionally so a single APK works for both
+         roles without rebuilding. The ACCESSIBILITY_SERVICE /
+         PACKAGE_USAGE_STATS pair is what flutter_screentime uses to
+         detect when a blocked app comes to the foreground. -->
+    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" />
+    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+
     <application
-        android:label="donefirst"
+        android:label="DoneFirst"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -31,6 +41,42 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- flutter_screentime's AccessibilityService. The user enables
+             it via Settings → Accessibility on the kid's device. The
+             service is bound to com.donefirst.app so it can bounce back
+             into our app. On a parent's phone the service is dormant. -->
+        <service
+            android:name="com.flutter_screentime.BlockingAccessibilityService"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Device admin receiver. Required for the device-owner model
+             used by lock-task mode on the kid's device. The actual
+             promotion happens via ADB at install time (see SETUP.md):
+               adb shell dpm set-device-owner \
+                 com.donefirst.app/.KidDeviceAdminReceiver
+             On a parent's phone this receiver is dormant. -->
+        <receiver
+            android:name=".KidDeviceAdminReceiver"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_policies" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

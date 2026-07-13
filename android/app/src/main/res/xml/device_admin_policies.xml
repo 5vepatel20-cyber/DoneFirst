@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Device admin policies for the DoneFirst Kid app.
+
+  Used by KidDeviceAdminReceiver when the OS promotes us to device
+  owner. We don't request any policy capabilities beyond the
+  defaults — the lock-task enforcement comes from the device-owner
+  status itself (which grants activity.startLockTask() and
+  activity.stopLockTask()).
+-->
+<device-admin>
+    <uses-policies>
+        <!-- Intentionally empty: we don't want forced-lock, password
+             policy, or wipe-on-attempt features. The only capability
+             we need is "be the device owner", which is implicit. -->
+    </uses-policies>
+</device-admin>

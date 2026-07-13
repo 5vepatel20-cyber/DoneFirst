@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AccessibilityService configuration consumed by flutter_screentime.
+
+  Capability summary (chosen so the service can do its job while
+  asking for the minimum the OS will grant):
+    - android:accessibilityEventTypes="typeWindowStateChanged" fires
+      every time the foreground app swaps; that's the signal
+      flutter_screentime uses to detect "kid opened a blocked app"
+      and bounce them.
+    - android:canRetrieveWindowContent lets us inspect what app is
+      currently foreground (otherwise we'd have to rely on
+      UsageStats alone, which has 1-2s latency on some OEM builds).
+    - packageListAsString is the per-package action list. The
+      service is bound to com.donefirst.kid and android so it can
+      bounce back into our app.
+    - android:flagIncludeNotImportantViews / flagReportViewIds not
+      needed; we don't introspect UIs.
+
+  Settings screen label is in res/values/strings.xml under
+  accessibility_service_label. The user enables the service via
+  Settings → Accessibility → DoneFirst Kid.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="100"
+    android:packageNames="com.donefirst.app,com.android.settings" />

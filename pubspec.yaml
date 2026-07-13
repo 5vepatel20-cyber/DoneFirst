@@ -37,7 +37,7 @@ dependencies:
   http: ^1.2.0
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.5.5
-  sentry_flutter: ^8.13.0
+  sentry_flutter: ^9.0.0
   google_sign_in: ^7.2.0
   google_fonts: ^8.1.0
   lucide_icons: ^0.257.0

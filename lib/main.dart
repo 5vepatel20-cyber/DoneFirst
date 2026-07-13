@@ -4,16 +4,19 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'supabase_config.dart';
 import 'services/auth_service.dart';
+import 'services/profile_service.dart';
 import 'services/realtime_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_mode.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/role_select_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/parent_dashboard.dart';
 import 'screens/session_complete_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/upgrade_screen.dart';
+import 'screens/kid/kid_root.dart';
 
 final realtimeService = RealtimeService();
 
@@ -34,6 +37,25 @@ void main() async {
         'SENTRY_ENV',
         defaultValue: 'production',
       );
+      // Single-app mode (parent + kid in one APK) — single release
+      // stream. Old kid-app tag is gone since both modes ship as
+      // one binary.
+      options.release = const String.fromEnvironment(
+        'SENTRY_RELEASE',
+        defaultValue: 'dev',
+      );
+      options.dist = const String.fromEnvironment(
+        'SENTRY_DIST',
+        defaultValue: 'dev',
+      );
+      options.beforeSend = (event, hint) {
+        final msg = event.message?.toString() ?? '';
+        // Drop exceptions whose message looks like a Supabase JWT.
+        if (msg.contains('eyJ') && msg.contains('.')) {
+          return null;
+        }
+        return event;
+      };
     },
     appRunner: () => runApp(const DoneFirstApp()),
   );
@@ -60,20 +82,25 @@ class DoneFirstApp extends StatelessWidget {
               return MaterialPageRoute(
                 builder: (_) => const OnboardingScreen(),
               );
+            case '/role-select':
+              return MaterialPageRoute(
+                builder: (_) => const RoleSelectScreen(),
+              );
             case '/auth':
               return MaterialPageRoute(builder: (_) => const AuthScreen());
+            case '/kid':
+              return MaterialPageRoute(
+                builder: (_) => const KidRoot(),
+              );
             case '/dashboard':
-              return MaterialPageRoute(builder: (_) => const ParentDashboard());
+              return MaterialPageRoute(
+                builder: (_) => const ParentDashboard(),
+              );
             case '/settings':
               return MaterialPageRoute(builder: (_) => const SettingsScreen());
             case '/upgrade':
               return MaterialPageRoute(builder: (_) => const UpgradeScreen());
             case '/session-complete':
-              // Caller pushes with arguments in the route settings
-              // (childName, tasksCompleted, streakDays,
-              // minutesStudied). For simplicity we instantiate with
-              // placeholders; the canonical entry is from kid_home
-              // after a session wraps.
               final args = settings.arguments as Map<String, dynamic>? ?? {};
               return MaterialPageRoute(
                 builder: (_) => SessionCompleteScreen(
@@ -81,7 +108,7 @@ class DoneFirstApp extends StatelessWidget {
                   tasksCompleted: args['tasksCompleted'] as int? ?? 0,
                   streakDays: args['streakDays'] as int? ?? 0,
                   minutesStudied: args['minutesStudied'] as int?,
-                  onDone: () => Navigator.of(_).pop(),
+                  onDone: () => Navigator.of(context).pop(),
                 ),
               );
             default:
@@ -124,19 +151,44 @@ class _EntryPointState extends State<EntryPoint> {
     if (mounted) setState(() => _checking = false);
   }
 
+  /// Routes the user based on auth + role. Kids never go through
+  /// the parent signup screen — if the auth client has no user we
+  /// land on RoleSelectScreen, which itself branches to AuthScreen
+  /// (parent) or KidRoot (kid). If we do have a user, fetch the
+  /// role from the parents table and route by it.
   Future<void> _resolveRoute() async {
     if (!mounted) return;
-    if (_auth.currentUser != null) {
-      Navigator.pushReplacementNamed(context, '/dashboard');
-    } else {
+    if (_auth.currentUser == null) {
       final prefs = await SharedPreferences.getInstance();
       final onboardingDone = prefs.getBool('onboarding_done') ?? false;
       if (mounted) {
         Navigator.pushReplacementNamed(
           context,
-          onboardingDone ? '/auth' : '/onboarding',
+          onboardingDone ? '/role-select' : '/onboarding',
         );
       }
+      return;
+    }
+
+    // Authenticated. Read role from the parents row.
+    final profileService = ProfileService();
+    String? role;
+    try {
+      final profile = await profileService.getParentProfile();
+      role = profile?.role;
+    } catch (_) {
+      // If the parents row is missing or unreadable we treat as
+      // unsigned and bounce back to the role chooser. This can
+      // happen if the kid-app signup raced and the row hasn't
+      // landed yet.
+      role = null;
+    }
+
+    if (!mounted) return;
+    if (role == 'kid') {
+      Navigator.pushReplacementNamed(context, '/kid');
+    } else {
+      Navigator.pushReplacementNamed(context, '/dashboard');
     }
   }
 

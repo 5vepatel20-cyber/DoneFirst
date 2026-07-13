@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      LaunchTheme and NormalTheme live in res/values/styles.xml in
+      this project. Don't duplicate them here — Android resource
+      merging will reject the build.
+
+      The AccessibilityService that flutter_screentime uses to detect
+      the foreground app needs a label the user sees in Settings →
+      Accessibility. Localized copy would live in res/values-<locale>/
+      but English is sufficient for v1.
+    -->
+    <string name="accessibility_service_label">DoneFirst Lock</string>
+    <string name="accessibility_service_description">
+        Lets DoneFirst lock other apps on this device during a
+        parent-set homework session.
+    </string>
+</resources>

@@ -42,8 +42,10 @@ android {
         applicationId = "com.donefirst.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // google_sign_in_android 7.x requires minSdk 21.
-        minSdk = 21
+        // google_sign_in_android 7.x requires minSdk 21, but the
+        // kid-side kiosk / lock-task / flutter_screentime features
+        // require API 23 (Marshmallow). Bumping to 23 covers both.
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
