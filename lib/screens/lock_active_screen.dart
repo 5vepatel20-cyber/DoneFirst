@@ -13,6 +13,8 @@ import '../widgets/session_timer.dart';
 import '../widgets/break_timer.dart';
 import '../widgets/proof_thumbnail.dart';
 import '../widgets/kid_device_event_toast_listener.dart';
+import '../widgets/pin_guard.dart';
+import 'kid_device_pairing_screen.dart';
 import 'proof_image_viewer.dart';
 import '../models/models.dart';
 import '../main.dart' as app;
@@ -217,9 +219,10 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   /// all. The parent's own phone will get the blocking broadcast
   /// (this screen's banner above handles that), but without a
   /// paired device the kid's phone won't actually be locked.
-  /// Keep this info-only — no CTA — so the lock view stays
-  /// focused on the timer. The parent can fix this from
-  /// Settings → Devices when they're done with the session.
+  /// The "Pair now" CTA pushes the pairing screen (PIN-gated) so
+  /// the parent can fix it without leaving the session — useful
+  /// when they didn't realise a kid device was needed until the
+  /// lock was already running.
   Widget _buildNoKidDeviceBanner() {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -244,14 +247,40 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
             Expanded(
               child: Text(
                 'No kid device paired — the lock won\'t be '
-                'enforced on the kid\'s phone until you pair one '
-                'from Settings → Devices.',
+                'enforced on the kid\'s phone.',
                 style: AppText.body(size: 13, color: AppColors.ink),
+              ),
+            ),
+            TextButton(
+              onPressed: _openPairing,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.ink,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Pair now',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  void _openPairing() {
+    // PIN-gated because pairing can generate codes / revoke devices.
+    // The destination doesn't need to receive the active session id —
+    // pairing itself is independent of the in-flight lock.
+    PinGuard.push(
+      context,
+      destination: const KidDevicePairingScreen(),
+      title: 'Confirm to pair a kid device',
     );
   }
 
