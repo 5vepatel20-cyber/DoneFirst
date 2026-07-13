@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/child.dart';
 import '../services/kid_device_service.dart';
-import '../services/profile_service.dart';
+import '../services/session_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/brand_logo.dart';
 
 /// PIN-gated screen for managing kid-side device pairings. Shows:
 ///   • A "Pair new device" CTA per child in the family. Tapping
@@ -31,7 +31,7 @@ class KidDevicePairingScreen extends StatefulWidget {
 
 class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
   final _service = KidDeviceService();
-  final _profile = ProfileService();
+  final _sessionService = SessionService();
 
   bool _loading = true;
   String? _error;
@@ -62,10 +62,10 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
       _error = null;
     });
     try {
-      // Pull the parent's children from the existing profile path
+      // Pull the parent's children from the existing session path
       // and the family's kid devices from the new view.
       final results = await Future.wait([
-        _profile.children(),
+        _sessionService.getChildren(),
         _service.listFamilyDevices(),
       ]);
       if (!mounted) return;
@@ -160,6 +160,32 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
         '${ss.toString().padLeft(2, '0')}';
   }
 
+  Future<void> _shareCode({
+    required String code,
+    required String childName,
+  }) async {
+    // Compose a kid-friendly share text. We don't include the code
+    // itself in a way that screams "OTP" because (a) WhatsApp/SMS
+    // previews often truncate the body and (b) parents sometimes
+    // hand the kid their phone to enter the code anyway, so it's
+    // not really a secret from the kid — only from the world.
+    final text =
+        'DoneFirst pairing code for $childName’s device: $code '
+        '(expires in 10 minutes). '
+        'Open DoneFirst on the kid’s phone, choose “Kid”, and '
+        'enter the code.';
+    try {
+      await SharePlus.instance.share(
+        ShareParams(text: text, subject: 'DoneFirst pairing code'),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Couldn’t share: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -206,6 +232,18 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
                               ),
                             );
                           },
+                          onShare: () => _shareCode(
+                            code: _activeCode!.code,
+                            childName: _children
+                                .firstWhere(
+                                  (c) => c.id == _activeCodeChildId,
+                                  orElse: () => Child(
+                                    id: '',
+                                    name: 'your child',
+                                  ),
+                                )
+                                .name,
+                          ),
                           onCancel: () async {
                             try {
                               await _service
@@ -269,6 +307,7 @@ class _ActiveCodeCard extends StatelessWidget {
     required this.childName,
     required this.remaining,
     required this.onCopy,
+    required this.onShare,
     required this.onCancel,
   });
 
@@ -276,6 +315,7 @@ class _ActiveCodeCard extends StatelessWidget {
   final String childName;
   final String remaining;
   final VoidCallback onCopy;
+  final VoidCallback onShare;
   final VoidCallback onCancel;
 
   @override
@@ -357,12 +397,25 @@ class _ActiveCodeCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          TextButton(
-            onPressed: onCancel,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Cancel code'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton.icon(
+                onPressed: onShare,
+                icon: const Icon(LucideIcons.share2, size: 16),
+                label: const Text('Share'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              TextButton(
+                onPressed: onCancel,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Cancel code'),
+              ),
+            ],
           ),
         ],
       ),
@@ -500,7 +553,7 @@ class _DeviceRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '${device.childDisplayName ?? '—'} • '
-                      '${statusLabel} • '
+                      '$statusLabel • '
                       '${device.lastSeenLabel(DateTime.now())}',
                       style: AppText.bodySecondary(size: 12),
                     ),
