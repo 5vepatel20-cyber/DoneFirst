@@ -3,8 +3,12 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../services/session_service.dart';
 import '../services/blocking_service.dart';
 import '../services/lock_preset_service.dart';
+import '../services/kid_device_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/segmented_group.dart';
+import '../widgets/pin_guard.dart';
+import '../widgets/kid_device_lock_config_banner.dart';
+import 'kid_device_pairing_screen.dart';
 import 'lock_active_screen.dart';
 import '../models/models.dart';
 
@@ -38,12 +42,18 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
   final _sessionService = SessionService();
   final _blockingService = BlockingService();
   final _presetService = LockPresetService();
+  final _kidDeviceService = KidDeviceService();
   late int _minLock;
   late int _maxLift;
   late String _approvalMode;
   final Set<String> _selectedPacks = {};
   List<LockPreset> _presets = [];
   bool _loadingPresets = false;
+  // Resolved to a non-revoked device for this child when one is
+  // paired. Null means either no device is paired or the only one
+  // was revoked — both states trigger the warning banner above the
+  // Start button. Loaded async so it doesn't block the form.
+  KidDevice? _kidDevice;
 
   @override
   void initState() {
@@ -52,6 +62,7 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
     _maxLift = widget.initialMaxLift ?? 120;
     _approvalMode = widget.initialApprovalMode ?? 'balanced';
     _loadPresets();
+    _loadKidDevice();
   }
 
   Future<void> _loadPresets() async {
@@ -60,6 +71,23 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
       _presets = await _presetService.getPresets();
     } catch (_) {}
     if (mounted) setState(() => _loadingPresets = false);
+  }
+
+  /// Resolves whether this child has a paired, non-revoked kid
+  /// device. Used to decide whether the warning banner above the
+  /// Start button needs to fire. Fail-soft: any RLS hiccup or
+  /// network blip leaves `_kidDevice` as null (which *does* show
+  /// the banner) — a false positive is safer than a false negative
+  /// here, since the cost of an unpaired kid device is a lock that
+  /// only takes effect on the parent's phone.
+  Future<void> _loadKidDevice() async {
+    try {
+      final devices = await _kidDeviceService.listDevicesForChild(
+        widget.childId,
+      );
+      final active = devices.where((d) => !d.isRevoked).firstOrNull;
+      if (mounted) setState(() => _kidDevice = active);
+    } catch (_) {}
   }
 
   Future<void> _savePreset() async {
@@ -151,6 +179,8 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
           const SizedBox(height: AppSpacing.blockGap + 4),
           _buildAppPacksSection(),
           const SizedBox(height: AppSpacing.blockGap + 8),
+          if (_kidDevice == null) _buildNoKidDeviceBanner(),
+          if (_kidDevice == null) const SizedBox(height: 8),
           _buildStartButton(),
           const SizedBox(height: 24),
         ],
@@ -333,6 +363,33 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
           minimumSize: const Size.fromHeight(48),
         ),
       ),
+    );
+  }
+
+  /// Last-second heads-up before the parent commits to starting a
+  /// lock. Rendered just above the Start button so the warning is
+  /// the last thing the parent sees before tapping, mirroring the
+  /// same pattern as `lock_active_screen.dart`'s no-device banner.
+  /// Different copy: there we say "won't be enforced on the kid's
+  /// phone" because the lock is already running; here it's
+  /// pre-flight so we tell the parent they can fix it now and skip
+  /// the surprise.
+  Widget _buildNoKidDeviceBanner() {
+    return KidDeviceLockConfigBanner(
+      childName: widget.childName,
+      onPair: _openPairing,
+    );
+  }
+
+  /// PIN-gated push to the pairing screen, preselecting this
+  /// child so the parent doesn't have to re-pick. Mirrors the
+  /// pattern used by `kid_device_setup_hint_card.dart` →
+  /// `_openPairing`.
+  void _openPairing() {
+    PinGuard.push(
+      context,
+      destination: KidDevicePairingScreen(preselectChildId: widget.childId),
+      title: 'Confirm to pair a kid device',
     );
   }
 
