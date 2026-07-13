@@ -82,6 +82,30 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
     // a single small query — fine to do per realtime tick.
     final familyId = newRow['family_id'];
     if (familyId == null) return;
+
+    // Hot-path: if a code_claimed event landed for the active code
+    // we're displaying, clear it immediately so the parent sees
+    // the loop close ("code entered → kid device appears in list")
+    // instead of watching the timer tick down a code the kid has
+    // already used.
+    final eventType = newRow['event_type'] as String?;
+    final claimedCode = newRow['device_pairing_code'] as String?;
+    if (eventType == KidDeviceEvent.typeCodeClaimed &&
+        claimedCode != null &&
+        _activeCode != null &&
+        claimedCode == _activeCode!.code) {
+      _countdownTimer?.cancel();
+      setState(() {
+        _activeCode = null;
+        _activeCodeChildId = null;
+      });
+      // Refresh devices so the newly-paired one shows in the list
+      // immediately, not 10s later when the next poll runs.
+      _refreshDevices();
+      // The activity feed below will pick up the claim event via
+      // the regular refetch path below; no need to fetch it here.
+    }
+
     _eventService.listFamilyEvents().then((updated) {
       if (!mounted) return;
       // Skip the refetch if the IDs we already have are still
@@ -98,6 +122,19 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
       // pull-to-refresh path will heal the feed on the next
       // user gesture. Swallow to avoid spamming snackbars.
     });
+  }
+
+  /// Lighter refetch that only updates the device list (no event
+  /// fetch). Called when we know a claim just succeeded and want
+  /// to show the new device as fast as possible.
+  Future<void> _refreshDevices() async {
+    try {
+      final devices = await _service.listFamilyDevices();
+      if (!mounted) return;
+      setState(() => _devices = devices);
+    } catch (_) {
+      // Non-fatal — pull-to-refresh will heal it.
+    }
   }
 
   Future<void> _load() async {
