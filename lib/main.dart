@@ -13,7 +13,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/role_select_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/parent_dashboard.dart';
-import 'screens/session_complete_screen.dart';
+import 'screens/session_complete_parent_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/upgrade_screen.dart';
 import 'screens/kid/kid_root.dart';
@@ -101,14 +101,14 @@ class DoneFirstApp extends StatelessWidget {
               return MaterialPageRoute(builder: (_) => const SettingsScreen());
             case '/upgrade':
               return MaterialPageRoute(builder: (_) => const UpgradeScreen());
-            case '/session-complete':
+            case '/session-complete-parent':
               final args = settings.arguments as Map<String, dynamic>? ?? {};
               return MaterialPageRoute(
-                builder: (_) => SessionCompleteScreen(
+                builder: (_) => SessionCompleteParentScreen(
                   childName: args['childName'] as String? ?? '',
+                  minutesStudied: args['minutesStudied'] as int? ?? 0,
                   tasksCompleted: args['tasksCompleted'] as int? ?? 0,
                   streakDays: args['streakDays'] as int? ?? 0,
-                  minutesStudied: args['minutesStudied'] as int?,
                   onDone: () => Navigator.of(context).pop(),
                 ),
               );

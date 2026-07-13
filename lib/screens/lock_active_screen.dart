@@ -8,6 +8,7 @@ import '../services/blocking_service.dart';
 import '../services/break_service.dart';
 import '../services/notification_service.dart';
 import '../services/kid_device_service.dart';
+import '../services/streak_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
 import '../widgets/break_timer.dart';
@@ -15,6 +16,7 @@ import '../widgets/proof_thumbnail.dart';
 import '../widgets/kid_device_event_toast_listener.dart';
 import '../widgets/pin_guard.dart';
 import 'kid_device_pairing_screen.dart';
+import 'session_complete_parent_screen.dart';
 import 'proof_image_viewer.dart';
 import '../models/models.dart';
 import '../main.dart' as app;
@@ -40,6 +42,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   final _breakService = BreakService();
   final _notificationService = NotificationService();
   final _kidDeviceService = KidDeviceService();
+  final _streakService = StreakService();
   List<ProofSubmission> _proofs = [];
   List<BreakRequest> _breakRequests = [];
   HomeworkSession? _session;
@@ -393,12 +396,47 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
         body: '${widget.childName} finished homework',
       );
     }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Apps unlocked! Homework complete.')),
-      );
-      Navigator.pop(context);
+    if (!mounted) return;
+    // Compute celebration stats in parallel: minutes studied
+    // (from the in-memory session bounds), tasks approved for this
+    // session, and the child's new streak. Wrapped in try/catch so
+    // any one failure collapses the pill to "unknown" instead of
+    // blocking the parent's return to the dashboard.
+    int minutes = 0;
+    int tasksApproved = 0;
+    int streak = 0;
+    final startedAt = _session?.startedAt;
+    if (startedAt != null) {
+      minutes = DateTime.now().difference(startedAt).inMinutes;
+      if (minutes < 0) minutes = 0;
     }
+    try {
+      final proofs = await _proofService.getProofsForSession(widget.sessionId);
+      tasksApproved = proofs
+          .where((p) => p.parentDecision == 'approved')
+          .length;
+    } catch (_) {}
+    if (_session != null) {
+      try {
+        streak = await _streakService.computeStreak(_session!.childId);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    // Replace the lock-active screen with the celebration, so the
+    // "Back to dashboard" CTA pops back to the dashboard rather than
+    // revealing the lock-active screen we just left behind.
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SessionCompleteParentScreen(
+          childName: widget.childName,
+          minutesStudied: minutes,
+          tasksCompleted: tasksApproved,
+          streakDays: streak,
+          onDone: () => Navigator.of(context).pop(),
+        ),
+      ),
+    );
   }
 
   Future<void> _handleDecision(
