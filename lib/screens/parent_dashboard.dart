@@ -30,6 +30,7 @@ import 'pending_proofs_screen.dart';
 import 'kid_device_pairing_screen.dart';
 import '../widgets/kid_device_event_toast_listener.dart';
 import '../widgets/kid_device_setup_hint_card.dart';
+import '../widgets/kid_device_status_caption.dart';
 import '../widgets/recent_kid_device_activity_card.dart';
 
 class ParentDashboard extends StatefulWidget {
@@ -986,76 +987,21 @@ class _ParentDashboardState extends State<ParentDashboard> {
                         final deviceStatus = _kidDeviceStatus[childId];
                         final status = deviceStatus?.status;
                         final lastSeen = deviceStatus?.lastSeenAt;
-                        final (color, label) = switch (status) {
-                          'online' => (AppColors.grass, 'Device online'),
-                          'recent' => (AppColors.warn, 'Device idle'),
-                          'stale' => (AppColors.muted, 'Device offline'),
-                          'revoked' => (AppColors.danger, 'Device revoked'),
-                          _ => (AppColors.disabled, 'No device paired'),
-                        };
-                        // Only show the "Last seen X ago" line for
-                        // states where it's meaningful: an online or
-                        // recently-online device. For "No device
-                        // paired" or "revoked" the label is enough.
-                        final showLastSeen = lastSeen != null &&
-                            (status == 'online' ||
-                                status == 'recent' ||
-                                status == 'stale');
-                        // Build the KidDevice on the fly so we can
-                        // reuse its lastSeenLabel helper. Cheap — no
-                        // DB hit.
-                        final lastSeenLabel = lastSeen == null
-                            ? null
-                            : KidDevice.fromMap({
-                                'id': '',
-                                'family_id': '',
-                                'child_id': childId,
-                                'child_display_name': null,
-                                'device_name': null,
-                                'paired_at': DateTime.now().toIso8601String(),
-                                'last_seen_at': lastSeen.toIso8601String(),
-                                'revoked_at': null,
-                                'status': status,
-                              }).lastSeenLabel(DateTime.now());
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: color,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    label,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: color == AppColors.disabled
-                                          ? AppColors.faint
-                                          : AppColors.ink2,
-                                    ),
-                                  ),
-                                ],
+                        return KidDeviceStatusCaption(
+                          status: status,
+                          lastSeenAt: lastSeen,
+                          // Only offer the pair CTA on the null
+                          // state. Other statuses are passive —
+                          // parents act on them via the long-press
+                          // on the avatar or by tapping into the
+                          // active lock screen.
+                          onPair: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => KidDevicePairingScreen(
+                                preselectChildId: childId,
                               ),
-                              if (showLastSeen && lastSeenLabel != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 1, left: 11),
-                                  child: Text(
-                                    'Last seen $lastSeenLabel',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.faint,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                            ),
                           ),
                         );
                       }),
