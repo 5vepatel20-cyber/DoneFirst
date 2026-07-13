@@ -47,10 +47,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
   List<Child> _children = [];
   final Map<String, bool> _activeLocks = {};
   final Map<String, int> _pendingProofs = {};
-  /// kid-device status per child for the dashboard's per-row dot.
-  /// null = no paired device for that child, otherwise the derived
-  /// status string ('online' / 'recent' / 'stale' / 'revoked').
-  final Map<String, String?> _kidDeviceStatus = {};
+  /// kid-device status per child for the dashboard's per-row dot +
+  /// last-seen label. null = no paired device for that child,
+  /// otherwise the derived status string ('online' / 'recent' /
+  /// 'stale' / 'revoked') plus the raw last_seen_at timestamp.
+  final Map<String, ({String status, DateTime? lastSeenAt})?>
+      _kidDeviceStatus = {};
   bool _loading = true;
   int _monthlySessionCount = 0;
   int _unreadNotifications = 0;
@@ -93,8 +95,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
     _kidDeviceService.listDevicesForChild(childId).then((devices) {
       if (!mounted) return;
       setState(() {
-        _kidDeviceStatus[childId] =
-            devices.isEmpty ? null : devices.first.status;
+        _kidDeviceStatus[childId] = devices.isEmpty
+            ? null
+            : (
+                status: devices.first.status,
+                lastSeenAt: devices.first.lastSeenAt,
+              );
       });
     }).catchError((_) {
       // Realtime refetch failures are non-fatal; the next
@@ -179,15 +185,18 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 await _proofService.getPendingProofs(child.id);
             pending = proofs.length;
           } catch (_) {}
-          // Kid-device status for the dashboard dot. Failures
-          // collapse to null (no device) so a transient RLS hiccup
-          // never breaks the row.
-          String? deviceStatus;
+          // Kid-device status for the dashboard dot + last-seen label.
+          // Failures collapse to null (no device) so a transient RLS
+          // hiccup never breaks the row.
+          ({String status, DateTime? lastSeenAt})? deviceStatus;
           try {
             final devices =
                 await _kidDeviceService.listDevicesForChild(child.id);
             if (devices.isNotEmpty) {
-              deviceStatus = devices.first.status;
+              deviceStatus = (
+                status: devices.first.status,
+                lastSeenAt: devices.first.lastSeenAt,
+              );
             }
           } catch (_) {}
           return MapEntry(
@@ -922,8 +931,14 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       Builder(builder: (context) {
                         // Map the kid_devices_with_child view's
                         // status enum to a coloured dot + short label.
-                        // null = no paired device at all.
-                        final status = _kidDeviceStatus[childId];
+                        // null = no paired device at all. Below the
+                        // label we render a "Last seen X ago" caption
+                        // when we have a heartbeat timestamp, so
+                        // parents can tell whether offline is normal
+                        // (kid's at school) or suspicious (lost phone).
+                        final deviceStatus = _kidDeviceStatus[childId];
+                        final status = deviceStatus?.status;
+                        final lastSeen = deviceStatus?.lastSeenAt;
                         final (color, label) = switch (status) {
                           'online' => (AppColors.grass, 'Device online'),
                           'recent' => (AppColors.warn, 'Device idle'),
@@ -931,28 +946,68 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           'revoked' => (AppColors.danger, 'Device revoked'),
                           _ => (AppColors.disabled, 'No device paired'),
                         };
+                        // Only show the "Last seen X ago" line for
+                        // states where it's meaningful: an online or
+                        // recently-online device. For "No device
+                        // paired" or "revoked" the label is enough.
+                        final showLastSeen = lastSeen != null &&
+                            (status == 'online' ||
+                                status == 'recent' ||
+                                status == 'stale');
+                        // Build the KidDevice on the fly so we can
+                        // reuse its lastSeenLabel helper. Cheap — no
+                        // DB hit.
+                        final lastSeenLabel = lastSeen == null
+                            ? null
+                            : KidDevice.fromMap({
+                                'id': '',
+                                'family_id': '',
+                                'child_id': childId,
+                                'child_display_name': null,
+                                'device_name': null,
+                                'paired_at': DateTime.now().toIso8601String(),
+                                'last_seen_at': lastSeen.toIso8601String(),
+                                'revoked_at': null,
+                                'status': status,
+                              }).lastSeenLabel(DateTime.now());
                         return Padding(
                           padding: const EdgeInsets.only(top: 2),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: color,
-                                ),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: color,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    label,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: color == AppColors.disabled
+                                          ? AppColors.faint
+                                          : AppColors.ink2,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 5),
-                              Text(
-                                label,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: color == AppColors.disabled
-                                      ? AppColors.faint
-                                      : AppColors.ink2,
+                              if (showLastSeen && lastSeenLabel != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 1, left: 11),
+                                  child: Text(
+                                    'Last seen $lastSeenLabel',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.faint,
+                                    ),
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         );
