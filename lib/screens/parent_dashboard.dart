@@ -25,6 +25,7 @@ import 'proof_gallery_screen.dart';
 import 'kid_profile_screen.dart';
 import 'notification_center_screen.dart';
 import 'pending_proofs_screen.dart';
+import 'kid_device_pairing_screen.dart';
 
 class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
@@ -768,6 +769,25 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             onTap: () {
                               Navigator.pop(ctx);
                               _editChild(child);
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.smartphone),
+                            title: const Text('Pair kid device'),
+                            subtitle: Text(
+                              'Generate a code for ${child.name}’s phone',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => KidDevicePairingScreen(
+                                    preselectChildId: child.id,
+                                  ),
+                                ),
+                              );
                             },
                           ),
                           ListTile(

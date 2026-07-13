@@ -57,7 +57,7 @@ void main() {
     // The answer text is not yet visible — it's inside a collapsed tile.
     expect(
       find.textContaining(
-        'Install DoneFirst on both your phone',
+        'Install DoneFirst on the device your kid uses',
       ),
       findsNothing,
     );
@@ -69,7 +69,9 @@ void main() {
     await tester.tap(find.text("How do I set up my kid's device?"));
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('Install DoneFirst on both your phone'),
+      find.textContaining(
+        'Install DoneFirst on the device your kid uses',
+      ),
       findsOneWidget,
     );
   });

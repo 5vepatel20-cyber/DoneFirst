@@ -14,6 +14,7 @@ import '../widgets/pin_guard.dart';
 import 'upgrade_screen.dart';
 import 'coparent_screen.dart';
 import 'help_screen.dart';
+import 'kid_device_pairing_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -623,6 +624,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () => PinGuard.push(
                     context,
                     destination: const CoparentScreen(),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.smartphone),
+                  title: const Text('Kid devices'),
+                  subtitle: const Text(
+                    'Pair or revoke the device running your kid’s mode',
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () => PinGuard.push(
+                    context,
+                    destination: const KidDevicePairingScreen(),
+                    title: 'Manage kid devices',
                   ),
                 ),
                 const Divider(height: 1),

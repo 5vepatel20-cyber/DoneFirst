@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:donefirst_kid/theme/app_theme.dart';
+import '../lib/theme/app_theme.dart';
 
 /// WCAG 2.1 contrast verification for the kid app's UI colors.
 ///

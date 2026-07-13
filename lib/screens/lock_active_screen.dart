@@ -7,6 +7,7 @@ import '../services/proof_service.dart';
 import '../services/blocking_service.dart';
 import '../services/break_service.dart';
 import '../services/notification_service.dart';
+import '../services/kid_device_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/session_timer.dart';
 import '../widgets/break_timer.dart';
@@ -34,9 +35,11 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   final _blockingService = BlockingService();
   final _breakService = BreakService();
   final _notificationService = NotificationService();
+  final _kidDeviceService = KidDeviceService();
   List<ProofSubmission> _proofs = [];
   List<BreakRequest> _breakRequests = [];
   HomeworkSession? _session;
+  KidDevice? _kidDevice;
   bool _loading = true;
   bool _paused = false;
   bool _activeBreakTimer = false;
@@ -133,11 +136,57 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     );
   }
 
+  /// Small status row showing whether the kid's paired device is
+  /// online right now. Matches the kid_devices_with_child view
+  /// status field (online/recent/stale/revoked). "Online" = green,
+  /// "recent" = amber (heartbeat in last 24h), "stale" = grey.
+  /// "Revoked" or "Never" = red — the lock won't be enforced on
+  /// the kid's device until they re-pair.
+  Widget _buildKidDeviceChip(KidDevice device) {
+    final (dotColor, label) = switch (device.status) {
+      'online' => (AppColors.ok, 'Kid device online'),
+      'recent' => (AppColors.warn, 'Kid device idle'),
+      'stale' => (AppColors.muted, 'Kid device offline'),
+      'revoked' => (AppColors.danger, 'Kid device revoked'),
+      _ => (AppColors.danger, 'Kid device not connected'),
+    };
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: dotColor,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '$label • ${device.deviceName ?? device.childDisplayName ?? 'Device'}',
+                style: AppText.body(size: 13),
+              ),
+            ),
+            Text(
+              device.lastSeenLabel(DateTime.now()),
+              style: AppText.bodySecondary(size: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _loadAll() async {
     // Session + proofs + break requests are independent — fire them
     // in parallel. The screen polls every 10s, so this latency shows
     // up as perceived "jank" when the kid or parent taps something
-    // while a refresh is mid-flight.
+    // while a refresh is mid-flight. Kid-device status depends on
+    // the session's child_id, so it serialises after.
     final results = await Future.wait([
       _sessionService.getSessionById(widget.sessionId),
       _proofService.getProofsForSession(widget.sessionId),
@@ -151,7 +200,29 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
         _paused = _session?.isPaused ?? false;
         _loading = false;
       });
+    if (_session != null) {
+      await _refreshKidDevice(_session!.childId);
+    } else {
+      _kidDevice = null;
+    }
     await _checkAutoUnlock();
+  }
+
+  Future<void> _refreshKidDevice(String childId) async {
+    // The kid_device_service call is a single round-trip; we
+    // intentionally serialise it after the session fetch because
+    // we need child_id. Failures are silent — the chip just hides
+    // so a stale RLS or schema issue can't break the lock screen.
+    try {
+      final devices = await _kidDeviceService.listDevicesForChild(childId);
+      if (!mounted) return;
+      setState(() {
+        _kidDevice = devices.isEmpty ? null : devices.first;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _kidDevice = null);
+    }
   }
 
   Future<void> _extendSession() async {
@@ -470,6 +541,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                   padding: const EdgeInsets.all(16),
                   children: [
                     _buildBlockingStatusBanner(),
+                    if (_kidDevice != null) _buildKidDeviceChip(_kidDevice!),
                     if (_session != null)
                       SessionTimer(
                         sessionStart: _session!.startedAt,

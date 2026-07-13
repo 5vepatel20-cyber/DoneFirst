@@ -21,12 +21,15 @@ class HelpScreen extends StatelessWidget {
         _FaqItem(
           question: 'How do I set up my kid\'s device?',
           answer:
-              'Install DoneFirst on both your phone (parent) and your '
-              "kid's device. On the kid's device, sign in with the kid "
-              'profile you created, then grant the AccessibilityService '
-              '(Android) or FamilyControls (iOS) permission when prompted. '
-              "If you missed the prompt, open the kid-side app — it'll "
-              'ask again next time it tries to start a lock.',
+              'Install DoneFirst on the device your kid uses. From the '
+              'parent app, open Settings → Kid devices and tap your '
+              "child's name to generate a 6-digit pairing code. On the "
+              "kid's device, open DoneFirst, choose \"Kid\" at sign-up, "
+              'and enter the code. The code expires in 10 minutes, so '
+              'have both devices ready before generating it. The kid '
+              "device then needs to be set as the device owner (one-time "
+              'ADB command — see the in-app setup guide) so the lock can '
+              'actually take over the home screen.',
         ),
         _FaqItem(
           question: 'Why does the kid-side app need so many permissions?',
