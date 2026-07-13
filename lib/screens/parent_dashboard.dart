@@ -8,6 +8,7 @@ import '../services/notification_service.dart';
 import '../services/schedule_service.dart';
 import '../services/proof_service.dart';
 import '../services/kid_device_service.dart';
+import '../services/break_service.dart';
 import '../main.dart' as app;
 import '../theme/app_theme.dart';
 import '../widgets/shimmer_loading.dart';
@@ -45,9 +46,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
   final _scheduleService = ScheduleService();
   final _proofService = ProofService();
   final _kidDeviceService = KidDeviceService();
+  final _breakService = BreakService();
   List<Child> _children = [];
   final Map<String, bool> _activeLocks = {};
   final Map<String, int> _pendingProofs = {};
+  final Map<String, int> _pendingBreaks = {};
   /// kid-device status per child for the dashboard's per-row dot +
   /// last-seen label. null = no paired device for that child,
   /// otherwise the derived status string ('online' / 'recent' /
@@ -186,6 +189,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 await _proofService.getPendingProofs(child.id);
             pending = proofs.length;
           } catch (_) {}
+          // Pending-break count per child for the dashboard chip. Same
+          // fail-soft contract as pending proofs: leave the prior
+          // value on error.
+          int pendingBreaks = _pendingBreaks[child.id] ?? 0;
+          try {
+            final breaks =
+                await _breakService.getPendingRequests(child.id);
+            pendingBreaks = breaks.length;
+          } catch (_) {}
           // Kid-device status for the dashboard dot + last-seen label.
           // Failures collapse to null (no device) so a transient RLS
           // hiccup never breaks the row.
@@ -202,14 +214,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
           } catch (_) {}
           return MapEntry(
             child.id,
-            (session != null, pending, deviceStatus),
+            (session != null, pending, pendingBreaks, deviceStatus),
           );
         }),
       );
       for (final entry in perChild) {
         _activeLocks[entry.key] = entry.value.$1;
         _pendingProofs[entry.key] = entry.value.$2;
-        _kidDeviceStatus[entry.key] = entry.value.$3;
+        _pendingBreaks[entry.key] = entry.value.$3;
+        _kidDeviceStatus[entry.key] = entry.value.$4;
       }
     } catch (_) {}
     setState(() => _loading = false);
@@ -492,6 +505,37 @@ class _ParentDashboardState extends State<ParentDashboard> {
         context,
         MaterialPageRoute(builder: (_) => const AuthScreen()),
       );
+  }
+
+  /// Resolves the active session id for [childId] and pushes the
+  /// LockActiveScreen so the parent can answer pending break
+  /// requests inline. If the lock ended between the dashboard
+  /// fetch and this tap (rare, but possible — dashboard polls
+  /// every ~30s), the chip just silently does nothing.
+  Future<void> _openActiveLockForBreaks(String childId) async {
+    try {
+      final session = await _sessionService.getActiveSession(childId);
+      if (!mounted || session == null) return;
+      // HomeworkSession only carries child_id; resolve the name
+      // from the in-memory child list to avoid an extra round-trip.
+      final childName = _children
+          .firstWhere(
+            (c) => c.id == session.childId,
+            orElse: () => const Child(id: '', name: 'Child'),
+          )
+          .name;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LockActiveScreen(
+            sessionId: session.id,
+            childName: childName,
+          ),
+        ),
+      ).then((_) => _loadAll());
+    } catch (_) {
+      // Non-fatal: chip is a navigation shortcut, not a critical path.
+    }
   }
 
   @override
@@ -1104,6 +1148,54 @@ class _ParentDashboardState extends State<ParentDashboard> {
                         Icons.arrow_forward_ios,
                         size: 14,
                         color: AppColors.accent,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            // Pending-break banner. Only meaningful when a lock is
+            // active for this child — break requests are scoped to a
+            // session, so a pending one with no live session is a
+            // stale row. Tap → LockActiveScreen so the parent can
+            // approve / deny inline.
+            if ((_pendingBreaks[childId] ?? 0) > 0) ...[
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => _openActiveLockForBreaks(childId),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.warnFill,
+                    border: Border.all(color: AppColors.warnBd),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.coffee_outlined,
+                        size: 18,
+                        color: AppColors.warn,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${_pendingBreaks[childId]} ${_pendingBreaks[childId] == 1 ? 'break request' : 'break requests'} waiting',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.warn,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 14,
+                        color: AppColors.warn,
                       ),
                     ],
                   ),
