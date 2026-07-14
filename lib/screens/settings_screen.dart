@@ -156,74 +156,98 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _setPin() async {
-    final controller = TextEditingController();
-    final pin = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(_pin == null ? 'Set PIN' : 'Change PIN'),
-        content: TextField(
-          controller: controller,
-          obscureText: true,
-          maxLength: 4,
-          keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 24, letterSpacing: 8),
-          decoration: InputDecoration(
-            counterText: '',
-            labelText: '4-digit PIN',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+    // Two-step confirm: enter PIN, then re-enter. Without the
+    // confirm step, a single-field typo would silently save a
+    // wrong PIN and lock the parent out of every gated action in
+    // the app next time they tap one.
+    final pin1 = await _showPinEntryDialog(
+      title: _pin == null ? 'Set PIN' : 'Change PIN',
+      label: 'New 4-digit PIN',
+      primaryLabel: 'Next',
     );
-    if (pin != null && pin.length == 4) {
-      // PinScreen isn't wired into the navigation flow yet, but the
-      // value should still survive an app restart so it works when
-      // we do. Validate it's 4 digits before persisting so the saved
-      // value can be trusted by future readers.
-      if (!RegExp(r'^\d{4}$').hasMatch(pin)) {
-        if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('PIN must be 4 digits.')),
-          );
-        return;
-      }
-      // Reject trivially-guessable PINs. The dialog already accepts
-      // any 4 digits including 0000, 1234, 1111, etc. — anyone who
-      // sees the parent enter a digit (kid shoulder-surfing, anyone
-      // in the room) would have a 1/10 chance for all-same and 1/10
-      // for sequential. A weak PIN also undermines the 5-attempts
-      // lockout since the lockout's effective entropy is bounded by
-      // the weakest plausible guess.
-      if (_isWeakPin(pin)) {
-        if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'PIN too simple — avoid 0000, 1234, or four of the same digit.',
-              ),
-            ),
-          );
-        return;
-      }
-      await _parentPrefs.setPin(pin);
-      if (mounted) {
-        setState(() => _pin = pin);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('PIN saved')));
-      }
+    if (pin1 == null) return;
+    if (!_isFourDigits(pin1)) {
+      _showPinSnackBar('PIN must be 4 digits.');
+      return;
     }
+    if (_isWeakPin(pin1)) {
+      _showPinSnackBar(
+        'PIN too simple — avoid 0000, 1234, or four of the same digit.',
+      );
+      return;
+    }
+    final pin2 = await _showPinEntryDialog(
+      title: 'Confirm PIN',
+      label: 'Re-enter PIN',
+      primaryLabel: 'Save',
+    );
+    if (pin2 == null) return;
+    if (pin2 != pin1) {
+      _showPinSnackBar('PINs didn’t match — try again.');
+      return;
+    }
+    await _parentPrefs.setPin(pin1);
+    if (!mounted) return;
+    setState(() => _pin = pin1);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('PIN saved')),
+    );
   }
+
+  /// Shared PIN-entry dialog used by both the "enter new PIN"
+  /// and "confirm PIN" steps of _setPin. Returns the entered
+  /// digits or null on cancel. The TextEditingController is
+  /// created locally so the dialog is self-contained — no
+  /// caller-side state to leak between invocations.
+  Future<String?> _showPinEntryDialog({
+    required String title,
+    required String label,
+    required String primaryLabel,
+  }) {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            obscureText: true,
+            maxLength: 4,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 24, letterSpacing: 8),
+            decoration: InputDecoration(
+              counterText: '',
+              labelText: label,
+            ),
+            onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: Text(primaryLabel),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showPinSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  static final _fourDigitsRegex = RegExp(r'^\d{4}$');
+  bool _isFourDigits(String s) => _fourDigitsRegex.hasMatch(s);
 
   Future<void> _changePassword() async {
     // Changing the password from a kid's session would lock the
