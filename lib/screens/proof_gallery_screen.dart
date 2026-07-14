@@ -5,6 +5,7 @@ import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/proof_thumbnail.dart';
+import '../widgets/empty_state.dart';
 import 'proof_image_viewer.dart';
 
 class ProofGalleryScreen extends StatefulWidget {
@@ -107,37 +108,10 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
               ),
             )
           : _allProofs.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha:0.08),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.photo_library,
-                      size: 48,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No proof photos yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Proofs appear here after submission',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
+          ? const EmptyState(
+              icon: Icons.photo_library,
+              title: 'No proof photos yet',
+              subtitle: 'Proofs appear here after submission',
             )
           : Column(
               children: [
