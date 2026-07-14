@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/schedule_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/destructive_confirm_dialog.dart';
 import 'lock_config_screen.dart';
 import '../models/models.dart';
 
@@ -199,6 +200,50 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
     }
   }
 
+  /// Confirm-then-delete for a recurring schedule. Previously this
+  /// was a single-tap IconButton — a stray double-tap could erase a
+  /// weekly schedule with no warning. Now the parent must type the
+  /// schedule's short identifier (e.g. "Mon (1h)") to confirm.
+  Future<void> _confirmDelete(RecurringSchedule s) async {
+    final phrase = '${s.dayName} (${_friendlyDuration(s.durationMinutes)})';
+    final confirmed = await DestructiveConfirmDialog.show(
+      context,
+      title: 'Delete ${widget.childName}\'s ${s.dayName} schedule?',
+      description:
+          'This will stop automatically starting ${s.dayName.toLowerCase()} '
+          'homework sessions for ${widget.childName}. '
+          'You can re-create it anytime.',
+      confirmPhrase: phrase,
+      confirmButtonLabel: 'Delete schedule',
+      warningText:
+          'Future ${s.dayName.toLowerCase()} sessions will need to be started '
+          'manually until a new schedule is added.',
+    );
+    if (!confirmed) return;
+    try {
+      await _scheduleService.deleteSchedule(s.id);
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Couldn’t delete: $e')),
+      );
+    }
+  }
+
+  /// "30m" / "1h" / "1.5h" / "2h" formatting for the confirm
+  /// phrase + warning copy. Whole hours have no decimal; half-hours
+  /// round to "1.5h" / "2.5h" only when the minutes line up exactly.
+  String _friendlyDuration(int minutes) {
+    if (minutes % 60 == 0) return '${minutes ~/ 60}h';
+    final hours = minutes / 60;
+    // Strip trailing .0 so 90m → "1.5h" not "1.5h", 30m → "30m".
+    if (hours == hours.roundToDouble()) {
+      return '${hours.toInt()}h';
+    }
+    return '${hours.toStringAsFixed(1)}h';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -324,10 +369,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                             color: AppColors.danger,
                           ),
                           tooltip: 'Delete schedule',
-                          onPressed: () async {
-                            await _scheduleService.deleteSchedule(s.id);
-                            await _load();
-                          },
+                          onPressed: () => _confirmDelete(s),
                         ),
                       ],
                     ),
