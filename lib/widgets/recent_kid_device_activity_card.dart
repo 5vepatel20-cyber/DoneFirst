@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../app_globals.dart' as app;
-import '../screens/kid_device_pairing_screen.dart';
+import '../screens/kid_device_activity_screen.dart';
 import '../services/kid_device_service.dart';
 import '../theme/app_theme.dart';
 
@@ -136,8 +136,14 @@ class _RecentKidDeviceActivityCardState
   }
 
   void _openAll() {
+    // The pairing screen has an 8-row activity section at the
+    // bottom, but pairing is the wrong surface for the *history*
+    // view — the parent probably wants to scroll a long feed, not
+    // see the device list and "Generate code" CTA. Dedicated
+    // activity screen at /kid-device-activity takes them straight
+    // to the log with no pairing chrome.
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const KidDevicePairingScreen()),
+      MaterialPageRoute(builder: (_) => const KidDeviceActivityScreen()),
     );
   }
 }
