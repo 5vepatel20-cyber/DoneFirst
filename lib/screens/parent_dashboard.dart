@@ -14,6 +14,7 @@ import '../theme/app_theme.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/consent_gate.dart';
 import '../widgets/pin_guard.dart';
+import '../widgets/destructive_confirm_dialog.dart';
 import 'auth_screen.dart';
 import 'lock_config_screen.dart';
 import 'lock_active_screen.dart';
@@ -473,30 +474,48 @@ class _ParentDashboardState extends State<ParentDashboard> {
   }
 
   Future<void> _deleteChild(Child child) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Child?'),
-        content: Text(
-          'All data for "${child.name}" will be permanently removed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    // Pull the kid-device count before showing the dialog so the
+    // parent can see "you're also about to unpair a device" *before*
+    // the type-to-confirm gate. Without this, a parent could delete
+    // a child and silently kill their kid's paired device.
+    int pairedDevices = 0;
+    String? firstDeviceName;
+    try {
+      final devices = await _kidDeviceService.listDevicesForChild(child.id);
+      // Active = not revoked. Revoked devices are already
+      // disconnected so they don't add to the warning.
+      final active = devices.where((d) => !d.isRevoked).toList();
+      pairedDevices = active.length;
+      firstDeviceName = active.isEmpty ? null : active.first.deviceName;
+    } catch (_) {}
+    if (!mounted) return;
+
+    final warningText = pairedDevices == 0
+        ? null
+        : pairedDevices == 1
+            ? '${child.name}\'s paired device (${firstDeviceName ?? "unlabeled"}) '
+                'will be unpaired. The kid will need to re-pair on their phone.'
+            : '${child.name} has $pairedDevices paired devices. All of them '
+                'will be unpaired — the kid will need to re-pair each device.';
+
+    if (!mounted) return;
+    final confirmed = await DestructiveConfirmDialog.show(
+      context,
+      title: 'Delete ${child.name}?',
+      description:
+          'This will permanently remove ${child.name}\'s:\n'
+          '  • Homework sessions and proofs\n'
+          '  • Tasks and proof images\n'
+          '  • Recurring schedules\n'
+          '  • Session stats and streak history\n\n'
+          'This cannot be undone.',
+      confirmPhrase: child.name,
+      confirmButtonLabel: 'Delete forever',
+      warningText: warningText,
     );
-    if (confirm == true) {
-      await _sessionService.deleteChild(child.id);
-      await _loadAll();
-    }
+    if (!confirmed) return;
+    await _sessionService.deleteChild(child.id);
+    await _loadAll();
   }
 
   Future<void> _signOut() async {
