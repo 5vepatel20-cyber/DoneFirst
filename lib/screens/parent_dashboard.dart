@@ -42,6 +42,12 @@ class ParentDashboard extends StatefulWidget {
 }
 
 class _ParentDashboardState extends State<ParentDashboard> {
+  // Cap for the child-name input on rename. 30 keeps most cultures'
+  // full names fitting (Western three-token names plus a few
+  // characters of breathing room) while preventing "look at me"
+  // walls of text in the dashboard's _ChildRow avatar.
+  static const _maxChildNameLength = 30;
+
   final _auth = AuthService();
   final _sessionService = SessionService();
   final _notificationService = NotificationService();
@@ -446,26 +452,49 @@ class _ParentDashboardState extends State<ParentDashboard> {
     final controller = TextEditingController(
       text: child.name,
     );
+    // Rebuild the dialog's Save button enabled state on every
+    // keystroke so the parent gets instant feedback for invalid
+    // input (empty, too long, whitespace-only).
     final name = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rename Child'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: "Child's Name"),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setLocal) {
+          final trimmed = controller.text.trim();
+          final isValid = trimmed.isNotEmpty &&
+              trimmed.length <= _maxChildNameLength;
+          return AlertDialog(
+            title: const Text('Rename Child'),
+            content: TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                labelText: "Child's Name",
+                counterText:
+                    '${trimmed.length}/$_maxChildNameLength',
+                errorText: trimmed.isEmpty
+                    ? null
+                    : trimmed.length > _maxChildNameLength
+                        ? 'Name is too long'
+                        : null,
+              ),
+              autofocus: true,
+              maxLength: _maxChildNameLength,
+              onChanged: (_) => setLocal(() {}),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: isValid
+                    ? () => Navigator.pop(ctx, trimmed)
+                    : null,
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        });
+      },
     );
     if (name != null && name.isNotEmpty) {
       await _sessionService.renameChild(child.id, name);
