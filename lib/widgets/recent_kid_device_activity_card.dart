@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -34,11 +36,20 @@ class _RecentKidDeviceActivityCardState
   bool _loading = true;
   bool _error = false;
   void Function(Map<String, dynamic>)? _previousOnNewEvent;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    // Refresh every 30s so the relative-time labels ("2 min ago",
+    // "just now") stay accurate as the dashboard sits idle. Realtime
+    // refreshes handle new events; this just keeps the existing
+    // timestamps fresh without the parent having to navigate away.
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _load(),
+    );
     // Chain into the realtime callback slot so the card refreshes
     // whenever a new event lands. The toast listener higher in the
     // tree also subscribes; the save-previous / restore-on-dispose
@@ -49,6 +60,7 @@ class _RecentKidDeviceActivityCardState
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     app.realtimeService.onNewKidDeviceEvent = _previousOnNewEvent;
     super.dispose();
   }

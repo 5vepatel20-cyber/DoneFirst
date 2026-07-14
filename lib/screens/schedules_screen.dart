@@ -3,6 +3,7 @@ import '../services/schedule_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/destructive_confirm_dialog.dart';
+import '../widgets/empty_state.dart';
 import 'lock_config_screen.dart';
 import '../models/models.dart';
 
@@ -254,43 +255,12 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _schedules.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha:0.08),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.calendar_month,
-                      size: 48,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'No recurring schedule',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Add weekly homework routines',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: _add,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Schedule'),
-                  ),
-                ],
-              ),
+          ? EmptyState(
+              icon: Icons.calendar_month,
+              title: 'No recurring schedule',
+              subtitle: 'Add weekly homework routines',
+              actionLabel: 'Add Schedule',
+              onAction: _add,
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
