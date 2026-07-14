@@ -197,6 +197,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
         return;
       }
+      // Reject trivially-guessable PINs. The dialog already accepts
+      // any 4 digits including 0000, 1234, 1111, etc. — anyone who
+      // sees the parent enter a digit (kid shoulder-surfing, anyone
+      // in the room) would have a 1/10 chance for all-same and 1/10
+      // for sequential. A weak PIN also undermines the 5-attempts
+      // lockout since the lockout's effective entropy is bounded by
+      // the weakest plausible guess.
+      if (_isWeakPin(pin)) {
+        if (mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'PIN too simple — avoid 0000, 1234, or four of the same digit.',
+              ),
+            ),
+          );
+        return;
+      }
       await _parentPrefs.setPin(pin);
       if (mounted) {
         setState(() => _pin = pin);
@@ -569,6 +587,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
   }
+
+  /// True for trivially-guessable 4-digit PINs. We reject two
+  /// shapes — all-same digits (0000, 1111, …) and 4-in-a-row
+  /// ascending or descending (1234, 4321, 5678, …). These cover
+  /// the bulk of "first thing someone tries" — a kid watching the
+  /// parent enter a PIN would have a 1/10 shot at each pattern.
+  ///
+  /// Deliberately not exhaustive: we don't try to fingerprint the
+  /// parent's birth year or anniversary, since that would create a
+  /// false sense of "smart PIN" + extra friction. The bar is
+  /// "reject what a 5-year-old would guess", not "implement NIST".
+  bool _isWeakPin(String pin) {
+    if (pin.length != 4) return true;
+    if (RegExp(r'^(\d)\1{3}$').hasMatch(pin)) return true; // 0000, 1111…
+    final digits = pin.codeUnits;
+    final ascending = digits[1] - digits[0] == 1 &&
+        digits[2] - digits[1] == 1 &&
+        digits[3] - digits[2] == 1;
+    final descending = digits[0] - digits[1] == 1 &&
+        digits[1] - digits[2] == 1 &&
+        digits[2] - digits[3] == 1;
+    return ascending || descending;
+  }
+
 
   @override
   Widget build(BuildContext context) {
