@@ -15,6 +15,7 @@ import '../widgets/break_timer.dart';
 import '../widgets/proof_thumbnail.dart';
 import '../widgets/kid_device_event_toast_listener.dart';
 import '../widgets/pin_guard.dart';
+import '../widgets/destructive_confirm_dialog.dart';
 import 'kid_device_pairing_screen.dart';
 import 'session_complete_parent_screen.dart';
 import 'proof_image_viewer.dart';
@@ -510,35 +511,6 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     }
   }
 
-  Future<void> _cancelSession() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancel Session?'),
-        content: const Text(
-          'This will cancel the current homework session. '
-          'All apps will be unlocked and progress will be lost.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Go Back'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('Cancel Session'),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true) {
-      await _blockingService.stopBlocking();
-      await _sessionService.cancelSession(widget.sessionId);
-      if (mounted) Navigator.pop(context);
-    }
-  }
-
   Future<void> _promptDecision(String proofId, String decision) async {
     if (decision == 'approved') {
       await _handleDecision(proofId, decision);
@@ -620,35 +592,52 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     await _loadAll();
   }
 
+  /// Compact minute/hour formatter for the cancel + end-early
+  /// dialogs. Used to surface "23m remaining" / "1h 5m left"
+  /// instead of raw minutes. Kept private to this screen — if
+  /// another surface needs the same shape, lift it into
+  /// `lib/utils/duration_format.dart`.
+  String _formatMinutes(int minutes) {
+    if (minutes <= 0) return '0m';
+    if (minutes < 60) return '${minutes}m';
+    final hours = minutes ~/ 60;
+    final mins = minutes % 60;
+    return mins == 0 ? '${hours}h' : '${hours}h ${mins}m';
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final confirm = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('End Lock?'),
-            content: const Text(
-              'The homework lock is still active. Ending early will unlock all apps.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Stay Locked'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.danger,
-                ),
-                child: const Text('Unlock Early'),
-              ),
-            ],
-          ),
+        final remaining = _session?.startedAt
+            .add(Duration(minutes: _session!.minLockMinutes))
+            .difference(DateTime.now());
+        final pastEnd = remaining?.isNegative ?? false;
+        final remainingLabel = remaining == null
+            ? null
+            : pastEnd
+                ? 'past the planned end'
+                : '${_formatMinutes(remaining.inMinutes)} left';
+        final warningText = remainingLabel == null
+            ? null
+            : 'The lock has ${pastEnd ? "already ended" : remainingLabel} — '
+                'wrapping up now still credits the kid with the time they spent. '
+                'Use “Cancel session” instead if you want to discard it.';
+
+        final confirmed = await DestructiveConfirmDialog.show(
+          context,
+          title: 'End ${widget.childName}\'s lock early?',
+          description:
+              'The lock will unlock all apps. ${widget.childName} will '
+              'see the celebration screen with their stats for the time '
+              'they put in so far.',
+          confirmPhrase: widget.childName,
+          confirmButtonLabel: 'End early',
+          warningText: warningText,
         );
-        if (confirm == true) {
+        if (confirmed) {
           await _unlock();
         }
       },
@@ -658,7 +647,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('${widget.childName}', style: AppText.screenTitle()),
+              Text(widget.childName, style: AppText.screenTitle()),
               const SizedBox(height: 2),
               Text('Lock active', style: AppText.eyebrow()),
             ],
