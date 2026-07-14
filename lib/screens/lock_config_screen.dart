@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../widgets/segmented_group.dart';
 import '../widgets/pin_guard.dart';
 import '../widgets/kid_device_lock_config_banner.dart';
+import '../widgets/destructive_confirm_dialog.dart';
 import 'kid_device_pairing_screen.dart';
 import 'lock_active_screen.dart';
 import '../models/models.dart';
@@ -147,9 +148,28 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
     });
   }
 
-  Future<void> _deletePreset(String presetId) async {
-    await _presetService.deletePreset(presetId);
-    await _loadPresets();
+  Future<void> _deletePreset(LockPreset preset) async {
+    final confirmed = await DestructiveConfirmDialog.show(
+      context,
+      title: 'Delete preset “${preset.name}”?',
+      description:
+          'This preset stores your saved duration, lift window, '
+          'approval mode, and blocked-app packs. You can re-create '
+          'it later, but any customizations (like “Math + Reading '
+          'only”) will be lost.',
+      confirmPhrase: preset.name,
+      confirmButtonLabel: 'Delete preset',
+    );
+    if (!confirmed) return;
+    try {
+      await _presetService.deletePreset(preset.id);
+      await _loadPresets();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Couldn’t delete preset: $e')),
+      );
+    }
   }
 
   @override
@@ -299,7 +319,7 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
                 return _PresetChip(
                   label: p.name,
                   onTap: () => _loadPreset(p),
-                  onDelete: () => _deletePreset(p.id),
+                  onDelete: () => _deletePreset(p),
                 );
               },
             ),
