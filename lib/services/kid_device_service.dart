@@ -72,6 +72,7 @@ class KidDeviceService {
       return GeneratedPairingCode(
         code: inserted['code'] as String,
         expiresAt: DateTime.parse(inserted['expires_at'] as String),
+        validFor: validFor,
       );
     } on PostgrestException catch (e) {
       // Most likely: unique-constraint violation on the code (we
@@ -94,6 +95,7 @@ class KidDeviceService {
         return GeneratedPairingCode(
           code: retry['code'] as String,
           expiresAt: DateTime.parse(retry['expires_at'] as String),
+          validFor: validFor,
         );
       }
       rethrow;
@@ -193,9 +195,16 @@ class GeneratedPairingCode {
   final String code;
   final DateTime expiresAt;
 
+  /// The lifetime the parent requested (default 10 min). Stored so
+  /// share-text copy can describe the original lifespan ("valid
+  /// for 10 minutes") rather than just the remaining time, which
+  /// would lie by the time the recipient opens the message.
+  final Duration validFor;
+
   const GeneratedPairingCode({
     required this.code,
     required this.expiresAt,
+    this.validFor = const Duration(minutes: 10),
   });
 
   /// Whether the code has expired (compared to wall-clock now). The

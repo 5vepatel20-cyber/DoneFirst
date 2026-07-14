@@ -47,6 +47,12 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
   GeneratedPairingCode? _activeCode;
   String? _activeCodeChildId;
   Timer? _countdownTimer;
+  // Flip to true when the active code's countdown reaches zero,
+  // and stays true until the parent either generates a new code
+  // or navigates away. Drives the inline "Code expired" CTA so
+  // the parent doesn't have to scroll back to the per-child
+  // "Pair new device" button to recover.
+  bool _codeExpired = false;
   Duration _remaining = Duration.zero;
 
   @override
@@ -186,6 +192,7 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
 
   void _startCountdown(GeneratedPairingCode code) {
     _countdownTimer?.cancel();
+    _codeExpired = false;
     _remaining = code.timeUntilExpiry;
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -194,6 +201,10 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
         if (_remaining.isNegative) {
           _countdownTimer?.cancel();
           _activeCode = null;
+          // Keep _activeCodeChildId so the expired-state card can
+          // re-show the right "Generate a new code for [child]"
+          // CTA. Cleared on next generate or on dismiss.
+          _codeExpired = true;
         }
       });
     });
@@ -281,7 +292,7 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
   }
 
   Future<void> _shareCode({
-    required String code,
+    required GeneratedPairingCode code,
     required String childName,
   }) async {
     // Compose a kid-friendly share text. We don't include the code
@@ -289,9 +300,14 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
     // previews often truncate the body and (b) parents sometimes
     // hand the kid their phone to enter the code anyway, so it's
     // not really a secret from the kid — only from the world.
+    // The expiration copy uses the original `validFor` duration
+    // (not the time-remaining) so the recipient isn't lied to if
+    // they open the message a few minutes after it's sent.
+    final minutes = code.validFor.inMinutes;
+    final expiresIn = minutes == 1 ? '1 minute' : '$minutes minutes';
     final text =
-        'DoneFirst pairing code for $childName’s device: $code '
-        '(expires in 10 minutes). '
+        'DoneFirst pairing code for $childName’s device: ${code.code} '
+        '(expires in $expiresIn). '
         'Open DoneFirst on the kid’s phone, choose “Kid”, and '
         'enter the code.';
     try {
@@ -353,7 +369,7 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
                             );
                           },
                           onShare: () => _shareCode(
-                            code: _activeCode!.code,
+                            code: _activeCode!,
                             childName: _children
                                 .firstWhere(
                                   (c) => c.id == _activeCodeChildId,
@@ -372,6 +388,29 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
                             if (!mounted) return;
                             _countdownTimer?.cancel();
                             setState(() => _activeCode = null);
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                      ] else if (_codeExpired && _activeCodeChildId != null) ...[
+                        _ExpiredCodeCard(
+                          childName: _children
+                              .firstWhere(
+                                (c) => c.id == _activeCodeChildId,
+                                orElse: () => Child(
+                                  id: '',
+                                  name: 'child',
+                                ),
+                              )
+                              .name,
+                          onGenerate: () {
+                            setState(() => _codeExpired = false);
+                            _generateCode(_activeCodeChildId!);
+                          },
+                          onDismiss: () {
+                            setState(() {
+                              _codeExpired = false;
+                              _activeCodeChildId = null;
+                            });
                           },
                         ),
                         const SizedBox(height: 24),
@@ -563,6 +602,89 @@ class _ActiveCodeCard extends StatelessWidget {
                 child: const Text('Cancel code'),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact card shown in place of the active-code card when the
+/// countdown reaches zero. Without this, the parent has to scroll
+/// back to the per-child "Pair new device" row to recover — easy
+/// to miss on a long list of devices.
+class _ExpiredCodeCard extends StatelessWidget {
+  final String childName;
+  final VoidCallback onGenerate;
+  final VoidCallback onDismiss;
+
+  const _ExpiredCodeCard({
+    required this.childName,
+    required this.onGenerate,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.warnFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.warnBd),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(LucideIcons.clock, size: 18, color: AppColors.warn),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Code for $childName expired',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Generate a new code to keep pairing.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    FilledButton.icon(
+                      onPressed: onGenerate,
+                      icon: const Icon(LucideIcons.refreshCw, size: 14),
+                      label: const Text('Generate new code'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: onDismiss,
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      child: const Text('Dismiss'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
