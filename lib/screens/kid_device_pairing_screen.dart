@@ -9,6 +9,7 @@ import '../models/child.dart';
 import '../services/kid_device_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/destructive_confirm_dialog.dart';
 import '../app_globals.dart' as app;
 import 'kid_device_setup_screen.dart';
 
@@ -199,31 +200,22 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
   }
 
   Future<void> _revoke(KidDevice device) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Revoke this device?'),
-        content: Text(
-          '“${device.deviceName ?? device.childDisplayName ?? 'Device'}” '
-          'will be signed out immediately. The kid will need to '
-          're-pair to use the app again.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.danger,
-            ),
-            child: const Text('Revoke'),
-          ),
-        ],
-      ),
+    final name =
+        device.deviceName ?? device.childDisplayName ?? 'Device';
+    final confirmed = await DestructiveConfirmDialog.show(
+      context,
+      title: 'Revoke $name?',
+      description:
+          '“$name” will be signed out immediately on the kid’s phone. '
+          'To use the app again, the kid will need to enter a new '
+          'pairing code generated from this device.',
+      confirmPhrase: name,
+      confirmButtonLabel: 'Revoke',
+      warningText:
+          'Any in-progress homework session on this device will end '
+          'without the usual completion celebration.',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     try {
       await _service.revokeDevice(device.id);
       await _load();
