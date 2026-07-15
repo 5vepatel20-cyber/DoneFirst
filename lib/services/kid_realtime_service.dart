@@ -304,12 +304,14 @@ class KidRealtimeService extends ChangeNotifier {
   /// signOut to make sure the kid doesn't get stuck behind the
   /// plugin block when the realtime channel goes away.
   Future<void> releaseLockIfAny() async {
-    if (blocking.isBlocking) {
-      await blocking.stopBlocking();
-    }
-    if (kiosk.isLocked) {
-      await kiosk.stopLockTask();
-    }
+    // Blocking + kiosk are independent surfaces (flutter_screentime
+    // plugin vs Android lock-task method channel). If both guards
+    // are true, run them in parallel — halves the release latency
+    // on the WaitingScreen / signOut path.
+    final stops = <Future<void>>[];
+    if (blocking.isBlocking) stops.add(blocking.stopBlocking());
+    if (kiosk.isLocked) stops.add(kiosk.stopLockTask());
+    if (stops.isNotEmpty) await Future.wait(stops);
   }
 
   Future<void> _loadInitial(String childId) async {
@@ -496,6 +498,12 @@ class KidRealtimeService extends ChangeNotifier {
   ///   - else → locked (start block + kiosk lock-task).
   Future<void> _enforce() async {
     final shouldBeLocked = _state == KidLockState.locked;
+    // The release branch collects both stop calls into a list and
+    // runs them in parallel — blocking + kiosk are independent
+    // surfaces (different plugins / method channels). The start
+    // branch stays sequential because a blocking-start failure
+    // needs to short-circuit the kiosk call.
+    final stops = <Future<void>>[];
     if (shouldBeLocked) {
       if (!blocking.isBlocking) {
         final ok = await blocking.startBlocking();
@@ -523,11 +531,12 @@ class KidRealtimeService extends ChangeNotifier {
       // the kid is temporarily free; the lock will re-engage
       // automatically when the parent persists end-of-break.
       if (blocking.isBlocking) {
-        await blocking.stopBlocking();
+        stops.add(blocking.stopBlocking());
       }
       if (kiosk.isLocked) {
-        await kiosk.stopLockTask();
+        stops.add(kiosk.stopLockTask());
       }
+      if (stops.isNotEmpty) await Future.wait(stops);
     }
   }
 
