@@ -217,47 +217,61 @@ class _ParentDashboardState extends State<ParentDashboard> {
         }
       }
 
-      // Per-child loads run in parallel instead of serial. Each
-      // child is independent (active-session check + pending-proofs
-      // count + kid-device status), so there's no reason to wait
-      // for child A before starting child B. For a 3-kid family
-      // this drops three round-trip pairs to one parallel batch.
+      // Per-child loads run in parallel both across children AND
+      // within each child. The four reads per child (active
+      // session, pending proofs, pending breaks, kid-device
+      // status) are independent of each other, so fan them out
+      // alongside the per-child fan-out. For a 3-kid family this
+      // collapses 12 sequential round-trips into a single
+      // max(latency) window.
       final perChild = await Future.wait(
         _children.map((child) async {
-          final session =
-              await _sessionService.getActiveSession(child.id);
+          // The 4 per-child reads are independent of each other,
+          // so fire them all at once. Each one is wrapped in a
+          // fail-soft catch so a transient RLS hiccup on one row
+          // doesn't kill the rest of the dashboard.
+          HomeworkSession? session;
           int pending = _pendingProofs[child.id] ?? 0;
-          // Pending-proof count per child for the inbox chip. If this
-          // throws (e.g. RLS still pending), leave the prior value
-          // alone rather than wipe it to 0.
-          try {
-            final proofs =
-                await _proofService.getPendingProofs(child.id);
-            pending = proofs.length;
-          } catch (_) {}
-          // Pending-break count per child for the dashboard chip. Same
-          // fail-soft contract as pending proofs: leave the prior
-          // value on error.
+          // Pending-proof count per child for the inbox chip. If
+          // this throws (e.g. RLS still pending), leave the prior
+          // value alone rather than wipe it to 0.
           int pendingBreaks = _pendingBreaks[child.id] ?? 0;
-          try {
-            final breaks =
-                await _breakService.getPendingRequests(child.id);
-            pendingBreaks = breaks.length;
-          } catch (_) {}
-          // Kid-device status for the dashboard dot + last-seen label.
-          // Failures collapse to null (no device) so a transient RLS
-          // hiccup never breaks the row.
           ({String status, DateTime? lastSeenAt})? deviceStatus;
-          try {
-            final devices =
-                await _kidDeviceService.listDevicesForChild(child.id);
-            if (devices.isNotEmpty) {
-              deviceStatus = (
-                status: devices.first.status,
-                lastSeenAt: devices.first.lastSeenAt,
-              );
-            }
-          } catch (_) {}
+
+          await Future.wait([
+            Future(() async {
+              try {
+                session =
+                    await _sessionService.getActiveSession(child.id);
+              } catch (_) {}
+            }),
+            Future(() async {
+              try {
+                final proofs =
+                    await _proofService.getPendingProofs(child.id);
+                pending = proofs.length;
+              } catch (_) {}
+            }),
+            Future(() async {
+              try {
+                final breaks =
+                    await _breakService.getPendingRequests(child.id);
+                pendingBreaks = breaks.length;
+              } catch (_) {}
+            }),
+            Future(() async {
+              try {
+                final devices =
+                    await _kidDeviceService.listDevicesForChild(child.id);
+                if (devices.isNotEmpty) {
+                  deviceStatus = (
+                    status: devices.first.status,
+                    lastSeenAt: devices.first.lastSeenAt,
+                  );
+                }
+              } catch (_) {}
+            }),
+          ]);
           return MapEntry(
             child.id,
             (session != null, pending, pendingBreaks, deviceStatus),
