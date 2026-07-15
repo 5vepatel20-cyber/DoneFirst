@@ -213,12 +213,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     required String label,
     required String primaryLabel,
-  }) {
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final controller = TextEditingController();
-        return AlertDialog(
+  }) async {
+    // Hoist the controller out of the builder so we can dispose
+    // it after the dialog pops. Previously it lived inside the
+    // builder closure, which meant one leaked controller per
+    // PIN entry (Set/Change/Confirm flows). Each PIN setup hits
+    // this dialog twice in a row, so the leak doubled.
+    final controller = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
           title: Text(title),
           content: TextField(
             controller: controller,
@@ -244,9 +249,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(primaryLabel),
             ),
           ],
-        );
-      },
-    );
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _showPinSnackBar(String message) {
