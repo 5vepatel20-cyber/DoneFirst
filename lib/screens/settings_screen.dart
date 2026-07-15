@@ -154,6 +154,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Profile updated')));
     }
+    // Dialog controllers are local-scope; release their listeners
+    // on every dialog exit path (save, cancel, or throw). Saves
+    // over a long session otherwise leak two controllers per edit.
+    nameController.dispose();
+    familyController.dispose();
   }
 
   Future<void> _setPin() async {
@@ -330,6 +335,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     }
+    // Dialog controllers are local-scope; dispose on every exit
+    // path (save, cancel, validation failure, server error).
+    newPasswordController.dispose();
+    confirmController.dispose();
   }
 
   Future<void> _exportData() async {
