@@ -38,11 +38,19 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   }
 
   Future<void> _load() async {
-    final schedules = await _scheduleService.getSchedules(widget.childId);
-    final active = await _sessionService.getActiveSession(widget.childId);
+    // Schedules + the active session lookup are independent reads.
+    // The "Start now" button on each schedule row depends on
+    // _activeSessionId being set, but the two reads themselves
+    // don't depend on each other — fire them in parallel.
+    final results = await Future.wait<Object?>([
+      _scheduleService.getSchedules(widget.childId),
+      _sessionService.getActiveSession(widget.childId),
+    ]);
+    final schedules = results[0] as List;
+    final active = results[1] as HomeworkSession?;
     if (mounted)
       setState(() {
-        _schedules = schedules;
+        _schedules = schedules.cast();
         _activeSessionId = active?.id;
         _loading = false;
       });
