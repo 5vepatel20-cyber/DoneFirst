@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../lib/app_globals.dart' as app;
-import '../lib/services/toast_service.dart';
 import '../lib/supabase_config.dart';
 
 /// Tests for ToastService. The service keys off the global
