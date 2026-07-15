@@ -57,12 +57,21 @@ class NotificationService {
   }
 
   Future<List<AppNotification>> getNotifications() async {
-    final response = await _supabase
-        .from('notifications')
-        .select()
-        .eq('parent_id', _supabase.auth.currentUser!.id)
-        .order('created_at', ascending: false);
-    final prefs = await _prefs.getPrefs();
+    // Network fetch + SharedPreferences read are independent — run
+    // them in parallel. The badge/inbox screens re-fetch on every
+    // 10s poll, so collapsing this from 2× round-trip to 1× shows
+    // up as noticeably less jank when scrolling the list while a
+    // poll is mid-flight.
+    final results = await Future.wait<dynamic>([
+      _supabase
+          .from('notifications')
+          .select()
+          .eq('parent_id', _supabase.auth.currentUser!.id)
+          .order('created_at', ascending: false),
+      _prefs.getPrefs(),
+    ]);
+    final response = results[0] as List;
+    final prefs = results[1] as Map<String, bool>;
     return response
         .map((m) => AppNotification.fromMap(m))
         .where((n) => prefs[n.type] ?? true)
@@ -70,13 +79,17 @@ class NotificationService {
   }
 
   Future<List<AppNotification>> getUnreadNotifications() async {
-    final response = await _supabase
-        .from('notifications')
-        .select()
-        .eq('parent_id', _supabase.auth.currentUser!.id)
-        .eq('read', false)
-        .order('created_at', ascending: false);
-    final prefs = await _prefs.getPrefs();
+    final results = await Future.wait<dynamic>([
+      _supabase
+          .from('notifications')
+          .select()
+          .eq('parent_id', _supabase.auth.currentUser!.id)
+          .eq('read', false)
+          .order('created_at', ascending: false),
+      _prefs.getPrefs(),
+    ]);
+    final response = results[0] as List;
+    final prefs = results[1] as Map<String, bool>;
     return response
         .map((m) => AppNotification.fromMap(m))
         .where((n) => prefs[n.type] ?? true)
@@ -113,12 +126,16 @@ class NotificationService {
   }
 
   Future<int> getUnreadCount() async {
-    final response = await _supabase
-        .from('notifications')
-        .select('id, type')
-        .eq('parent_id', _supabase.auth.currentUser!.id)
-        .eq('read', false);
-    final prefs = await _prefs.getPrefs();
+    final results = await Future.wait<dynamic>([
+      _supabase
+          .from('notifications')
+          .select('id, type')
+          .eq('parent_id', _supabase.auth.currentUser!.id)
+          .eq('read', false),
+      _prefs.getPrefs(),
+    ]);
+    final response = results[0] as List;
+    final prefs = results[1] as Map<String, bool>;
     // Filter at the client because Supabase's REST API doesn't support
     // "WHERE type IN (...)" with a dynamic list of enum literals
     // easily. We get all unread and filter here — the badge count is
