@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -177,21 +177,45 @@ class AuthService {
     await _supabase.auth.updateUser(UserAttributes(password: newPassword));
   }
 
+  /// Calls the server-side delete-account Edge Function and only
+  /// signs the user out locally when the server actually wiped
+  /// their data. Without this guard, a 401/500 from the function
+  /// (expired token, transient server error) would still sign the
+  /// user out — leaving them thinking their account + family data
+  /// is gone when in fact it persists on the server. This matters
+  /// for GDPR Article 17 (right to erasure): we must not report
+  /// success to the user unless the server has actually deleted.
   Future<void> deleteAccount() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
     final token = _supabase.auth.currentSession?.accessToken ?? '';
 
-    await http.post(
-      Uri.parse('https://wxjtksxugsirpowptpmz.supabase.co/functions/v1/delete-account'),
+    final response = await http.post(
+      Uri.parse(
+          'https://wxjtksxugsirpowptpmz.supabase.co/functions/v1/delete-account'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
     );
 
+    if (!isAccountDeletionSuccessful(response.statusCode)) {
+      throw AccountDeletionException(
+        'Server returned ${response.statusCode}',
+      );
+    }
+
     await _supabase.auth.signOut();
   }
+
+  /// True only when the Edge Function reported success. 2xx is the
+  /// documented success range; anything else (401 = token issue,
+  /// 405 = wrong method, 500 = server error) means the user MUST
+  /// stay signed in so they can retry. Extracted so tests can pin
+  /// the boundary without spinning up an HTTP mock.
+  @visibleForTesting
+  static bool isAccountDeletionSuccessful(int statusCode) =>
+      statusCode >= 200 && statusCode < 300;
 
   /// Verify the parent's password without disturbing their current
   /// session. Used by sensitive flows (Delete Account, Forgot PIN)
@@ -239,4 +263,16 @@ class GoogleSignInCancelledException implements Exception {
   const GoogleSignInCancelledException();
   @override
   String toString() => 'GoogleSignInCancelledException';
+}
+
+/// Thrown when the delete-account Edge Function returns a non-2xx
+/// status. The user stays signed in (we never reached signOut) so
+/// they can retry; the local state is NOT wiped on a server failure
+/// because that would leave the user thinking their data is gone
+/// when it isn't — a GDPR Article 17 problem.
+class AccountDeletionException implements Exception {
+  final String message;
+  const AccountDeletionException(this.message);
+  @override
+  String toString() => 'AccountDeletionException: $message';
 }
