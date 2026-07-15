@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../services/blocking_service.dart';
 import '../../../services/heartbeat_service.dart';
@@ -36,8 +35,6 @@ class KidRoot extends StatefulWidget {
 }
 
 class _KidRootState extends State<KidRoot> {
-  SharedPreferences? _prefs;
-
   @override
   void initState() {
     super.initState();
@@ -59,12 +56,16 @@ class _KidRootState extends State<KidRoot> {
   }
 
   Future<void> _bootstrap() async {
-    _prefs = await SharedPreferences.getInstance();
-    // Ask the native side whether we're the device owner. One-shot
-    // at boot — device-owner status can't change at runtime without
-    // an ADB command.
-    await kiosk.refreshDeviceOwner();
-    final restored = await kidAuth.restoreSession();
+    // kiosk.refreshDeviceOwner() is a single platform-channel call;
+    // kidAuth.restoreSession() reads tokens from SharedPreferences +
+    // calls Supabase.auth.recoverSession. Neither call depends on
+    // the other — fire them in parallel so a slow platform-channel
+    // hop doesn't delay session restore (or vice versa).
+    final results = await Future.wait<Object?>([
+      kiosk.refreshDeviceOwner(),
+      kidAuth.restoreSession(),
+    ]);
+    final restored = results[1] as bool;
     if (restored && kidAuth.childId != null) {
       await realtime.start(kidAuth.childId!);
       heartbeat.start();
@@ -150,8 +151,12 @@ class _KidRootState extends State<KidRoot> {
   }
 
   String get _childDisplayName {
-    final stored = _prefs?.getString('kid_display_name');
-    if (stored != null && stored.isNotEmpty) return stored;
+    // Populated by KidAuthService.claimPairingCode from the
+    // edge function's child_name field, and re-read from
+    // SharedPreferences on restoreSession so a cold launch can
+    // still greet the kid by name without re-pairing.
+    final name = kidAuth.childName;
+    if (name != null && name.isNotEmpty) return name;
     return 'there';
   }
 }

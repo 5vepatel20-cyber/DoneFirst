@@ -146,6 +146,31 @@ export async function handleClaimPairing(
       )
     }
 
+    // Fetch the child's name in parallel with the kid_devices
+    // insert below. The name is needed by the kid lock screen
+    // ("Time for Aarav") and the kid cannot read children directly
+    // because the RLS policy scopes that table to the parent's
+    // auth.uid, not the kid's app_metadata.child_id. Returning it
+    // here avoids a second round-trip on the kid's first render.
+    //
+    // Failure here is non-fatal — if the children row vanished
+    // (shouldn't happen with FK CASCADE on device_pairings, but
+    // defensive) we still want to finish pairing and surface the
+    // generic fallback "there" copy in the lock screen rather than
+    // fail the entire flow.
+    let childName: string | null = null
+    try {
+      const { data: childRow } = await supabaseAdmin
+        .from('children')
+        .select('name')
+        .eq('id', pairing.child_id)
+        .maybeSingle()
+      childName = (childRow?.name as string | undefined)?.trim() || null
+    } catch (nameErr) {
+      console.error('claim-pairing child name lookup error:', nameErr)
+      // keep childName = null and continue
+    }
+
     // Create the kid device row first so we can point
     // device_pairings.claimed_by_device at it.
     const { data: device, error: insertError } = await supabaseAdmin
@@ -268,6 +293,10 @@ export async function handleClaimPairing(
       child_id: pairing.child_id,
       family_id: pairing.family_id,
       device_id: device.id,
+      // null when the children row wasn't readable (RLS blocked it
+      // or the row vanished). The kid app falls back to a generic
+      // "there" greeting rather than failing the whole pair flow.
+      child_name: childName,
     })
   } catch (err) {
     console.error('claim-pairing unexpected error:', err)

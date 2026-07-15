@@ -33,10 +33,16 @@ interface PairingRow {
   claimed_by_device?: string
 }
 
+interface ChildRow {
+  id: string
+  name: string
+}
+
 /** Builds a mock Supabase admin client that returns canned rows
  * from a pre-populated list of pairings + tracks inserts. */
 function makeMock(opts: {
   pairings: PairingRow[]
+  children?: ChildRow[]
   deviceInsertError?: unknown
   claimError?: unknown
   createUserError?: unknown
@@ -49,6 +55,7 @@ function makeMock(opts: {
     claimUpdates: any[]
     createdUser: any
     signInCalled: boolean
+    childLookups: string[]
   }
 } {
   const state = {
@@ -56,6 +63,7 @@ function makeMock(opts: {
     claimUpdates: [] as any[],
     createdUser: null as any,
     signInCalled: false,
+    childLookups: [] as string[],
   }
 
   // Tiny query builder that mimics the chained PostgREST API:
@@ -106,6 +114,20 @@ function makeMock(opts: {
             }),
           }))
         },
+      }
+    }
+    if (name === 'children') {
+      return {
+        select: (_cols: string) => ({
+          eq: (_col: string, val: string) => ({
+            maybeSingle: async () => {
+              state.childLookups.push(val)
+              const childList = opts.children ?? []
+              const found = childList.find((c) => c.id === val)
+              return { data: found ?? null, error: null }
+            },
+          }),
+        }),
       }
     }
     throw new Error(`mock: unhandled table ${name}`)
@@ -310,6 +332,7 @@ Deno.test('happy path returns 200 with session tokens', async () => {
       expires_at: new Date(Date.now() + 60_000).toISOString(),
       claimed_at: null,
     }],
+    children: [{ id: 'c-happy', name: 'Aarav' }],
   })
   const res = await handleClaimPairing(
     makeReq({ code: '777777', device_name: 'Sam phone' }),
@@ -322,8 +345,14 @@ Deno.test('happy path returns 200 with session tokens', async () => {
   assertEquals(body.refresh_token, 'mock-refresh')
   assertEquals(body.child_id, 'c-happy')
   assertEquals(body.family_id, 'f-happy')
+  assertEquals(body.child_name, 'Aarav')
   assertExists(body.device_id)
   assertStringIncludes(body.device_id, 'device-test-id')
+
+  // The children lookup should have been called for the paired
+  // child's id, so the kid lock screen can greet the kid by name.
+  assertEquals(state.childLookups.length, 1)
+  assertEquals(state.childLookups[0], 'c-happy')
 
   // The inserted device row should carry the parent-claimed
   // child_id/family_id and the device_name we sent.
@@ -345,6 +374,32 @@ Deno.test('happy path returns 200 with session tokens', async () => {
   // signInWithPassword was called with the same credentials used
   // for createUser (so the signIn actually succeeds).
   assertEquals(state.signInCalled, true)
+})
+
+Deno.test('happy path returns child_name=null when children row missing', async () => {
+  // Pairing references a child id that has no corresponding row in
+  // the children mock. The kid still gets a working session, but
+  // child_name falls back to null so the lock screen can show its
+  // generic "there" greeting rather than failing the whole pair.
+  const { client } = makeMock({
+    pairings: [{
+      code: '787878',
+      child_id: 'c-orphan',
+      family_id: 'f-orphan',
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      claimed_at: null,
+    }],
+    children: [],
+  })
+  const res = await handleClaimPairing(
+    makeReq({ code: '787878' }),
+    client,
+  )
+  assertEquals(res.status, 200)
+  const body = await res.json()
+  assertEquals(body.success, true)
+  assertEquals(body.child_id, 'c-orphan')
+  assertEquals(body.child_name, null)
 })
 
 Deno.test('happy path with whitespace-only device_name stores null',

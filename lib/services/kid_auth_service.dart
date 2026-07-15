@@ -28,6 +28,11 @@ import '../supabase_config.dart';
 class KidAuthService extends ChangeNotifier {
   static const _kAccessToken = 'kid_access_token';
   static const _kRefreshToken = 'kid_refresh_token';
+  // Stored in the same encrypted-at-rest SharedPreferences blob as
+  // the tokens. Non-secret — it's just the kid's first name for
+  // the lock-screen greeting — but kept off the JWT to avoid
+  // stampeding the payload every time the parent renames the kid.
+  static const _kChildName = 'kid_display_name';
 
   final SupabaseClient _supabase;
   final http.Client _http;
@@ -53,10 +58,18 @@ class KidAuthService extends ChangeNotifier {
   String? _childId;
   String? _familyId;
   String? _deviceId;
+  /// Kid's display name, captured during claim-pairing from the
+  /// edge function's child_name field. Persisted to
+  /// SharedPreferences so it survives a cold launch where the
+  /// JWT is restored but we no longer hit the edge function.
+  String? _childName;
 
   String? get childId => _childId;
   String? get familyId => _familyId;
   String? get deviceId => _deviceId;
+  /// Returns the kid's display name if known, else null. Callers
+  /// should fall back to a generic greeting ("there") when null.
+  String? get childName => _childName;
   bool get isPaired => _supabase.auth.currentSession != null;
 
   /// Exchange a 6-digit pairing code for a Supabase session.
@@ -140,6 +153,17 @@ class KidAuthService extends ChangeNotifier {
     _childId = body['child_id']?.toString();
     _familyId = body['family_id']?.toString();
     _deviceId = body['device_id']?.toString();
+    // The edge function looks up the kid's name on the server side
+    // (RLS keeps the kid from reading children directly). Persist
+    // it alongside the tokens so a cold launch can greet the kid
+    // by name without an extra round-trip.
+    final claimedName = body['child_name']?.toString().trim();
+    await _persistChildName(claimedName == null || claimedName.isEmpty
+        ? null
+        : claimedName);
+    _childName = claimedName == null || claimedName.isEmpty
+        ? null
+        : claimedName;
     notifyListeners();
   }
 
@@ -172,6 +196,13 @@ class KidAuthService extends ChangeNotifier {
         await _clearTokens();
         return false;
       }
+      // Pull the cached child_name so the lock screen can greet
+      // the kid after a cold launch. Stored at pair time, not from
+      // the JWT (which only carries ids).
+      final cachedName = prefs.getString(_kChildName)?.trim();
+      _childName = (cachedName != null && cachedName.isNotEmpty)
+          ? cachedName
+          : null;
       notifyListeners();
       return true;
     } catch (e) {
@@ -195,6 +226,7 @@ class KidAuthService extends ChangeNotifier {
     _childId = null;
     _familyId = null;
     _deviceId = null;
+    _childName = null;
     notifyListeners();
   }
 
@@ -202,6 +234,19 @@ class KidAuthService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kAccessToken, access);
     await prefs.setString(_kRefreshToken, refresh);
+  }
+
+  Future<void> _persistChildName(String? name) async {
+    // SharedPreferences doesn't expose a "setOrRemove" — pass null
+    // when the name is missing so a stale value from a previous
+    // pairing doesn't haunt a fresh pairing of a different kid on
+    // the same physical device.
+    final prefs = await SharedPreferences.getInstance();
+    if (name == null) {
+      await prefs.remove(_kChildName);
+    } else {
+      await prefs.setString(_kChildName, name);
+    }
   }
 
   Future<void> _clearTokens() async {
