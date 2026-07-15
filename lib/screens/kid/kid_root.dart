@@ -6,7 +6,6 @@ import '../../../services/heartbeat_service.dart';
 import '../../../services/kid_auth_service.dart';
 import '../../../services/kid_realtime_service.dart';
 import '../../../services/kiosk_service.dart';
-import '../../../theme/app_theme.dart';
 import '../auth_screen.dart';
 import 'locked_screen.dart';
 import 'on_break_screen.dart';

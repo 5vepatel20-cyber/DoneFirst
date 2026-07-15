@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand_logo.dart';
-import 'auth_screen.dart';
 import 'kid/kid_root.dart';
 
 /// First-launch screen for unauthenticated users. Asks "are you a

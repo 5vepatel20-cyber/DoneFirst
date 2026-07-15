@@ -6,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/proof_service.dart';
 import '../services/notification_service.dart';
 import '../services/session_service.dart';
-import '../models/models.dart';
 import '../theme/app_theme.dart';
 
 class ProofCaptureScreen extends StatefulWidget {
@@ -96,7 +95,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
       );
       await _notificationService.insertNotification(
         parentId: sessionData!.parentId,
-        childId: sessionData!.childId,
+        childId: sessionData.childId,
         type: 'proof_submitted',
         title:
             'Proof submitted (${urls.length} photo${urls.length > 1 ? 's' : ''})',
