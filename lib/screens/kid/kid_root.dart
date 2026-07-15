@@ -9,6 +9,7 @@ import '../../../services/kiosk_service.dart';
 import '../../../theme/app_theme.dart';
 import '../auth_screen.dart';
 import 'locked_screen.dart';
+import 'on_break_screen.dart';
 import 'pairing_screen.dart';
 import 'unlocked_screen.dart';
 import 'waiting_screen.dart';
@@ -109,6 +110,32 @@ class _KidRootState extends State<KidRoot> {
           session: session,
           childName: _childDisplayName,
           onBreakRequestSent: () {},
+        );
+      case KidLockState.onBreak:
+        // Active session + a parent-approved break in flight.
+        // Same enforcement as unlocked (no app block, no kiosk
+        // lock) but the UI explains the kid is on a break rather
+        // than fully free — a fully free kid with an active
+        // session would be confusing.
+        final brk = realtime.activeBreak;
+        if (brk == null) {
+          // Race: state says onBreak but the break payload
+          // hasn't arrived yet. Fall through to LockedScreen
+          // with whatever session we have; the realtime event
+          // will reconcile within a tick.
+          final session = realtime.session;
+          if (session == null) {
+            return UnlockedScreen(childName: _childDisplayName);
+          }
+          return LockedScreen(
+            session: session,
+            childName: _childDisplayName,
+            onBreakRequestSent: () {},
+          );
+        }
+        return OnBreakScreen(
+          childName: _childDisplayName,
+          activeBreak: brk,
         );
       case KidLockState.unlocked:
         return UnlockedScreen(childName: _childDisplayName);

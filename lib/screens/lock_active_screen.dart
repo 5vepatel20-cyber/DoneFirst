@@ -52,6 +52,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   bool _kidDeviceChecked = false;
   bool _paused = false;
   bool _activeBreakTimer = false;
+  String? _activeBreakId;
   Timer? _refreshTimer;
 
   @override
@@ -624,7 +625,16 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     if (decision == 'approved') {
       await _breakService.approveBreak(breakId);
       await _applyLockState(active: false);
-      setState(() => _activeBreakTimer = true);
+      setState(() {
+        _activeBreakTimer = true;
+        // Track the approved break id so the BreakTimer onComplete
+        // and onCancel callbacks can persist the end-of-break to
+        // Supabase. Without this, the kid-side realtime listener
+        // would never see a status='completed' / 'cancelled' event
+        // and would stay in KidLockState.onBreak forever (or until
+        // the parent ended the whole session).
+        _activeBreakId = breakId;
+      });
     } else {
       await _breakService.denyBreak(breakId);
     }
@@ -750,12 +760,36 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                       const SizedBox(height: 12),
                       BreakTimer(
                         onComplete: () async {
-                          setState(() => _activeBreakTimer = false);
+                          // Capture the id BEFORE clearing it; we need
+                          // it for the end-of-break write below.
+                          final id = _activeBreakId;
+                          setState(() {
+                            _activeBreakTimer = false;
+                            _activeBreakId = null;
+                          });
+                          // Persist the end-of-break so the kid app's
+                          // realtime listener flips out of onBreak and
+                          // re-engages the lock. Best-effort: a
+                          // network blip here means the kid stays
+                          // unlocked until the parent ends the session,
+                          // which the existing unlock path handles.
+                          if (id != null) {
+                            await _breakService.endBreak(id);
+                          }
                           await _applyLockState(active: true);
                           await _loadAll();
                         },
                         onCancel: () async {
-                          setState(() => _activeBreakTimer = false);
+                          final id = _activeBreakId;
+                          setState(() {
+                            _activeBreakTimer = false;
+                            _activeBreakId = null;
+                          });
+                          // Distinguish parent-cancelled from timer-
+                          // completed in the data-export report.
+                          if (id != null) {
+                            await _breakService.cancelBreak(id);
+                          }
                           await _applyLockState(active: true);
                           await _loadAll();
                         },

@@ -62,10 +62,19 @@ class BreakService {
     }
   }
 
+  /// Approve a pending break. Stamps `started_at = now()` so the
+  /// kid app's realtime subscription can compute "am I on a break
+  /// right now?" from the latest row. Without started_at the kid
+  /// would only see a status flip and would have no way to know
+  /// when the break should end — the parent-side BreakTimer is
+  /// purely local and isn't visible to the kid.
   Future<void> approveBreak(String requestId) async {
     await _supabase
         .from('break_requests')
-        .update({'status': 'approved'})
+        .update({
+          'status': 'approved',
+          'started_at': DateTime.now().toIso8601String(),
+        })
         .eq('id', requestId);
   }
 
@@ -74,5 +83,36 @@ class BreakService {
         .from('break_requests')
         .update({'status': 'denied'})
         .eq('id', requestId);
+  }
+
+  /// Mark a previously-approved break as completed. Called when
+  /// the parent's BreakTimer counts down to zero. Stamps
+  /// `ended_at = now()` so the kid app's realtime listener can
+  /// transition out of `KidLockState.onBreak` and re-engage the
+  /// app block + kiosk lock.
+  Future<void> endBreak(String requestId) async {
+    await _supabase
+        .from('break_requests')
+        .update({
+          'status': 'completed',
+          'ended_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', requestId)
+        .eq('status', 'approved');
+  }
+
+  /// Parent-initiated early end. Treated like a normal completion
+  /// on the kid side (re-lock immediately) but tagged as
+  /// 'cancelled' so the data-export report distinguishes "break
+  /// ran the full 5 min" from "parent cut it short".
+  Future<void> cancelBreak(String requestId) async {
+    await _supabase
+        .from('break_requests')
+        .update({
+          'status': 'cancelled',
+          'ended_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', requestId)
+        .eq('status', 'approved');
   }
 }

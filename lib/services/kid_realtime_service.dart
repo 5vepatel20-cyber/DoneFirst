@@ -63,6 +63,15 @@ enum KidLockState {
   /// screen with a countdown to the session's natural end.
   locked,
 
+  /// Active session with a break currently approved by the parent.
+  /// The kid is temporarily free — same enforcement as `unlocked`
+  /// (no app block, no kiosk lock) but the UI shows a "Break
+  /// time" banner so the kid knows to come back when it ends.
+  /// Driven by the break_requests realtime subscription; flips
+  /// back to `locked` (or `unlocked` if the session ended) when
+  /// the parent persists `status='completed'` or `'cancelled'`.
+  onBreak,
+
   /// Session exists but the realtime channel is currently
   /// disconnected (WiFi drop, etc). Releases the lock immediately
   /// — better to give the kid their apps than to leave them stuck
@@ -118,6 +127,48 @@ class HomeworkSessionPayload {
       );
 }
 
+/// Parsed subset of break_requests the kid cares about. Only
+/// fields the realtime subscription needs to decide "am I on a
+/// break right now?" — no parent_id, no decision note, etc.
+class BreakRequestPayload {
+  final String id;
+  final String sessionId;
+  final String status; // 'pending' | 'approved' | 'denied' | 'completed' | 'cancelled'
+  final DateTime createdAt;
+  final DateTime? startedAt;
+  final DateTime? endedAt;
+
+  const BreakRequestPayload({
+    required this.id,
+    required this.sessionId,
+    required this.status,
+    required this.createdAt,
+    this.startedAt,
+    this.endedAt,
+  });
+
+  factory BreakRequestPayload.fromMap(Map<String, dynamic> map) =>
+      BreakRequestPayload(
+        id: map['id'] as String,
+        sessionId: map['session_id'] as String,
+        status: (map['status'] as String?) ?? 'pending',
+        createdAt:
+            DateTime.tryParse(map['created_at']?.toString() ?? '') ??
+            DateTime.now(),
+        startedAt:
+            DateTime.tryParse(map['started_at']?.toString() ?? ''),
+        endedAt: DateTime.tryParse(map['ended_at']?.toString() ?? ''),
+      );
+
+  /// True iff the parent has approved this break AND the break
+  /// hasn't been marked completed/cancelled. Mirrors the parent
+  /// app's BreakRequest.isActiveBreak getter; we keep a separate
+  /// payload type because the kid doesn't reuse the parent's
+  /// BreakRequest model.
+  bool get isActive =>
+      status == 'approved' && startedAt != null && endedAt == null;
+}
+
 /// Subscribes to homework_sessions for the signed-in kid device and
 /// drives the [BlockingService] + the UI state machine.
 ///
@@ -134,10 +185,12 @@ class KidRealtimeService extends ChangeNotifier {
 
   KidLockState _state = KidLockState.unlocked;
   HomeworkSessionPayload? _session;
+  BreakRequestPayload? _activeBreak;
   bool _isHealthy = false;
 
   KidLockState get state => _state;
   HomeworkSessionPayload? get session => _session;
+  BreakRequestPayload? get activeBreak => _activeBreak;
   bool get isRealtimeHealthy => _isHealthy;
 
   /// Current retry state. Exposed for tests.
@@ -147,6 +200,10 @@ class KidRealtimeService extends ChangeNotifier {
   StreamSubscription? _sub;
   String? _childId;
   Timer? _retryTimer;
+  /// session.id for which we've attached the break_requests
+  /// listener. Used to avoid re-subscribing on every session row
+  /// update.
+  String? _subscribedBreakSessionId;
 
   KidRealtimeService({
     required this.blocking,
@@ -193,6 +250,38 @@ class KidRealtimeService extends ChangeNotifier {
       ).subscribe(_onSubscribe);
   }
 
+  /// Subscribe to break_requests for the currently active session.
+  /// Must be called after [_subscribe] has loaded the session row
+  /// and the `_session` field is populated. Idempotent — calling
+  /// twice for the same session is a no-op.
+  ///
+  /// We subscribe per-session rather than per-child because
+  /// RLS-respecting realtime filter on a child_id column would
+  /// require a parent_id or child_id column on break_requests
+  /// itself; the table only carries session_id. Filtering on
+  /// session_id is the simplest scope.
+  void _subscribeBreaksForActiveSession() {
+    final s = _session;
+    if (s == null) return;
+    final ch = _channel;
+    if (ch == null) return;
+    // Already subscribed for this session — guard against double
+    // calls when the session row updates in-place.
+    if (_subscribedBreakSessionId == s.id) return;
+    _subscribedBreakSessionId = s.id;
+    ch.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'break_requests',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'session_id',
+        value: s.id,
+      ),
+      callback: _onBreakChange,
+    );
+  }
+
   Future<void> stop() async {
     _retryTimer?.cancel();
     _retryTimer = null;
@@ -202,6 +291,8 @@ class KidRealtimeService extends ChangeNotifier {
     _channel = null;
     _isHealthy = false;
     _childId = null;
+    _activeBreak = null;
+    _subscribedBreakSessionId = null;
     _retryPolicy.reset();
     // Don't release the blocking here unconditionally — the
     // Locked/Unlocked screen swap may not have happened yet. The
@@ -236,6 +327,11 @@ class KidRealtimeService extends ChangeNotifier {
       if (response.isNotEmpty) {
         final payload = HomeworkSessionPayload.fromMap(response.first);
         _applySession(payload);
+        // Also bootstrap the active break for the session, so a
+        // kid app relaunching in the middle of an approved break
+        // doesn't briefly show "Locked" before the realtime
+        // subscription attaches.
+        await _loadInitialBreak(payload.id);
       } else {
         _applySession(null);
       }
@@ -247,6 +343,32 @@ class KidRealtimeService extends ChangeNotifier {
       _isHealthy = false;
       await releaseLockIfAny();
       notifyListeners();
+    }
+  }
+
+  /// Bootstrap read of the currently-active break for [sessionId],
+  /// if any. Run once on initial session load and again on session
+  /// transitions. Realtime then keeps the value fresh via
+  /// [_onBreakChange].
+  Future<void> _loadInitialBreak(String sessionId) async {
+    try {
+      final response = await _supabase
+          .from('break_requests')
+          .select('id, session_id, status, created_at, started_at, ended_at')
+          .eq('session_id', sessionId)
+          .eq('status', 'approved')
+          .filter('ended_at', 'is', null)
+          .order('started_at', ascending: false)
+          .limit(1);
+      if (response.isNotEmpty) {
+        _applyBreak(BreakRequestPayload.fromMap(response.first));
+      } else {
+        _applyBreak(null);
+      }
+    } catch (e) {
+      debugPrint('KidRealtimeService initial break load error: $e');
+      // Fail closed: leave _activeBreak as-is. The next realtime
+      // event will reconcile.
     }
   }
 
@@ -318,8 +440,45 @@ class KidRealtimeService extends ChangeNotifier {
     _applySession(parsed);
   }
 
+  void _onBreakChange(PostgresChangePayload payload) {
+    final newRow = payload.newRecord;
+    if (newRow.isEmpty) {
+      // DELETE — the break row is gone. Treat as no active break.
+      _applyBreak(null);
+      return;
+    }
+    _applyBreak(BreakRequestPayload.fromMap(newRow));
+  }
+
   void _applySession(HomeworkSessionPayload? session) {
     _session = session;
+    // When a new session becomes active, attach the break_requests
+    // listener scoped to its id. When the session goes away
+    // (completed / cancelled), the listener will silently stop
+    // receiving events because the server-side filter no longer
+    // matches. We don't bother detaching explicitly — the next
+    // stop() tears the whole channel down anyway.
+    if (session != null) {
+      _subscribeBreaksForActiveSession();
+    } else {
+      // No session → no break can be active. Clear state and let
+      // _recomputeState push us to KidLockState.unlocked.
+      _activeBreak = null;
+      _subscribedBreakSessionId = null;
+    }
+    _recomputeState();
+    _enforce();
+    notifyListeners();
+  }
+
+  void _applyBreak(BreakRequestPayload? brk) {
+    if (brk != null && brk.isActive) {
+      _activeBreak = brk;
+    } else {
+      // Either an ended break, a denied one, or a DELETE. Drop
+      // _activeBreak so the lock re-engages.
+      _activeBreak = null;
+    }
     _recomputeState();
     _enforce();
     notifyListeners();
@@ -332,6 +491,8 @@ class KidRealtimeService extends ChangeNotifier {
   ///   - realtime unhealthy → waiting (release any active block).
   ///   - session missing → unlocked (release any active block).
   ///   - session.status != 'active' → unlocked (release).
+  ///   - else if an active break is in flight → onBreak
+  ///     (release any active block, kid sees the break banner).
   ///   - else → locked (start block + kiosk lock-task).
   Future<void> _enforce() async {
     final shouldBeLocked = _state == KidLockState.locked;
@@ -357,6 +518,10 @@ class KidRealtimeService extends ChangeNotifier {
         await kiosk.startLockTask();
       }
     } else {
+      // unlocked / onBreak / waiting — all release the lock. For
+      // onBreak specifically, the parent has approved a break and
+      // the kid is temporarily free; the lock will re-engage
+      // automatically when the parent persists end-of-break.
       if (blocking.isBlocking) {
         await blocking.stopBlocking();
       }
@@ -377,7 +542,12 @@ class KidRealtimeService extends ChangeNotifier {
       return;
     }
     if (s.status == 'active') {
-      _state = KidLockState.locked;
+      // A break in flight flips us out of locked without
+      // dropping out of the active session — the UI shows the
+      // "Break time" banner while blocking is released.
+      _state = _activeBreak != null
+          ? KidLockState.onBreak
+          : KidLockState.locked;
     } else {
       // 'paused' / 'completed' / 'cancelled' — kid is free.
       _state = KidLockState.unlocked;

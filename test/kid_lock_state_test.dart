@@ -19,9 +19,55 @@ void main() {
       // The realtime service enforces this contract by checking
       // state == locked before calling blocking.startBlocking().
       // If anyone adds a new state, the contract will need an
-      // explicit guard.
+      // explicit guard — onBreak and unlocked explicitly do NOT
+      // engage blocking.
       expect(KidLockState.locked.name, 'locked');
       expect(KidLockState.waiting.name, 'waiting');
+      expect(KidLockState.onBreak.name, 'onBreak');
+    });
+  });
+
+  group('BreakRequestPayload.isActive', () {
+    test('true when status=approved with started_at and no ended_at', () {
+      // The contract KidRealtimeService uses to decide between
+      // KidLockState.locked and KidLockState.onBreak. Tested
+      // independently of the realtime service so the parser and
+      // the state machine can evolve separately.
+      final br = BreakRequestPayload(
+        id: 'br-1',
+        sessionId: 'sess-1',
+        status: 'approved',
+        createdAt: DateTime.utc(2026, 7, 1, 10),
+        startedAt: DateTime.utc(2026, 7, 1, 10, 0, 30),
+      );
+      expect(br.isActive, isTrue);
+    });
+
+    test('false for any other combination', () {
+      // Matrix: status × (started_at present?) × (ended_at present?)
+      // Only "approved + started + no ended" is active.
+      for (final status in ['pending', 'approved', 'denied', 'completed', 'cancelled']) {
+        final cases = <(DateTime?, DateTime?, bool)>[
+          (null, null, false),
+          (DateTime.utc(2026, 7, 1), null, status == 'approved'),
+          (DateTime.utc(2026, 7, 1), DateTime.utc(2026, 7, 1, 10, 5), false),
+        ];
+        for (final (started, ended, expected) in cases) {
+          final br = BreakRequestPayload(
+            id: 'br-1',
+            sessionId: 'sess-1',
+            status: status,
+            createdAt: DateTime.utc(2026, 7, 1, 10),
+            startedAt: started,
+            endedAt: ended,
+          );
+          expect(
+            br.isActive,
+            expected,
+            reason: 'status=$status started=$started ended=$ended',
+          );
+        }
+      }
     });
   });
 
