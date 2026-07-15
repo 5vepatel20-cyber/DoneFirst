@@ -17,6 +17,13 @@ class BreakService {
     return BreakRequest.fromMap(response);
   }
 
+  /// Pending break requests for a child across ALL their sessions.
+  ///
+  /// IMPORTANT: filters by `child_id`, NOT `session_id`. Callers
+  /// wanting "pending breaks for a specific session" should use
+  /// [getPendingBreaks] instead. These two methods look similar at
+  /// a glance but a sessionId passed here silently returns zero
+  /// rows because no row has `child_id = sessionId`.
   Future<List<BreakRequest>> getPendingRequests(String childId) async {
     final response = await _supabase
         .from('break_requests')
@@ -44,6 +51,10 @@ class BreakService {
     return BreakRequest.fromMap(response.first);
   }
 
+  /// Pending break requests for a single session. Counterpart of
+  /// [getPendingRequests] but filtered by `session_id`. Use this
+  /// when the parent is viewing an active lock screen and only
+  /// wants to act on breaks tied to that session.
   Future<List<BreakRequest>> getPendingBreaks(String sessionId) async {
     final response = await _supabase
         .from('break_requests')

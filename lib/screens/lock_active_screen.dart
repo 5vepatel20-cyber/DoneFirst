@@ -328,7 +328,12 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     final results = await Future.wait([
       _sessionService.getSessionById(widget.sessionId),
       _proofService.getProofsForSession(widget.sessionId),
-      _breakService.getPendingRequests(widget.sessionId),
+      // Session-scoped, not child-scoped: the parent on this screen
+      // wants to see breaks for the current session only. Passing
+      // sessionId to getPendingRequests (which filters by child_id)
+      // silently returns zero rows because no break_request has
+      // child_id = sessionId. getPendingBreaks filters by session_id.
+      _breakService.getPendingBreaks(widget.sessionId),
     ]);
     _session = results[0] as HomeworkSession?;
     _proofs = results[1] as List<ProofSubmission>;
