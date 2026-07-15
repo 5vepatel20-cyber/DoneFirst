@@ -144,14 +144,20 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
 
   Future<void> _requestBreak() async {
     if (_activeSession == null) return;
-    await _breakService.requestBreak(_activeSession!.id, widget.childId);
-    await _notificationService.insertNotification(
-      parentId: _activeSession!.parentId,
-      childId: widget.childId,
-      type: 'break_requested',
-      title: 'Break requested',
-      body: '${widget.childName} wants a break',
-    );
+    // Two independent inserts (break_request row + notifications row).
+    // Run them in parallel so the kid sees the snackbar after one
+    // round-trip's worth of latency, not two. If either fails the
+    // exception bubbles up the same way it did before.
+    await Future.wait([
+      _breakService.requestBreak(_activeSession!.id, widget.childId),
+      _notificationService.insertNotification(
+        parentId: _activeSession!.parentId,
+        childId: widget.childId,
+        type: 'break_requested',
+        title: 'Break requested',
+        body: '${widget.childName} wants a break',
+      ),
+    ]);
     setState(() => _breakRequested = true);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
