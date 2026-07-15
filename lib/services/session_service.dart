@@ -115,7 +115,26 @@ class SessionService {
   Future<Child> addChild(String name, String familyId,
       {String? color, String? emoji}) async {
     final parentId = _supabase.auth.currentUser!.id;
-    final response = await _supabase
+    // COPPA / GDPR-K: every time the parent enrolls a child in our
+    // service, that's a fresh consent act for that minor's data.
+    // Record it as an immutable audit row. Non-fatal if the audit
+    // table isn't installed yet (migration 9 not run) — the child
+    // record is what we need to make the app work.
+    //
+    // The children insert and the consent audit row are independent
+    // writes (different tables, no shared keys), so we kick them off
+    // in parallel and wrap the consent future in a catchError so a
+    // transient DB hiccup there doesn't fail the whole addChild.
+    final consentFut = ConsentService()
+        .recordConsent(
+          parentId: parentId,
+          consentType: ConsentService.typeChildDataCollection,
+        )
+        .catchError((Object _) {
+      // swallow — comment above
+      return null;
+    });
+    final insertFut = _supabase
         .from('children')
         .insert({
           'family_id': familyId,
@@ -126,21 +145,8 @@ class SessionService {
         })
         .select()
         .single();
-
-    // COPPA / GDPR-K: every time the parent enrolls a child in our
-    // service, that's a fresh consent act for that minor's data.
-    // Record it as an immutable audit row. Non-fatal if the audit
-    // table isn't installed yet (migration 9 not run) — the child
-    // record is what we need to make the app work.
-    try {
-      await ConsentService().recordConsent(
-        parentId: parentId,
-        consentType: ConsentService.typeChildDataCollection,
-      );
-    } catch (_) {
-      // swallow — see comment above
-    }
-
+    final response = await insertFut;
+    await consentFut;
     return Child.fromMap(response);
   }
 
