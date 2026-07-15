@@ -63,19 +63,31 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
       // for every chip tap.
       _sessionSubjects.clear();
       _sessionSearchText.clear();
-      for (final s in _allSessions) {
-        final tasks = await _proofService.getTasks(s.id);
-        _sessionSubjects[s.id] = tasks
-            .map((t) => normalizeSubject(t.subject))
-            .toSet();
-        // Concatenate task descriptions into one searchable string
-        // per session. Tokenizing is unnecessary — substring match
-        // (contains) is what the filter below uses, and the index
-        // is built once at load time so each keystroke stays O(N).
-        _sessionSearchText[s.id] = tasks
-            .map((t) => t.description)
-            .join(' ')
-            .toLowerCase();
+      if (_allSessions.isNotEmpty) {
+        // Fan out per-session task fetches in parallel. The
+        // previous version awaited each session in turn inside a
+        // for loop — for a kid with N sessions that's N sequential
+        // round-trips. On a slow connection the search index took
+        // noticeable time to populate. N independent awaits in
+        // parallel collapses the total to one round-trip's worth.
+        final perSessionTasks = await Future.wait(
+          _allSessions.map((s) => _proofService.getTasks(s.id)),
+        );
+        for (var i = 0; i < _allSessions.length; i++) {
+          final s = _allSessions[i];
+          final tasks = perSessionTasks[i];
+          _sessionSubjects[s.id] = tasks
+              .map((t) => normalizeSubject(t.subject))
+              .toSet();
+          // Concatenate task descriptions into one searchable string
+          // per session. Tokenizing is unnecessary — substring match
+          // (contains) is what the filter below uses, and the index
+          // is built once at load time so each keystroke stays O(N).
+          _sessionSearchText[s.id] = tasks
+              .map((t) => t.description)
+              .join(' ')
+              .toLowerCase();
+        }
       }
       _applyFilters();
     } catch (e) {
