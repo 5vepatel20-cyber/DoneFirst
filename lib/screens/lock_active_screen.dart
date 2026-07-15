@@ -49,6 +49,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   HomeworkSession? _session;
   KidDevice? _kidDevice;
   bool _loading = true;
+  bool _kidDeviceChecked = false;
   bool _paused = false;
   bool _activeBreakTimer = false;
   Timer? _refreshTimer;
@@ -310,6 +311,9 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     if (_session != null) {
       await _refreshKidDevice(_session!.childId);
     } else {
+      // No session — there can't be a paired kid device to consider
+      // either. Mark the check done so the action buttons enable.
+      if (mounted) setState(() => _kidDeviceChecked = true);
       _kidDevice = null;
     }
     await _checkAutoUnlock();
@@ -325,10 +329,19 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       if (!mounted) return;
       setState(() {
         _kidDevice = devices.isEmpty ? null : devices.first;
+        // Marked on every check (success or empty) so the action
+        // buttons enable after the first attempt. Without this the
+        // user could tap Pause / Approve / Unlock in the race
+        // window before we knew whether a kid device existed,
+        // leading to a flash of local flutter_screentime.
+        _kidDeviceChecked = true;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _kidDevice = null);
+      setState(() {
+        _kidDevice = null;
+        _kidDeviceChecked = true;
+      });
     }
   }
 
@@ -374,19 +387,45 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     }
   }
 
+  /// Reconcile local blocking with the lock signal.
+  ///
+  /// When a kid device is paired (and not revoked), we deliberately
+  /// do NOT call local flutter_screentime here — that would try to
+  /// block apps on the parent's phone, which is useless if the kid
+  /// has their own device, and would surface a permission error if
+  /// the parent device has no usage-stats grant. Enforcement on
+  /// the kid device is driven by Supabase realtime delivering the
+  /// homework_sessions.status change, picked up by
+  /// `kid_realtime_service.dart` in the kid app.
+  ///
+  /// Falls back to local blocking when no paired device exists, so
+  /// the single-device mode (parent + kid on the same phone) still
+  /// works as before.
+  Future<void> _applyLockState({required bool active}) async {
+    if (shouldSkipLocalBlockingOnKidDevice(_kidDevice)) {
+      // Kid-side enforcement handles the lock via realtime.
+      return;
+    }
+    if (active) {
+      await _blockingService.startBlocking();
+    } else {
+      await _blockingService.stopBlocking();
+    }
+  }
+
   Future<void> _togglePause() async {
     if (_paused) {
       await _sessionService.resumeSession(widget.sessionId);
-      await _blockingService.startBlocking();
+      await _applyLockState(active: true);
     } else {
       await _sessionService.pauseSession(widget.sessionId);
-      await _blockingService.stopBlocking();
+      await _applyLockState(active: false);
     }
     await _loadAll();
   }
 
   Future<void> _unlock() async {
-    await _blockingService.stopBlocking();
+    await _applyLockState(active: false);
     await _sessionService.endSession(widget.sessionId);
     if (_session != null) {
       await _notificationService.insertNotification(
@@ -584,7 +623,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   Future<void> _handleBreak(String breakId, String decision) async {
     if (decision == 'approved') {
       await _breakService.approveBreak(breakId);
-      await _blockingService.stopBlocking();
+      await _applyLockState(active: false);
       setState(() => _activeBreakTimer = true);
     } else {
       await _breakService.denyBreak(breakId);
@@ -683,40 +722,41 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                         paused: _paused,
                       ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _togglePause,
-                            icon: Icon(
-                              _paused
-                                  ? LucideIcons.play
-                                  : LucideIcons.pause,
+                    if (_kidDeviceChecked)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _togglePause,
+                              icon: Icon(
+                                _paused
+                                    ? LucideIcons.play
+                                    : LucideIcons.pause,
+                              ),
+                              label: Text(_paused ? 'Resume' : 'Pause'),
                             ),
-                            label: Text(_paused ? 'Resume' : 'Pause'),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _extendSession,
-                            icon: const Icon(LucideIcons.timer, size: 16),
-                            label: const Text('Extend'),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _extendSession,
+                              icon: const Icon(LucideIcons.timer, size: 16),
+                              label: const Text('Extend'),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                     if (_activeBreakTimer) ...[
                       const SizedBox(height: 12),
                       BreakTimer(
                         onComplete: () async {
                           setState(() => _activeBreakTimer = false);
-                          await _blockingService.startBlocking();
+                          await _applyLockState(active: true);
                           await _loadAll();
                         },
                         onCancel: () async {
                           setState(() => _activeBreakTimer = false);
-                          await _blockingService.startBlocking();
+                          await _applyLockState(active: true);
                           await _loadAll();
                         },
                       ),

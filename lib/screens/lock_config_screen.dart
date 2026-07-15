@@ -50,6 +50,7 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
   final Set<String> _selectedPacks = {};
   List<LockPreset> _presets = [];
   bool _loadingPresets = false;
+  bool _kidDeviceChecked = false;
   // Resolved to a non-revoked device for this child when one is
   // paired. Null means either no device is paired or the only one
   // was revoked — both states trigger the warning banner above the
@@ -87,8 +88,21 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
         widget.childId,
       );
       final active = devices.where((d) => !d.isRevoked).firstOrNull;
-      if (mounted) setState(() => _kidDevice = active);
-    } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _kidDevice = active;
+          // Marked on every attempt (success or empty) so the
+          // Start Lock button only enables once we know whether a
+          // kid device exists. Without this the parent could tap
+          // Start in the race window before the device list
+          // returned, leading to a flash of local flutter_screentime
+          // even when a kid device was actually paired.
+          _kidDeviceChecked = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _kidDeviceChecked = true);
+    }
   }
 
   Future<void> _savePreset() async {
@@ -376,7 +390,11 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        onPressed: _startLock,
+        // Disabled until the kid-device lookup finishes, so the
+        // gate inside _startLock can trust _kidDevice (otherwise
+        // we'd race a flash of local flutter_screentime on every
+        // Lock tap while the device list is still in flight).
+        onPressed: _kidDeviceChecked ? _startLock : null,
         icon: const Icon(LucideIcons.lock, size: 18),
         label: Text(label),
         style: FilledButton.styleFrom(
@@ -420,19 +438,32 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
       maxLiftMinutes: _maxLift,
       approvalMode: _approvalMode,
     );
-    final blocked = await _blockingService.startBlocking();
-    if (!blocked && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _blockingService.lastError ??
-                'App blocking could not start on this device. The kid\'s '
-                    'device needs the permission granted separately.',
+    // If a kid device is paired, the kid app picks up the session
+    // via Supabase realtime and enforces the lock with its own
+    // flutter_screentime + kiosk lock-task on the kid's phone —
+    // which is the correct enforcement surface. Calling local
+    // flutter_screentime here would try to block apps on the
+    // parent's phone (useless if the kid has their own device),
+    // and would surface a permission error if no usage-stats grant
+    // exists on the parent device.
+    //
+    // Falls through to local blocking only in single-device mode
+    // (parent + kid share one phone, no kid device paired).
+    if (!shouldSkipLocalBlockingOnKidDevice(_kidDevice)) {
+      final blocked = await _blockingService.startBlocking();
+      if (!blocked && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _blockingService.lastError ??
+                  'App blocking could not start on this device. The kid\'s '
+                      'device needs the permission granted separately.',
+            ),
+            backgroundColor: AppColors.danger,
+            duration: const Duration(seconds: 5),
           ),
-          backgroundColor: AppColors.danger,
-          duration: const Duration(seconds: 5),
-        ),
-      );
+        );
+      }
     }
     if (mounted) {
       Navigator.push(

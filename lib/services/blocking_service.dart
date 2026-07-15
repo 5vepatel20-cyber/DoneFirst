@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_screentime/flutter_screentime.dart';
 
+import 'kid_device_service.dart' show KidDevice;
+
 /// State of the native app-blocking integration.
 ///
 /// Exposed via [BlockingService] (a [ChangeNotifier]) so UI can react to
@@ -133,3 +135,17 @@ class BlockingService extends ChangeNotifier {
     }
   }
 }
+
+/// Should the parent app skip its own flutter_screentime call when
+/// the lock state changes? Yes if a kid device is paired (and not
+/// revoked) — enforcement rides on Supabase realtime to the kid app's
+/// own flutter_screentime + kiosk lock-task, which is the correct
+/// enforcement surface. Without this gate the parent app would try
+/// to block apps on its own device, which is useless if the kid
+/// has their own phone, and would surface a permission error if no
+/// usage-stats grant is set on the parent device.
+///
+/// Falls through to local blocking only when there's no paired
+/// device (single-device mode: parent + kid share one phone).
+bool shouldSkipLocalBlockingOnKidDevice(KidDevice? device) =>
+    device != null && !device.isRevoked;
