@@ -31,12 +31,16 @@ class KidDeviceSetupScreen extends StatelessWidget {
   /// read the kid app's package name at runtime.
   static const String kidAppPackage = 'com.donefirst.kid';
 
-  const KidDeviceSetupScreen({super.key});
-
-  String get _adbCommand =>
+  /// The canonical one-line ADB command that promotes the kid app
+  /// to device owner. Exposed as a static so the `_AdbCommandBox`
+  /// (which can't see instance state — it's a separate
+  /// `StatelessWidget` constructed inside the build method) doesn't
+  /// have to walk the tree with `findAncestorWidgetOfExactType`.
+  static const String adbCommand =
       'adb shell dpm set-device-owner '
-      '${KidDeviceSetupScreen.kidAppPackage}/'
-      '.KidDeviceAdminReceiver';
+      '$kidAppPackage/.KidDeviceAdminReceiver';
+
+  const KidDeviceSetupScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -198,11 +202,16 @@ class _AdbCommandBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screen = context.findAncestorWidgetOfExactType<KidDeviceSetupScreen>();
-    final cmd = screen?._adbCommand ??
-        'adb shell dpm set-device-owner '
-        '${KidDeviceSetupScreen.kidAppPackage}/'
-        '.KidDeviceAdminReceiver';
+    // Take the command from the screen's static constant directly.
+    // The previous version walked the tree with
+    // `findAncestorWidgetOfExactType<KidDeviceSetupScreen>()` to
+    // reach the screen's instance `_adbCommand` getter, plus a
+    // duplicate hardcoded fallback in case the lookup returned
+    // null. Both are unnecessary now that the command lives on the
+    // screen class as a `static const` — every call site here
+    // resolves to the same canonical string, and a future rename
+    // of `kidAppPackage` only needs to happen in one place.
+    const cmd = KidDeviceSetupScreen.adbCommand;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
