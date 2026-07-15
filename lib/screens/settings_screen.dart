@@ -9,6 +9,7 @@ import '../services/parent_preferences_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_mode.dart';
 import '../utils/policy_text.dart';
+import '../utils/pin_strength.dart';
 import '../services/notification_preferences_service.dart';
 import '../widgets/pin_guard.dart';
 import 'upgrade_screen.dart';
@@ -166,14 +167,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       primaryLabel: 'Next',
     );
     if (pin1 == null) return;
-    if (!_isFourDigits(pin1)) {
-      _showPinSnackBar('PIN must be 4 digits.');
-      return;
-    }
-    if (_isWeakPin(pin1)) {
-      _showPinSnackBar(
-        'PIN too simple — avoid 0000, 1234, or four of the same digit.',
-      );
+    final pin1Reason = pinRejectionReason(pin1);
+    if (pin1Reason != null) {
+      _showPinSnackBar(pin1Reason);
       return;
     }
     final pin2 = await _showPinEntryDialog(
@@ -245,9 +241,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       SnackBar(content: Text(message)),
     );
   }
-
-  static final _fourDigitsRegex = RegExp(r'^\d{4}$');
-  bool _isFourDigits(String s) => _fourDigitsRegex.hasMatch(s);
 
   Future<void> _changePassword() async {
     // Changing the password from a kid's session would lock the
@@ -614,28 +607,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// True for trivially-guessable 4-digit PINs. We reject two
   /// shapes — all-same digits (0000, 1111, …) and 4-in-a-row
-  /// ascending or descending (1234, 4321, 5678, …). These cover
-  /// the bulk of "first thing someone tries" — a kid watching the
-  /// parent enter a PIN would have a 1/10 shot at each pattern.
-  ///
-  /// Deliberately not exhaustive: we don't try to fingerprint the
-  /// parent's birth year or anniversary, since that would create a
-  /// false sense of "smart PIN" + extra friction. The bar is
-  /// "reject what a 5-year-old would guess", not "implement NIST".
-  bool _isWeakPin(String pin) {
-    if (pin.length != 4) return true;
-    if (RegExp(r'^(\d)\1{3}$').hasMatch(pin)) return true; // 0000, 1111…
-    final digits = pin.codeUnits;
-    final ascending = digits[1] - digits[0] == 1 &&
-        digits[2] - digits[1] == 1 &&
-        digits[3] - digits[2] == 1;
-    final descending = digits[0] - digits[1] == 1 &&
-        digits[1] - digits[2] == 1 &&
-        digits[2] - digits[3] == 1;
-    return ascending || descending;
-  }
-
-
   @override
   Widget build(BuildContext context) {
     if (_loading)

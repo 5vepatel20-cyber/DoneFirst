@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/parent_preferences_service.dart';
+import '../utils/pin_strength.dart';
 
 /// "Forgot PIN?" recovery flow.
 ///
@@ -51,15 +52,14 @@ class ForgotPinFlow {
       barrierDismissible: false,
       builder: (ctx) => const _SetNewPinDialog(),
     );
-    if (newPin == null || newPin.length != 4) return false;
-    if (!_isValidPin(newPin)) return false;
+    // The dialog already validates length + non-triviality via
+    // `pinRejectionReason`; if it pops, the value is good. The
+    // null check is the only one we still need here.
+    if (newPin == null) return false;
 
     await ParentPreferencesService().setPin(newPin);
     return true;
   }
-
-  static bool _isValidPin(String pin) =>
-      RegExp(r'^\d{4}$').hasMatch(pin);
 
   static Future<void> _showOAuthOnlyHelp(BuildContext context) async {
     await showDialog<void>(
@@ -190,8 +190,14 @@ class _SetNewPinDialogState extends State<_SetNewPinDialog> {
   void _submit() {
     final pin = _controller.text.trim();
     final confirm = _confirmController.text.trim();
-    if (!RegExp(r'^\d{4}$').hasMatch(pin)) {
-      setState(() => _error = 'PIN must be 4 digits');
+    // Reuse the shared weak-PIN validator so the recovery flow
+    // and the Settings → Change PIN flow agree on what's "too
+    // simple". Without this, a parent could forget their strong
+    // PIN, recover with a weak one, and live with that until the
+    // next forget — undermining the 5-attempts lockout.
+    final rejection = pinRejectionReason(pin);
+    if (rejection != null) {
+      setState(() => _error = rejection);
       return;
     }
     if (pin != confirm) {
