@@ -532,6 +532,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
     );
     confirmController.dispose();
+    // Snapshot the password before disposing — reading .text from a
+    // disposed TextEditingController is undefined per the contract,
+    // and even though today's implementation happens to return the
+    // last value, we'd rather not depend on that.
+    final password = passwordController.text;
     passwordController.dispose();
     if (confirmed != true) return;
     try {
@@ -544,7 +549,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (email == null) {
         throw StateError('No current user — cannot re-authenticate.');
       }
-      await _supabaseReauthForDelete(email, passwordController.text);
+      await _supabaseReauthForDelete(email, password);
       await _auth.deleteAccount();
       if (mounted)
         Navigator.pushNamedAndRemoveUntil(context, '/auth', (_) => false);
