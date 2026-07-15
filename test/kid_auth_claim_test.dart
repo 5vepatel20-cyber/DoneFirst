@@ -130,12 +130,11 @@ void main() {
       expect(parsed['device_name'], 'Sammy phone');
     });
 
-    test('whitespace-only device_name is currently sent as-is', () async {
-      // Documents the existing (probably-buggy) behavior: the
-      // production code uses `deviceName.isNotEmpty` which is true
-      // for whitespace. The pair screen does no trimming. If we
-      // ever want to drop whitespace names, this test should
-      // flip and the production code should use `.trim().isNotEmpty`.
+    test('whitespace-only device_name is dropped (not sent)', () async {
+      // A parent who tapped space twice by accident shouldn't end
+      // up with a device whose dashboard label reads "  ". The
+      // service trims and treats whitespace-only as empty, so
+      // device_name is omitted from the body entirely.
       String? sentBody;
       final mock = MockClient((request) async {
         sentBody = request.body;
@@ -156,10 +155,36 @@ void main() {
 
       final parsed = jsonDecode(sentBody!) as Map<String, dynamic>;
       expect(
-        parsed['device_name'],
-        '  ',
-        reason: 'whitespace-only names pass isNotEmpty check',
+        parsed.containsKey('device_name'),
+        isFalse,
+        reason: 'whitespace-only names are trimmed to empty and dropped',
       );
+    });
+
+    test('leading/trailing whitespace is trimmed from device_name', () async {
+      // "  Sammy phone  " → "Sammy phone". Without this the device
+      // row in the dashboard would show the padding in the avatar
+      // tooltip and the rename dialog.
+      String? sentBody;
+      final mock = MockClient((request) async {
+        sentBody = request.body;
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'access_token': 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.s',
+            'refresh_token': 'r',
+            'child_id': 'c',
+            'family_id': 'f',
+            'device_id': 'd',
+          }),
+          200,
+        );
+      });
+      final svc = KidAuthService.withDeps(httpClient: mock);
+      await svc.claimPairingCode('222222', deviceName: '  Sammy phone  ');
+
+      final parsed = jsonDecode(sentBody!) as Map<String, dynamic>;
+      expect(parsed['device_name'], 'Sammy phone');
     });
   });
 

@@ -77,8 +77,11 @@ class KidAuthService extends ChangeNotifier {
           },
           body: jsonEncode({
             'code': code,
-            if (deviceName != null && deviceName.isNotEmpty)
-              'device_name': deviceName,
+            // Trim and treat whitespace-only as empty so a parent
+            // who tapped space twice doesn't end up with a device
+            // whose name on the dashboard reads "  ".
+            if (deviceName != null && deviceName.trim().isNotEmpty)
+              'device_name': deviceName.trim(),
           }),
         )
         .timeout(const Duration(seconds: 15));
