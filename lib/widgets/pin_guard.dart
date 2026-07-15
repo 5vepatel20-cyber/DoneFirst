@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../screens/pin_screen.dart';
 import '../services/parent_preferences_service.dart';
+import '../services/pin_attempt_tracker.dart';
 
 /// Gates [destination] behind the parent PIN. Three cases:
 ///
@@ -16,6 +18,12 @@ import '../services/parent_preferences_service.dart';
 /// in one place. If a future screen should be ungated, change it
 /// back to a plain Navigator.push; you don't have to remember to
 /// unwrap a widget.
+///
+/// For sensitive one-tap actions that don't warrant a full screen,
+/// use [confirmInline] instead. It shares the same
+/// [PinAttemptTracker] counter so a kid can't brute-force the 4-digit
+/// PIN by alternating between the full-screen gate and the inline
+/// prompts — every wrong entry, anywhere, counts toward the lockout.
 class PinGuard {
   const PinGuard._();
 
@@ -50,9 +58,14 @@ class PinGuard {
   /// Inline PIN check for sensitive actions that don't deserve a
   /// full screen of their own (e.g. the Delete Account tile in
   /// Settings). Returns true if the parent entered the correct
-  /// PIN, false if they cancelled or hit the wrong PIN.
+  /// PIN, false if they cancelled, hit the wrong PIN, or the gate
+  /// was locked out.
   ///
-  /// Honours the same 5-attempt lockout as the full-screen flow.
+  /// Honours the same 5-attempt lockout as the full-screen flow
+  /// (see PinAttemptTracker). The previous version of this code
+  /// claimed lockout support in a comment but never actually
+  /// wired it up — a kid could brute-force the 4-digit PIN via
+  /// repeated Delete Account taps with no rate limit.
   static Future<bool> confirmInline(
     BuildContext context, {
     String actionLabel = 'Continue',
@@ -66,13 +79,62 @@ class PinGuard {
       return true;
     }
     if (!context.mounted) return false;
+    final tracker = PinAttemptTracker();
+    if (await tracker.isLockedOut()) {
+      // Surface the existing lockout to the user without re-opening
+      // the dialog — the kid is locked out and there's nothing to
+      // type. Returning false makes the caller a no-op; the parent
+      // (who shouldn't be locked out under normal use) can come back
+      // when the window expires.
+      final remaining = await tracker.remainingLockoutSeconds();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Too many wrong PINs. Try again in ${remaining}s.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+    if (!context.mounted) return false;
     final entered = await showDialog<String>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) => _InlinePinDialog(actionLabel: actionLabel),
     );
     if (entered == null) return false;
-    return entered == pin;
+    if (entered == pin) {
+      await tracker.reset();
+      return true;
+    }
+    // Wrong PIN — record the failure so the next confirmInline
+    // call sees the incremented counter and (eventually) the
+    // lockout kicks in.
+    await tracker.recordFailure();
+    if (await tracker.isLockedOut()) {
+      // Hit the threshold on this very attempt. Tell the parent
+      // what just happened.
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Too many wrong PINs. Locked for 30s.'),
+          ),
+        );
+      }
+    } else if (context.mounted) {
+      final failedAttempts = await tracker.failedAttempts();
+      final remaining =
+          PinAttemptTracker.maxAttempts - failedAttempts;
+      if (!context.mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Wrong PIN. $remaining ${remaining == 1 ? "try" : "tries"} left.'),
+        ),
+      );
+    }
+    return false;
   }
 }
 
