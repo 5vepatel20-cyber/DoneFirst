@@ -29,9 +29,17 @@ class _CoparentScreenState extends State<CoparentScreen> {
 
   Future<void> _load() async {
     _familyId = await _sessionService.getOrCreateFamily();
-    final invites = await _coparentService.getPendingInvites(_familyId!);
-    final coParents = await _coparentService.getCoParents(_familyId!);
-    final myInvites = await _coparentService.getMyInvites();
+    // Three independent fetches sharing the same _familyId. Run
+    // them in parallel so the screen goes from 'family lookup +
+    // 3 fetches' to 'family lookup + 1 fetch' worth of latency.
+    final results = await Future.wait<Object?>([
+      _coparentService.getPendingInvites(_familyId!),
+      _coparentService.getCoParents(_familyId!),
+      _coparentService.getMyInvites(),
+    ]);
+    final invites = results[0] as List<ParentInvite>;
+    final coParents = results[1] as List<ParentUser>;
+    final myInvites = results[2] as List<ParentInvite>;
     if (mounted)
       setState(() {
         _invites = invites;
