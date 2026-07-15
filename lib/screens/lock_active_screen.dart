@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
 import '../services/blocking_service.dart';
@@ -60,7 +59,6 @@ class LockActiveScreen extends StatefulWidget {
 }
 
 class _LockActiveScreenState extends State<LockActiveScreen> {
-  final _auth = AuthService();
   final _sessionService = SessionService();
   final _proofService = ProofService();
   final _blockingService = BlockingService();
@@ -338,11 +336,12 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     _session = results[0] as HomeworkSession?;
     _proofs = results[1] as List<ProofSubmission>;
     _breakRequests = results[2] as List<BreakRequest>;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _paused = _session?.isPaused ?? false;
         _loading = false;
       });
+    }
     if (_session != null) {
       await _refreshKidDevice(_session!.childId);
     } else {
