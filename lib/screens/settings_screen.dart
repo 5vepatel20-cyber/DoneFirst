@@ -337,6 +337,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     // Dialog controllers are local-scope; dispose on every exit
     // path (save, cancel, validation failure, server error).
+    currentPasswordController.dispose();
     newPasswordController.dispose();
     confirmController.dispose();
   }
