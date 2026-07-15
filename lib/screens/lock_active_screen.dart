@@ -31,6 +31,30 @@ class LockActiveScreen extends StatefulWidget {
     required this.childName,
   });
 
+  /// Pure decision function for the auto-lift safety net.
+  /// Extracted to the public class so tests can drive it without
+  /// standing up the full widget tree. See the implementation in
+  /// `_LockActiveScreenState._checkAutoLift` for the surrounding
+  /// UX (notification, navigation to the celebration screen).
+  ///
+  /// Returns true iff the session should auto-lift right now.
+  /// The auto-lift ignores pause by design — it's a safety net
+  /// for parents who walked away. A parent who paused to "give
+  /// the kid a few extra minutes" is already past the point
+  /// where auto-lift was the right answer; they can extend
+  /// instead.
+  @visibleForTesting
+  static bool shouldAutoLiftNow({
+    required DateTime startedAt,
+    required int? maxLiftMinutes,
+    required DateTime now,
+  }) {
+    final max = maxLiftMinutes;
+    if (max == null || max <= 0) return false;
+    final autoLiftAt = startedAt.add(Duration(minutes: max));
+    return !now.isBefore(autoLiftAt);
+  }
+
   @override
   State<LockActiveScreen> createState() => _LockActiveScreenState();
 }
@@ -53,6 +77,11 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   bool _paused = false;
   bool _activeBreakTimer = false;
   String? _activeBreakId;
+  /// Guards the auto-lift path so a slow refresh tick (every 10s)
+  /// can't call [_unlock] twice. Without this, a kid device that
+  /// takes a couple of ticks to register the session-end would see
+  /// the parent app re-issue endSession + a duplicate unlock snackbar.
+  bool _autoLiftTriggered = false;
   Timer? _refreshTimer;
 
   @override
@@ -318,6 +347,11 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       _kidDevice = null;
     }
     await _checkAutoUnlock();
+    // Auto-lift runs after auto-unlock so a session that's both
+    // (a) all-proofs-approved and (b) past max_lift picks the
+    // better-celebration message — the "finished" reason takes
+    // priority over the "auto_lift" one.
+    await _checkAutoLift();
   }
 
   Future<void> _refreshKidDevice(String childId) async {
@@ -388,6 +422,37 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     }
   }
 
+  /// Safety net: end the session automatically when the
+  /// `max_lift_minutes` ceiling is reached, even if the parent is
+  /// away from the device. Without this, a parent who starts a
+  /// lock, walks away, and forgets would leave the kid locked
+  /// indefinitely (the parent phone's flutter_screentime is
+  /// already gated off in the kid-device case). The display in
+  /// SessionTimer shows the timestamp as "Auto-lift: HH:MM" so
+  /// the parent knows when this will fire while they're still
+  /// watching.
+  ///
+  /// We poll inside the 10s refresh tick rather than running a
+  /// one-shot Timer so the trigger survives cold-app / OS kill
+  /// resume: a fresh refresh that loads a session whose
+  /// startedAt + maxLiftMinutes is already in the past will fire
+  /// immediately. A one-shot Timer would lose its pending callback
+  /// on cold start.
+  Future<void> _checkAutoLift() async {
+    if (_autoLiftTriggered) return;
+    final s = _session;
+    if (s == null) return;
+    if (!LockActiveScreen.shouldAutoLiftNow(
+      startedAt: s.startedAt,
+      maxLiftMinutes: s.maxLiftMinutes,
+      now: DateTime.now(),
+    )) {
+      return;
+    }
+    _autoLiftTriggered = true;
+    await _unlock(reason: 'auto_lift');
+  }
+
   /// Reconcile local blocking with the lock signal.
   ///
   /// When a kid device is paired (and not revoked), we deliberately
@@ -425,16 +490,31 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     await _loadAll();
   }
 
-  Future<void> _unlock() async {
+  Future<void> _unlock({String reason = 'finished'}) async {
     await _applyLockState(active: false);
     await _sessionService.endSession(widget.sessionId);
     if (_session != null) {
+      // The notification copy diverges per reason so the parent's
+      // notification center + (in a future build) the data-export
+      // report can distinguish "the kid finished in time" from
+      // "the safety-net auto-lift fired" — useful for parents who
+      // notice their kid consistently runs the full max_lift.
+      final (title, body) = switch (reason) {
+        'auto_lift' => (
+          'Lock auto-lifted',
+          '${widget.childName}\'s lock auto-lifted at the safety limit',
+        ),
+        _ => (
+          'Session complete',
+          '${widget.childName} finished homework',
+        ),
+      };
       await _notificationService.insertNotification(
         parentId: _session!.parentId,
         childId: _session!.childId,
-        type: 'session_complete',
-        title: 'Session complete',
-        body: '${widget.childName} finished homework',
+        type: reason == 'auto_lift' ? 'session_auto_lift' : 'session_complete',
+        title: title,
+        body: body,
       );
     }
     if (!mounted) return;
