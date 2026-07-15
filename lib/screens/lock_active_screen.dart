@@ -943,7 +943,13 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed: () => _batchApproveAll(),
+                          // Goes through the with-note dialog so the
+                          // parent can attach an optional
+                          // encouragement ("Great work!", "Nice
+                          // handwriting") to every approved proof.
+                          // Skip-the-note is one tap — just hit
+                          // "Approve All" in the dialog.
+                          onPressed: _batchApproveAllWithNote,
                           icon: const Icon(LucideIcons.checkCheck, size: 18),
                           label: const Text('Approve all'),
                         ),
