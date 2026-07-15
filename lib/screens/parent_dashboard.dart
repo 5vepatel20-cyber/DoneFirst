@@ -427,9 +427,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
         ),
       ),
     );
-    if (result == null) return;
+    if (result == null) {
+      controller.dispose();
+      return;
+    }
     final name = result['name'];
-    if (name == null || name.isEmpty) return;
+    if (name == null || name.isEmpty) {
+      controller.dispose();
+      return;
+    }
     try {
       final familyId = await _sessionService.getOrCreateFamily();
       await _sessionService.addChild(
@@ -446,6 +452,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
         );
       }
     }
+    // The dialog controller is local-scope; without this the
+    // TextEditingController + its listeners linger until the GC
+    // sweeps the State closure. Easy to miss because the dialog
+    // disappears and the leak is invisible, but it adds up across
+    // many add/rename operations in a long session.
+    controller.dispose();
   }
 
   Future<void> _editChild(Child child) async {
@@ -500,6 +512,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
       await _sessionService.renameChild(child.id, name);
       await _loadAll();
     }
+    // Dialog controller is local-scope; dispose so the
+    // TextEditingController and its listeners are released when
+    // the dialog closes (success, cancel, or throw). Without this,
+    // a long parent session that renames a kid several times leaks
+    // one controller per rename.
+    controller.dispose();
   }
 
   Future<void> _deleteChild(Child child) async {
