@@ -82,29 +82,34 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
     });
     try {
       final signature = _signatureController.text.trim();
-      await _sessionService.ensureParentRecord(
+      // Both writes only need widget.parentId. Run them in parallel
+      // so the consent best-effort write doesn't block the critical
+      // parent-record upsert (and vice versa). catchError on the
+      // consent future preserves the original non-fatal semantics.
+      final ensureFut = _sessionService.ensureParentRecord(
         widget.parentId,
         widget.email,
         widget.displayName,
       );
-      try {
-        await _consentService.recordParentalConsent(
-          parentId: widget.parentId,
-          signedName: signature,
-          acknowledgments: {
-            'is_adult': _ackAdult,
-            'is_guardian': _ackGuardian,
-            'consents_child_data': _ackChildData,
-            'consents_ai_verification': _ackAiVerification,
-            'consents_optional_analytics': _ackOptionalAnalytics,
-          },
-          consentType: ConsentService.typeAccountCreation,
-        );
-      } catch (e) {
-        // Non-fatal — same pattern as AuthScreen. A transient DB
-        // error doesn't lose the freshly-created account.
-        debugPrint('Consent record failed (non-fatal): $e');
-      }
+      final consentFut = _consentService
+          .recordParentalConsent(
+            parentId: widget.parentId,
+            signedName: signature,
+            acknowledgments: {
+              'is_adult': _ackAdult,
+              'is_guardian': _ackGuardian,
+              'consents_child_data': _ackChildData,
+              'consents_ai_verification': _ackAiVerification,
+              'consents_optional_analytics': _ackOptionalAnalytics,
+            },
+            consentType: ConsentService.typeAccountCreation,
+          )
+          .catchError((Object e) {
+            debugPrint('Consent record failed (non-fatal): $e');
+            return null;
+          });
+      await ensureFut;
+      await consentFut;
       if (mounted) {
         Navigator.pushReplacement(
           context,

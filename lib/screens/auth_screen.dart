@@ -73,30 +73,36 @@ class _AuthScreenState extends State<AuthScreen> {
           _nameController.text.trim(),
         );
         if (user != null) {
-          await _sessionService.ensureParentRecord(
+          // Both follow-up writes only depend on user.id, not on each
+          // other. Kick them off in parallel so the critical-path
+          // (ensureParentRecord) doesn't have to wait for the
+          // best-effort (recordParentalConsent). The consent future
+          // catches its own errors so a transient DB hiccup there
+          // doesn't abort the parent-record insert.
+          final ensureFut = _sessionService.ensureParentRecord(
             user.id,
             _emailController.text.trim(),
             _nameController.text.trim(),
           );
-          // Record the full consent capture. Failure is non-fatal so a
-          // transient DB error doesn't lose the freshly-created
-          // account — we'll re-record at next login if needed.
-          try {
-            await _consentService.recordParentalConsent(
-              parentId: user.id,
-              signedName: _signatureController.text,
-              acknowledgments: {
-                'is_adult': _ackAdult,
-                'is_guardian': _ackGuardian,
-                'consents_child_data': _ackChildData,
-                'consents_ai_verification': _ackAiVerification,
-                'consents_optional_analytics': _ackOptionalAnalytics,
-              },
-              consentType: ConsentService.typeAccountCreation,
-            );
-          } catch (e) {
-            debugPrint('Consent record failed (non-fatal): $e');
-          }
+          final consentFut = _consentService
+              .recordParentalConsent(
+                parentId: user.id,
+                signedName: _signatureController.text,
+                acknowledgments: {
+                  'is_adult': _ackAdult,
+                  'is_guardian': _ackGuardian,
+                  'consents_child_data': _ackChildData,
+                  'consents_ai_verification': _ackAiVerification,
+                  'consents_optional_analytics': _ackOptionalAnalytics,
+                },
+                consentType: ConsentService.typeAccountCreation,
+              )
+              .catchError((Object e) {
+                debugPrint('Consent record failed (non-fatal): $e');
+                return null;
+              });
+          await ensureFut;
+          await consentFut;
           if (mounted) {
             Navigator.pushReplacement(
               context,
