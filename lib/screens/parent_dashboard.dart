@@ -72,6 +72,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
   int _totalMinutes = 0;
   int _totalApproved = 0;
   int _mistralCallsToday = 0;
+  // Saved realtime callback handles. The dashboard overwrites these
+  // on the singleton RealtimeService in initState; on dispose we
+  // restore them so a screen that was on top (e.g. lock_active_screen,
+  // which also binds onKidDeviceChanged) doesn't end up with null
+  // callbacks after the user navigates back here.
+  VoidCallback? _previousOnNewNotification;
+  VoidCallback? _previousOnNewProof;
+  VoidCallback? _previousOnNewBreakRequest;
+  void Function(Map<String, dynamic>)? _previousOnKidDeviceChanged;
   List<RecurringSchedule> _todaySchedules = [];
 
   @override
@@ -79,6 +88,18 @@ class _ParentDashboardState extends State<ParentDashboard> {
     super.initState();
     _loadAll();
     app.realtimeService.startListening();
+    // Save the previous handlers so dispose() can restore them.
+    // Without this, navigating back to the dashboard after a child
+    // screen (lock_active_screen, kid_device_pairing_screen, etc.)
+    // that already set onKidDeviceChanged would leave it null —
+    // those screens rely on save/restore in their own initState/
+    // dispose, but if the dashboard overwrote it on the way out,
+    // they save the dashboard's closure, which then leaks after
+    // the dashboard disposes.
+    _previousOnNewNotification = app.realtimeService.onNewNotification;
+    _previousOnNewProof = app.realtimeService.onNewProof;
+    _previousOnNewBreakRequest = app.realtimeService.onNewBreakRequest;
+    _previousOnKidDeviceChanged = app.realtimeService.onKidDeviceChanged;
     app.realtimeService.onNewNotification = () {
       _notificationService.getUnreadCount().then((count) {
         if (mounted) setState(() => _unreadNotifications = count);
@@ -96,6 +117,23 @@ class _ParentDashboardState extends State<ParentDashboard> {
     // of the whole dashboard is overkill and causes a visible
     // "flash" because we'd reset _loading = true.
     app.realtimeService.onKidDeviceChanged = _onKidDeviceChanged;
+  }
+
+  @override
+  void dispose() {
+    // Tear down realtime so the WebSocket channels don't stay
+    // subscribed after the user signs out or navigates away.
+    // Without this, onNewKidDeviceEvent etc. continue firing on a
+    // disposed State (closures captured the State) — they'd hit
+    // `if (mounted) ...` guards but still hold memory and burn
+    // battery. stopListening is idempotent so calling it on the
+    // happy-path navigation away is also safe.
+    app.realtimeService.stopListening();
+    app.realtimeService.onNewNotification = _previousOnNewNotification;
+    app.realtimeService.onNewProof = _previousOnNewProof;
+    app.realtimeService.onNewBreakRequest = _previousOnNewBreakRequest;
+    app.realtimeService.onKidDeviceChanged = _previousOnKidDeviceChanged;
+    super.dispose();
   }
 
   void _onKidDeviceChanged(Map<String, dynamic> newRow) {
