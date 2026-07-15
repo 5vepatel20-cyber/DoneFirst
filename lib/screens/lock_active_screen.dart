@@ -629,6 +629,9 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     if (note != null) {
       await _batchApproveAll(note: note.isEmpty ? null : note);
     }
+    // Dialog controller is local-scope; dispose on every exit
+    // path (approve-all, cancel).
+    controller.dispose();
   }
 
   Future<void> _promptDecision(String proofId, String decision) async {
@@ -699,6 +702,10 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       ),
     );
     await _handleDecision(proofId, decision, note: note);
+    // Dialog controller is local-scope; dispose on every exit
+    // path (send, skip). Each rejection leaks one controller
+    // + listeners otherwise.
+    noteController.dispose();
   }
 
   Future<void> _handleBreak(String breakId, String decision) async {

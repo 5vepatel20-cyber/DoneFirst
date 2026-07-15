@@ -146,6 +146,10 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
         ).showSnackBar(const SnackBar(content: Text('Preset saved!')));
       }
     }
+    // Dialog controller is local-scope; dispose on every exit
+    // path (save, cancel). Avoids leaking one controller per
+    // saved preset across a long session.
+    controller.dispose();
   }
 
   Future<void> _loadPreset(LockPreset preset) async {

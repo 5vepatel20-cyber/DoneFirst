@@ -266,11 +266,17 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
         ],
       ),
     );
-    if (newName == null) return;
+    if (newName == null) {
+      controller.dispose();
+      return;
+    }
     // Empty string clears the override and falls back to the
     // kid-side default. Don't pass through unchanged text — that's
     // a no-op DB call we can avoid.
-    if (newName.trim() == (device.deviceName ?? '').trim()) return;
+    if (newName.trim() == (device.deviceName ?? '').trim()) {
+      controller.dispose();
+      return;
+    }
     try {
       await _service.renameDevice(device.id, newName);
       await _load();
@@ -280,6 +286,10 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
         SnackBar(content: Text('Couldn’t rename: $e')),
       );
     }
+    // Dialog controller is local-scope; release it on every exit
+    // path (save, cancel, no-op, server error). Each rename leaks
+    // one controller + listeners otherwise.
+    controller.dispose();
   }
 
   String get _countdownLabel {
