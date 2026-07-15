@@ -64,11 +64,17 @@ class ProfileService {
   }
 
   Future<void> updateEmail(String newEmail) async {
-    await _supabase.auth.updateUser(UserAttributes(email: newEmail));
-    await _supabase
-        .from('parents')
-        .update({'email': newEmail})
-        .eq('id', _supabase.auth.currentUser!.id);
+    // Two independent writes (Supabase Auth + parents table).
+    // Run them in parallel so the email-change flow doesn't pay
+    // 2× the round-trip latency for two writes that don't depend
+    // on each other's results.
+    await Future.wait<Object?>([
+      _supabase.auth.updateUser(UserAttributes(email: newEmail)),
+      _supabase
+          .from('parents')
+          .update({'email': newEmail})
+          .eq('id', _supabase.auth.currentUser!.id),
+    ]);
   }
 
   Future<void> deleteAccount() async {
