@@ -6,6 +6,7 @@ import '../services/consent_service.dart';
 import '../services/data_export_service.dart';
 import '../services/profile_service.dart';
 import '../services/parent_preferences_service.dart';
+import '../models/parent_user.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_mode.dart';
 import '../utils/policy_text.dart';
@@ -56,8 +57,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
-      final profile = await _profileService.getParentProfile();
-      final familyName = await _profileService.getFamilyName();
+      // Parent profile + family name are independent reads — both
+      // are needed for the header, both feed the same setState below.
+      // Run them in parallel so the header doesn't take 2× the
+      // round-trip latency.
+      final profileResults = await Future.wait<Object?>([
+        _profileService.getParentProfile(),
+        _profileService.getFamilyName(),
+      ]);
+      final profile = profileResults[0] as ParentUser?;
+      final familyName = profileResults[1] as String?;
       setState(() {
         _userEmail = user.email;
         _displayName = profile?.displayName ?? user.email;
