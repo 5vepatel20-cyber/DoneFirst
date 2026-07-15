@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
@@ -162,15 +162,50 @@ class ProofService {
     String path,
     List<int> bytes,
   ) async {
-    await _supabase.storage.from('proof-photos').uploadBinary(
-          path,
-          Uint8List.fromList(bytes),
-        );
-    final signedUrl = await _supabase
-        .storage
-        .from('proof-photos')
-        .createSignedUrl(path, 604800);
+    // Single retry on transient failures. A second attempt clears
+    // the common "connection reset mid-upload" case without
+    // doubling the worst-case wait when the network is truly down
+    // (the caller wraps this in a 60s timeout so the user gets
+    // an error UI in O(timeout), not O(retries × timeout)).
+    await retryOnce(
+      () => _supabase.storage.from('proof-photos').uploadBinary(
+            path,
+            Uint8List.fromList(bytes),
+          ),
+    );
+    final signedUrl = await retryOnce(
+      () => _supabase.storage
+          .from('proof-photos')
+          .createSignedUrl(path, 604800),
+    );
     return signedUrl;
+  }
+
+  /// Retries `op` once on failure with a small linear backoff.
+  ///
+  /// Static so the proof-screen flow and tests can exercise the
+  /// exact retry semantics without spinning up a real Supabase
+  /// client. Two attempts (not three) because the call site already
+  /// wraps this in a 60 s timeout — the goal is to clear
+  /// single-packet loss, not to mask a dead network.
+  @visibleForTesting
+  static Future<T> retryOnce<T>(
+    Future<T> Function() op, {
+    Duration backoff = const Duration(milliseconds: 250),
+    int maxAttempts = 2,
+  }) async {
+    Object? last;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await op();
+      } catch (e) {
+        last = e;
+        if (attempt < maxAttempts) {
+          await Future.delayed(backoff);
+        }
+      }
+    }
+    throw last!;
   }
 
   Future<String> addImageToProof(String proofId, String imageUrl) async {

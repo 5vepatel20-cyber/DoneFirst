@@ -58,11 +58,26 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
     if (_images.isEmpty) return;
     setState(() => _submitting = true);
     try {
-      final urls = <String>[];
-      for (final img in _images) {
-        final url = await _proofService.uploadImage(img, widget.taskId);
-        urls.add(url);
-      }
+      // Uploads run in parallel — a 3-photo proof no longer takes
+      // 3× the per-image time on a slow connection. The signed-URL
+      // create is also inside the service call so we get them all
+      // back at the same instant rather than serially.
+      //
+      // 60s per-image timeout is generous enough to survive a 3G
+      // uplink without making a stuck upload look intentional.
+      // A failure on any one image aborts the whole batch via
+      // Future.wait's "first failure short-circuits" semantics —
+      // partial successes aren't useful here (the proof row needs
+      // a complete image_urls array), and we'd rather the parent
+      // see the error and retry from scratch than have a half-
+      // submitted proof that locks up the parent UI.
+      final urls = await Future.wait(
+        _images.map(
+          (img) => _proofService.uploadImage(img, widget.taskId).timeout(
+                const Duration(seconds: 60),
+              ),
+        ),
+      );
       await _proofService.submitProofWithUrls(
         taskId: widget.taskId,
         imageUrls: urls,
