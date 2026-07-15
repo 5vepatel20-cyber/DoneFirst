@@ -93,16 +93,24 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
     final newStreakGraceUsed = (results[1] as StreakResult).graceUsed;
     if (!mounted) return;
     if (newSession != null) {
-      // Tasks + proofs for this session are independent — fetch in
-      // parallel instead of two sequential round-trips.
+      // Tasks + proofs + latest break request are independent —
+      // fetch in parallel instead of three sequential round-trips.
+      // The break lookup keeps the "Ask for a break" button in
+      // sync with server state (so it re-enables after the parent
+      // responds, instead of staying stuck on "Requested" forever).
       final sessionResults = await Future.wait([
         _proofService.getTasks(newSession.id),
         _proofService.getProofsForSession(newSession.id),
+        _breakService.getLatestForSession(newSession.id),
       ]);
       if (mounted) {
         setState(() {
           _tasks = sessionResults[0] as List<HomeworkTask>;
           _proofs = sessionResults[1] as List<ProofSubmission>;
+          // True only if there's a pending request. Approved/denied
+          // /no request → re-enable the button.
+          _breakRequested = sessionResults[2] != null &&
+              (sessionResults[2] as BreakRequest).status == 'pending';
         });
       }
     }

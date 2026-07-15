@@ -27,6 +27,23 @@ class BreakService {
     return response.map((m) => BreakRequest.fromMap(m)).toList();
   }
 
+  /// Most-recent break request for a session regardless of status.
+  /// Used by the kid-side home screen to keep its "Ask for a break"
+  /// button in sync with server state — without this, the button
+  /// would stay stuck in "Requested" mode after the parent approved
+  /// or denied the request, until the kid pulled to refresh or
+  /// restarted the app.
+  Future<BreakRequest?> getLatestForSession(String sessionId) async {
+    final response = await _supabase
+        .from('break_requests')
+        .select()
+        .eq('session_id', sessionId)
+        .order('created_at', ascending: false)
+        .limit(1);
+    if (response.isEmpty) return null;
+    return BreakRequest.fromMap(response.first);
+  }
+
   Future<List<BreakRequest>> getPendingBreaks(String sessionId) async {
     final response = await _supabase
         .from('break_requests')
