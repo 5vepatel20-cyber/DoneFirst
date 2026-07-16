@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/pin_attempt_tracker.dart';
 import '../theme/app_theme.dart';
 import '../widgets/forgot_pin_flow.dart';
