@@ -108,49 +108,55 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
 
   Future<void> _savePreset() async {
     final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Save preset'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Preset name',
-            hintText: 'e.g. Weekday Homework',
+    try {
+      final name = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Save preset'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Preset name',
+              hintText: 'e.g. Weekday Homework',
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (name != null && name.isNotEmpty) {
-      await _presetService.createPreset(
-        name: name,
-        minLockMinutes: _minLock,
-        maxLiftMinutes: _maxLift,
-        approvalMode: _approvalMode,
-        selectedPacks: _selectedPacks.toList(),
       );
-      await _loadPresets();
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Preset saved!')));
+      if (name != null && name.isNotEmpty) {
+        // createPreset + _loadPresets can throw on a network blip
+        // or RLS hiccup. Without try/finally the controller
+        // would leak on every failed save.
+        await _presetService.createPreset(
+          name: name,
+          minLockMinutes: _minLock,
+          maxLiftMinutes: _maxLift,
+          approvalMode: _approvalMode,
+          selectedPacks: _selectedPacks.toList(),
+        );
+        await _loadPresets();
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Preset saved!')));
+        }
       }
+    } finally {
+      // Dialog controller is local-scope; dispose on every exit
+      // path (save, cancel, throw). Avoids leaking one controller
+      // per saved preset across a long session.
+      controller.dispose();
     }
-    // Dialog controller is local-scope; dispose on every exit
-    // path (save, cancel). Avoids leaking one controller per
-    // saved preset across a long session.
-    controller.dispose();
   }
 
   Future<void> _loadPreset(LockPreset preset) async {

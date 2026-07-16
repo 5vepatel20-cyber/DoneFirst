@@ -117,57 +117,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _editProfile() async {
     final nameController = TextEditingController(text: _displayName);
     final familyController = TextEditingController(text: _familyName);
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Profile'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Your Name'),
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Edit Profile'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Your Name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: familyController,
+                decoration: const InputDecoration(labelText: 'Family Name'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: familyController,
-              decoration: const InputDecoration(labelText: 'Family Name'),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (result == true) {
-      final newName = nameController.text.trim();
-      final newFamily = familyController.text.trim();
-      if (newName.isNotEmpty && newName != _displayName) {
-        await _profileService.updateParentName(newName);
-        setState(() => _displayName = newName);
+      );
+      if (result == true) {
+        final newName = nameController.text.trim();
+        final newFamily = familyController.text.trim();
+        // Snapshot the controller text BEFORE awaiting, so a
+        // throw mid-updateName never strands us with a possibly
+        // disposed controller to read .text on. If the awaited
+        // call throws we rethrow from inside the try, the
+        // finally disposes both controllers, and the outer call
+        // site shows a snackbar. Same pattern as _deleteAccount.
+        if (newName.isNotEmpty && newName != _displayName) {
+          await _profileService.updateParentName(newName);
+          setState(() => _displayName = newName);
+        }
+        if (newFamily.isNotEmpty && newFamily != _familyName) {
+          await _profileService.updateFamilyName(newFamily);
+          setState(() => _familyName = newFamily);
+        }
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Profile updated')));
       }
-      if (newFamily.isNotEmpty && newFamily != _familyName) {
-        await _profileService.updateFamilyName(newFamily);
-        setState(() => _familyName = newFamily);
-      }
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Profile updated')));
+    } finally {
+      // Dialog controllers are local-scope; release their listeners
+      // on every dialog exit path (save, cancel, validation
+      // short-circuit, OR a thrown updateParentName / updateFamily-
+      // Name). Saves over a long session otherwise leak two
+      // controllers per edit.
+      nameController.dispose();
+      familyController.dispose();
     }
-    // Dialog controllers are local-scope; release their listeners
-    // on every dialog exit path (save, cancel, or throw). Saves
-    // over a long session otherwise leak two controllers per edit.
-    nameController.dispose();
-    familyController.dispose();
   }
 
   Future<void> _setPin() async {

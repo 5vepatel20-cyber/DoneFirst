@@ -605,37 +605,43 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
 
   Future<void> _batchApproveAllWithNote() async {
     final controller = TextEditingController();
-    final note = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add Note (optional)'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 2,
-          decoration: const InputDecoration(
-            hintText: 'Great work! ...',
-            labelText: 'Note for your child',
+    try {
+      final note = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Add Note (optional)'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              hintText: 'Great work! ...',
+              labelText: 'Note for your child',
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: const Text('Approve All'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Approve All'),
-          ),
-        ],
-      ),
-    );
-    if (note != null) {
-      await _batchApproveAll(note: note.isEmpty ? null : note);
+      );
+      if (note != null) {
+        // _batchApproveAll can throw — without try/finally the
+        // dialog controller would leak on every failed bulk
+        // approve.
+        await _batchApproveAll(note: note.isEmpty ? null : note);
+      }
+    } finally {
+      // Dialog controller is local-scope; dispose on every exit
+      // path (approve-all, cancel, throw).
+      controller.dispose();
     }
-    // Dialog controller is local-scope; dispose on every exit
-    // path (approve-all, cancel).
-    controller.dispose();
   }
 
   Future<void> _promptDecision(String proofId, String decision) async {
@@ -644,72 +650,78 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       return;
     }
     final noteController = TextEditingController();
-    // Common-reason chips. Tapping one overwrites the note text so
-    // the parent can still tweak it before sending. Most rejections
-    // fall into one of these buckets; typing the same sentence 5
-    // times a night adds up. "Custom…" appends a back to keep the
-    // field editable — without it, a custom reject would require
-    // clearing the chip first.
-    final note = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reason for rejection'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                for (final r in const [
-                  'Too blurry',
-                  'Wrong subject',
-                  'Incomplete work',
-                  'Didn\'t show the work',
-                  'Needs to be darker',
-                  'Try again',
-                ])
-                  ActionChip(
-                    label: Text(r, style: const TextStyle(fontSize: 12)),
-                    onPressed: () {
-                      noteController.text = r;
-                      noteController.selection = TextSelection.fromPosition(
-                        TextPosition(offset: noteController.text.length),
-                      );
-                    },
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: noteController,
-              autofocus: true,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                hintText: 'Tell your child what to fix...',
-                labelText: 'Note (optional)',
+    try {
+      // Common-reason chips. Tapping one overwrites the note text so
+      // the parent can still tweak it before sending. Most rejections
+      // fall into one of these buckets; typing the same sentence 5
+      // times a night adds up. "Custom…" appends a back to keep the
+      // field editable — without it, a custom reject would require
+      // clearing the chip first.
+      final note = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Reason for rejection'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  for (final r in const [
+                    'Too blurry',
+                    'Wrong subject',
+                    'Incomplete work',
+                    'Didn\'t show the work',
+                    'Needs to be darker',
+                    'Try again',
+                  ])
+                    ActionChip(
+                      label: Text(r, style: const TextStyle(fontSize: 12)),
+                      onPressed: () {
+                        noteController.text = r;
+                        noteController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: noteController.text.length),
+                        );
+                      },
+                    ),
+                ],
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteController,
+                autofocus: true,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  hintText: 'Tell your child what to fix...',
+                  labelText: 'Note (optional)',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Skip'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, noteController.text.trim()),
+              child: const Text('Send'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Skip'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, noteController.text.trim()),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-    await _handleDecision(proofId, decision, note: note);
-    // Dialog controller is local-scope; dispose on every exit
-    // path (send, skip). Each rejection leaks one controller
-    // + listeners otherwise.
-    noteController.dispose();
+      );
+      // _handleDecision can throw (RLS hiccup, network drop).
+      // Without try/finally the controller would leak on every
+      // failed reject.
+      await _handleDecision(proofId, decision, note: note);
+    } finally {
+      // Dialog controller is local-scope; dispose on every exit
+      // path (send, skip, throw). Each rejection leaks one
+      // controller + listeners otherwise.
+      noteController.dispose();
+    }
   }
 
   Future<void> _handleBreak(String breakId, String decision) async {

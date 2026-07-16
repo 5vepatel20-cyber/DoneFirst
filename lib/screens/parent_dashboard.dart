@@ -518,60 +518,66 @@ class _ParentDashboardState extends State<ParentDashboard> {
     final controller = TextEditingController(
       text: child.name,
     );
-    // Rebuild the dialog's Save button enabled state on every
-    // keystroke so the parent gets instant feedback for invalid
-    // input (empty, too long, whitespace-only).
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setLocal) {
-          final trimmed = controller.text.trim();
-          final isValid = trimmed.isNotEmpty &&
-              trimmed.length <= _maxChildNameLength;
-          return AlertDialog(
-            title: const Text('Rename Child'),
-            content: TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                labelText: "Child's Name",
-                counterText:
-                    '${trimmed.length}/$_maxChildNameLength',
-                errorText: trimmed.isEmpty
-                    ? null
-                    : trimmed.length > _maxChildNameLength
-                        ? 'Name is too long'
-                        : null,
+    try {
+      // Rebuild the dialog's Save button enabled state on every
+      // keystroke so the parent gets instant feedback for invalid
+      // input (empty, too long, whitespace-only).
+      final name = await showDialog<String>(
+        context: context,
+        builder: (ctx) {
+          return StatefulBuilder(builder: (ctx, setLocal) {
+            final trimmed = controller.text.trim();
+            final isValid = trimmed.isNotEmpty &&
+                trimmed.length <= _maxChildNameLength;
+            return AlertDialog(
+              title: const Text('Rename Child'),
+              content: TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  labelText: "Child's Name",
+                  counterText:
+                      '${trimmed.length}/$_maxChildNameLength',
+                  errorText: trimmed.isEmpty
+                      ? null
+                      : trimmed.length > _maxChildNameLength
+                          ? 'Name is too long'
+                          : null,
+                ),
+                autofocus: true,
+                maxLength: _maxChildNameLength,
+                onChanged: (_) => setLocal(() {}),
               ),
-              autofocus: true,
-              maxLength: _maxChildNameLength,
-              onChanged: (_) => setLocal(() {}),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: isValid
-                    ? () => Navigator.pop(ctx, trimmed)
-                    : null,
-                child: const Text('Save'),
-              ),
-            ],
-          );
-        });
-      },
-    );
-    if (name != null && name.isNotEmpty) {
-      await _sessionService.renameChild(child.id, name);
-      await _loadAll();
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: isValid
+                      ? () => Navigator.pop(ctx, trimmed)
+                      : null,
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          });
+        },
+      );
+      if (name != null && name.isNotEmpty) {
+        // renameChild + _loadAll can throw (RLS hiccup, network
+        // drop). Without try/finally the controller would leak on
+        // every rename that hits a server error.
+        await _sessionService.renameChild(child.id, name);
+        await _loadAll();
+      }
+    } finally {
+      // Dialog controller is local-scope; dispose so the
+      // TextEditingController and its listeners are released when
+      // the dialog closes (success, cancel, or throw). Without this,
+      // a long parent session that renames a kid several times leaks
+      // one controller per rename.
+      controller.dispose();
     }
-    // Dialog controller is local-scope; dispose so the
-    // TextEditingController and its listeners are released when
-    // the dialog closes (success, cancel, or throw). Without this,
-    // a long parent session that renames a kid several times leaks
-    // one controller per rename.
-    controller.dispose();
   }
 
   Future<void> _deleteChild(Child child) async {
