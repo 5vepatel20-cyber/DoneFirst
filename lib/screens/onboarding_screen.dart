@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 
@@ -15,28 +16,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final _pages = [
     _OnboardingPage(
-      icon: Icons.shield_outlined,
+      icon: LucideIcons.shield,
       title: 'Block Distractions',
       description:
           'Lock distracting apps on your child\'s device until homework is done. They focus, you relax.',
       color: AppColors.primary,
     ),
     _OnboardingPage(
-      icon: Icons.camera_alt_outlined,
+      icon: LucideIcons.camera,
       title: 'Photo Proof Required',
       description:
           'Kids submit a photo of their completed work. Mistral AI verifies it\'s real homework — no shortcuts.',
       color: AppColors.accent,
     ),
     _OnboardingPage(
-      icon: Icons.check_circle_outline,
+      icon: LucideIcons.checkCircle,
       title: 'You Stay In Control',
       description:
           'Approve or reject proof submissions. Set study sessions, break times, and auto-unlock rules.',
       color: AppColors.success,
     ),
     _OnboardingPage(
-      icon: Icons.rocket_launch_outlined,
+      icon: LucideIcons.rocket,
       title: 'Ready to Start?',
       description:
           'Create your family account and add your first child in under 2 minutes.',
@@ -95,21 +96,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 48),
           Text(
             page.title,
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+            style: AppText.title(size: 26),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           Text(
             page.description,
-            style: const TextStyle(
-              fontSize: 16,
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
+            style: AppText.bodySecondary(size: 16).copyWith(height: 1.5),
             textAlign: TextAlign.center,
           ),
         ],

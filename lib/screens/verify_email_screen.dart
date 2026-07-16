@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
@@ -100,34 +101,27 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.mark_email_unread,
+                  LucideIcons.mailWarning,
                   size: 48,
                   color: AppColors.accent,
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Verify your email',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
+                style: AppText.title(size: 24),
               ),
               const SizedBox(height: 12),
               Text(
                 'We sent a verification link to\n${widget.email}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: AppColors.textSecondary,
-                ),
+                style: AppText.bodySecondary(size: 15),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Click the link in the email, then come back.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: AppText.bodySecondary(size: 13),
               ),
               const SizedBox(height: 32),
               FilledButton.icon(
@@ -141,21 +135,21 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(Icons.refresh),
+                    : const Icon(LucideIcons.refreshCw, size: 18),
                 label: const Text('I\'ve Verified — Continue'),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: _resend,
-                icon: const Icon(Icons.send, size: 18),
+                icon: const Icon(LucideIcons.send, size: 18),
                 label: const Text('Resend Email'),
               ),
               const SizedBox(height: 12),
               TextButton(
                 onPressed: _skip,
-                child: const Text(
+                child: Text(
                   'Skip — I\'ll verify later',
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: AppText.button(color: AppColors.textSecondary),
                 ),
               ),
             ],

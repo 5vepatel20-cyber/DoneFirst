@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/auth_service.dart';
 import '../services/consent_service.dart';
 import '../services/session_service.dart';
@@ -138,7 +139,9 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('One last step')),
+      appBar: AppBar(
+        title: Text('One last step', style: AppText.screenTitle()),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -147,22 +150,14 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
             children: [
               Text(
                 'Welcome, ${widget.displayName}',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
+                style: AppText.title(size: 22),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Before we add your kids, we need your consent to '
                 'collect their homework data and run AI proof '
                 'verification. This is required by COPPA / GDPR-K.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                  height: 1.4,
-                ),
+                style: AppText.bodySecondary(size: 13).copyWith(height: 1.4),
               ),
               const SizedBox(height: 24),
               _buildConsentCard(),
@@ -180,7 +175,7 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
                   ),
                   child: Text(
                     _error!,
-                    style: const TextStyle(color: AppColors.danger),
+                    style: AppText.body(color: AppColors.danger),
                   ),
                 ),
               const SizedBox(height: 16),
@@ -204,9 +199,9 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
                 width: double.infinity,
                 child: TextButton(
                   onPressed: _submitting ? null : _decline,
-                  child: const Text(
+                  child: Text(
                     'Decline — sign out',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: AppText.button(color: AppColors.textSecondary),
                   ),
                 ),
               ),
@@ -235,20 +230,17 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
             child: Row(
               children: [
                 Icon(
-                  allChecked ? Icons.verified_outlined : Icons.gavel,
+                  allChecked ? LucideIcons.badgeCheck : LucideIcons.gavel,
                   color: allChecked
                       ? AppColors.success
                       : AppColors.textSecondary,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Parental Consent (required)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                    style: AppText.cardHeader(size: 14),
                   ),
                 ),
               ],
@@ -319,12 +311,9 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Type your full legal name as your signature:',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: AppText.body(size: 12),
                 ),
                 const SizedBox(height: 6),
                 TextField(
@@ -335,7 +324,7 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
                     border: const OutlineInputBorder(),
                     suffixIcon: _signatureValid
                         ? const Icon(
-                            Icons.check,
+                            LucideIcons.check,
                             color: AppColors.success,
                             size: 18,
                           )
@@ -348,10 +337,7 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
                 Text(
                   'Policy ${ConsentService.currentPolicyVersion}. '
                   'You can view the full policy in Settings after signing up.',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
-                  ),
+                  style: AppText.bodySecondary(size: 10),
                 ),
               ],
             ),
@@ -370,10 +356,10 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
     return CheckboxListTile(
       value: value,
       onChanged: onChanged,
-      title: Text(title, style: const TextStyle(fontSize: 12)),
+      title: Text(title, style: AppText.body(size: 12)),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(fontSize: 10),
+        style: AppText.bodySecondary(size: 10),
       ),
       controlAffinity: ListTileControlAffinity.leading,
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),

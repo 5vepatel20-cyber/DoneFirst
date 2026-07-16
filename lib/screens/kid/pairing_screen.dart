@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../services/kid_auth_service.dart';
 import '../../theme/app_theme.dart';
@@ -116,7 +117,7 @@ class _PairingScreenState extends State<PairingScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.link_rounded,
+                    LucideIcons.link,
                     size: 56,
                     color: AppColors.grass,
                   ),
