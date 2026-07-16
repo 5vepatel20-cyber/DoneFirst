@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../widgets/proof_thumbnail.dart';
@@ -73,7 +74,7 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
       return (
         text: 'Photo URL expired',
         color: AppColors.danger,
-        icon: Icons.error_outline,
+        icon: LucideIcons.circleAlert,
       );
     }
     if (remaining <= _expiryWarnWindow) {
@@ -85,7 +86,7 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
       return (
         text: text,
         color: AppColors.warning,
-        icon: Icons.schedule,
+        icon: LucideIcons.clock,
       );
     }
     return null;
@@ -102,7 +103,7 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.taskDescription),
+        title: Text(widget.taskDescription, style: AppText.screenTitle()),
         actions: [
           // URL-expiry warning. Lives in the AppBar so it's always
           // visible while the parent is looking at the photo, without
@@ -249,7 +250,7 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Icon(
-                          Icons.comment,
+                          LucideIcons.messageSquare,
                           size: 14,
                           color: AppColors.primary,
                         ),

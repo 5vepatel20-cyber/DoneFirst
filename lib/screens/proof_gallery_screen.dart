@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/models.dart';
 import '../services/proof_service.dart';
 import '../services/session_service.dart';
@@ -94,7 +95,10 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
   Widget build(BuildContext context) {
     final filtered = _filteredProofs;
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.childName}\'s Proofs')),
+      appBar: AppBar(
+        title: Text('${widget.childName}\'s Proofs',
+            style: AppText.screenTitle()),
+      ),
       body: _loading
           ? Padding(
               padding: const EdgeInsets.all(8),
@@ -109,7 +113,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
             )
           : _allProofs.isEmpty
           ? const EmptyState(
-              icon: Icons.photo_library,
+              icon: LucideIcons.images,
               title: 'No proof photos yet',
               subtitle: 'Proofs appear here after submission',
             )
@@ -144,9 +148,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                       ? Center(
                           child: Text(
                             'No proofs match this filter',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                            ),
+                            style: AppText.bodySecondary(),
                           ),
                         )
                       : RefreshIndicator(
@@ -242,7 +244,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                                           top: 2,
                                           right: 2,
                                           child: Icon(
-                                            Icons.check_circle,
+                                            LucideIcons.circleCheckBig,
                                             color: AppColors.success,
                                             size: 16,
                                           ),
@@ -252,7 +254,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                                           top: 2,
                                           right: 2,
                                           child: Icon(
-                                            Icons.cancel,
+                                            LucideIcons.circleX,
                                             color: AppColors.danger,
                                             size: 16,
                                           ),

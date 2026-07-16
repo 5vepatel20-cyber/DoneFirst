@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
@@ -70,15 +71,15 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   IconData _iconForType(String type) {
     switch (type) {
       case 'proof_submitted':
-        return Icons.camera_alt;
+        return LucideIcons.camera;
       case 'break_requested':
-        return Icons.coffee;
+        return LucideIcons.coffee;
       case 'break_granted':
-        return Icons.coffee_outlined;
+        return LucideIcons.coffee;
       case 'session_complete':
-        return Icons.check_circle;
+        return LucideIcons.circleCheckBig;
       default:
-        return Icons.notifications;
+        return LucideIcons.bell;
     }
   }
 
@@ -101,7 +102,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text('Notifications', style: AppText.screenTitle()),
         actions: [
           if (_notifications.any((n) => !n.read))
             TextButton(
@@ -120,7 +121,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 children: const [
                   SizedBox(height: 120),
                   EmptyState(
-                    icon: Icons.notifications_none,
+                    icon: LucideIcons.bellOff,
                     title: 'No notifications',
                     subtitle: 'Activity appears here',
                   ),
@@ -146,7 +147,8 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                         color: AppColors.danger,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.delete, color: Colors.white),
+                      child: const Icon(LucideIcons.trash2,
+                          color: Colors.white, size: 20),
                     ),
                     onDismissed: (_) => _delete(n.id),
                     child: Card(
@@ -154,33 +156,32 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                     color: isRead ? null : AppColors.primary.withValues(alpha:0.03),
                     child: ListTile(
                       leading: Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(9),
                         decoration: BoxDecoration(
                           color: _colorForType(type).withValues(alpha:0.1),
-                          shape: BoxShape.circle,
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.iconTile),
                         ),
                         child: Icon(
                           _iconForType(type),
                           color: _colorForType(type),
-                          size: 20,
+                          size: 18,
                         ),
                       ),
                       title: Text(
                         n.title,
-                        style: TextStyle(
-                          fontWeight: isRead
-                              ? FontWeight.normal
-                              : FontWeight.w600,
+                        style: AppText.body(
                           color: AppColors.textPrimary,
+                        ).copyWith(
+                          fontWeight: isRead
+                              ? FontWeight.w500
+                              : FontWeight.w700,
                         ),
                       ),
                       subtitle: n.body != null
                           ? Text(
                               n.body!,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                              ),
+                              style: AppText.bodySecondary(),
                             )
                           : null,
                       trailing: isRead

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/models.dart';
 import '../services/proof_service.dart';
 import '../theme/app_theme.dart';
@@ -190,12 +191,15 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectionMode
-            ? '${_selected.length} selected'
-            : 'Review ${widget.childName}\'s proofs'),
+        title: Text(
+          _selectionMode
+              ? '${_selected.length} selected'
+              : 'Review ${widget.childName}\'s proofs',
+          style: AppText.screenTitle(),
+        ),
         leading: _selectionMode
             ? IconButton(
-                icon: const Icon(Icons.close),
+                icon: const Icon(LucideIcons.x, size: 20),
                 onPressed: _clearSelection,
               )
             : null,
@@ -205,8 +209,9 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
                   tooltip: 'Select all',
                   icon: Icon(
                     _selected.length == _proofs.length
-                        ? Icons.deselect
-                        : Icons.select_all,
+                        ? LucideIcons.squareMinus
+                        : LucideIcons.squareCheckBig,
+                    size: 20,
                   ),
                   onPressed: () {
                     setState(() {
@@ -250,24 +255,20 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
-                          Icons.task_alt,
+                          LucideIcons.checkCheck,
                           size: 48,
                           color: AppColors.success,
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'Inbox zero',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: AppText.cardHeader(size: 18),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
+                      Text(
                         'No proofs waiting for review.',
-                        style: TextStyle(color: AppColors.textSecondary),
+                        style: AppText.bodySecondary(),
                       ),
                     ],
                   ),
@@ -318,8 +319,8 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
                                   ),
                                   child: Icon(
                                     selected
-                                        ? Icons.check_circle
-                                        : Icons.radio_button_unchecked,
+                                        ? LucideIcons.circleCheckBig
+                                        : LucideIcons.circle,
                                     color: selected
                                         ? AppColors.primary
                                         : AppColors.textSecondary,
@@ -335,7 +336,7 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
                                       ? Container(
                                           color: AppColors.border,
                                           child: const Icon(
-                                            Icons.image_not_supported_outlined,
+                                            LucideIcons.imageOff,
                                             color: AppColors.textSecondary,
                                           ),
                                         )
@@ -412,7 +413,8 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _bulkDecide('rejected'),
-                        icon: const Icon(Icons.close, color: AppColors.danger),
+                        icon: const Icon(LucideIcons.x,
+                            size: 18, color: AppColors.danger),
                         label: Text(
                           'Reject (${_selected.length})',
                           style: const TextStyle(color: AppColors.danger),
@@ -426,7 +428,7 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () => _bulkDecide('approved'),
-                        icon: const Icon(Icons.check),
+                        icon: const Icon(LucideIcons.check, size: 18),
                         label: Text('Approve (${_selected.length})'),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.success,
