@@ -1,7 +1,38 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screentime/flutter_screentime.dart';
 
 import 'kid_device_service.dart' show KidDevice;
+
+/// Identifier for a single Android permission the parent app needs
+/// before it can start blocking. Each maps to one row on
+/// [DevicePermissionsScreen] and to one branch of the
+/// `donefirst/permissions` MethodChannel.
+///
+/// The set is intentionally the same pair that flutter_screentime's
+/// `currentAuthorizationStatus()` checks on Android — Usage Access
+/// + Display Over Other Apps. We expose them individually so the
+/// UI can drive a per-row "Grant" button and re-render only the
+/// row whose underlying permission state actually changed.
+enum BlockingPermission {
+  /// AppOpsManager.OPSTR_GET_USAGE_STATS — lets the plugin see
+  /// which apps are foregrounded so it can decide when to invoke
+  /// the block screen.
+  usageAccess('usage_access', 'Usage access'),
+
+  /// Settings.ACTION_MANAGE_OVERLAY_PERMISSION — lets the block
+  /// screen render on top of any foreground app.
+  overlay('overlay', 'Display over other apps');
+
+  const BlockingPermission(this.id, this.label);
+
+  /// Stable identifier used in the MethodChannel call. Lowercase
+  /// snake_case to match the convention in platform-channel args.
+  final String id;
+
+  /// Human-readable label rendered in the UI.
+  final String label;
+}
 
 /// State of the native app-blocking integration.
 ///
@@ -62,6 +93,13 @@ extension BlockingStatusX on BlockingStatus {
 /// service still tracks its own state, which lets the UI render
 /// consistent messages everywhere.
 class BlockingService extends ChangeNotifier {
+  /// Per-permission check + grant channel, registered in
+  /// MainActivity.kt. Kept separate from the flutter_screentime
+  /// channel so that future forks / iOS-side implementations
+  /// can opt-in without dragging in screentime's surface.
+  static const MethodChannel _permissionsChannel =
+      MethodChannel('donefirst/permissions');
+
   final _screenTime = FlutterScreentime();
 
   BlockingStatus _status = BlockingStatus.idle;
@@ -72,6 +110,62 @@ class BlockingService extends ChangeNotifier {
   bool get hasPermission => _status.hasPermission;
   bool get isBlocking => _status.isActive;
   bool get isError => _status.isError;
+
+  /// Read the current OS-level grant state for every permission
+  /// BlockingService cares about. Returns false for permissions
+  /// that don't apply on the current platform (iOS, web, Flutter
+  /// test) so the UI can render rows but show them as already
+  /// satisfied — those surfaces have no equivalent toggle and
+  /// the OS dialogs aren't applicable.
+  Future<Map<BlockingPermission, bool>> currentPermissions() async {
+    final result = <BlockingPermission, bool>{};
+    for (final p in BlockingPermission.values) {
+      try {
+        final granted = await _permissionsChannel.invokeMethod<bool>(
+          switch (p) {
+            BlockingPermission.usageAccess => 'checkUsageAccess',
+            BlockingPermission.overlay => 'checkOverlay',
+          },
+        );
+        result[p] = granted ?? false;
+      } on MissingPluginException {
+        // Test / web / non-Android — treat as granted so the
+        // device-permissions screen's Continue button is enabled
+        // and we don't block the user on a platform where the
+        // permission doesn't exist.
+        result[p] = true;
+      } on PlatformException catch (e) {
+        debugPrint('check ${p.id} PlatformException: ${e.message}');
+        result[p] = false;
+      }
+    }
+    return result;
+  }
+
+  /// Open the OS settings screen where the user can toggle the
+  /// named permission. Returns true if the intent was dispatched
+  /// (the user still has to actually flip the toggle themselves).
+  ///
+  /// The DevicePermissionsScreen re-reads [currentPermissions]
+  /// from a `WidgetsBindingObserver.didChangeAppLifecycleState`
+  /// resume hook so the row flips to "✓ On" the moment the user
+  /// returns to the app with the toggle granted.
+  Future<bool> openPermissionSettings(BlockingPermission permission) async {
+    try {
+      final ok = await _permissionsChannel.invokeMethod<bool>(
+        switch (permission) {
+          BlockingPermission.usageAccess => 'openUsageAccessSettings',
+          BlockingPermission.overlay => 'openOverlaySettings',
+        },
+      );
+      return ok ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException catch (e) {
+      debugPrint('open ${permission.id} PlatformException: ${e.message}');
+      return false;
+    }
+  }
 
   void _setStatus(BlockingStatus newStatus, [String? error]) {
     _status = newStatus;

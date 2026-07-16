@@ -3,6 +3,14 @@ import 'package:donefirst/services/blocking_service.dart';
 import 'package:donefirst/services/kid_device_service.dart';
 
 void main() {
+  // The new per-permission API talks to a MethodChannel even on
+  // non-Android surfaces (where the platform side throws
+  // MissingPluginException). The binding must be initialized so
+  // the channel can be looked up — otherwise the call throws a
+  // "Binding has not yet been initialized" error before reaching
+  // the catch.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('BlockingStatus enum', () {
     test('hasPermission is true for permissionGranted and blockingActive', () {
       expect(BlockingStatus.permissionGranted.hasPermission, isTrue);
@@ -139,6 +147,61 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  group('BlockingPermission enum', () {
+    test('covers usage access and overlay (the two parent-app grants)', () {
+      // Sanity check that the two values the new device-permissions
+      // screen renders are the only two we expect. If a third
+      // permission gets added (e.g. notification access for the
+      // parent-side heartbeat), this test will fail and force the
+      // screen to be updated.
+      final ids = BlockingPermission.values.map((p) => p.id).toList();
+      expect(ids, containsAll(['usage_access', 'overlay']));
+      expect(ids.length, 2);
+    });
+
+    test('every value has a non-empty human label', () {
+      // The label is what shows up in error messages if the OS
+      // settings intent fails. Empty labels would render as
+      // bare code paths in the snackbar.
+      for (final p in BlockingPermission.values) {
+        expect(p.label, isNotEmpty);
+      }
+    });
+  });
+
+  group('BlockingService.currentPermissions', () {
+    test('returns a map keyed by every BlockingPermission', () async {
+      // On a non-Android surface (Flutter test) the channel throws
+      // MissingPluginException, which the service treats as granted
+      // — so the map ends up with true for every key.
+      final service = BlockingService();
+      final result = await service.currentPermissions();
+      expect(result.keys, containsAll(BlockingPermission.values));
+      expect(result.length, BlockingPermission.values.length);
+    });
+
+    test('treats missing-plugin (test/web/iOS) as granted', () async {
+      // The device-permissions screen must not trap non-Android
+      // users on a screen asking for permissions the OS doesn't
+      // expose. currentPermissions() returning all-granted is the
+      // signal that the screen's Continue button enables.
+      final service = BlockingService();
+      final result = await service.currentPermissions();
+      expect(result.values.every((g) => g), isTrue);
+    });
+
+    test('openPermissionSettings is a no-op on non-Android', () async {
+      // Same reason — non-Android surfaces shouldn't error out
+      // when the parent taps "Grant". The setting intent just
+      // doesn't exist; returning false is fine.
+      final service = BlockingService();
+      final ok = await service.openPermissionSettings(
+        BlockingPermission.usageAccess,
+      );
+      expect(ok, isFalse);
     });
   });
 }

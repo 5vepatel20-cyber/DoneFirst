@@ -1,10 +1,15 @@
 package com.donefirst.app
 
 import android.app.Activity
+import android.app.AppOpsManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.os.Process
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -37,6 +42,7 @@ import io.flutter.plugin.common.MethodChannel
  */
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "donefirst/kiosk"
+    private val PERMISSIONS_CHANNEL = "donefirst/permissions"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -89,6 +95,85 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "isDeviceOwner" -> result.success(isDeviceOwner())
+                else -> result.notImplemented()
+            }
+        }
+
+        // Per-permission status + grant-flow helpers for the
+        // DevicePermissionsScreen. flutter_screentime's combined
+        // checkAuthorization() can't tell us WHICH of the two
+        // required Android permissions (usage-stats, overlay) is
+        // missing — we need to check each individually so the UI
+        // can show a separate row per permission.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            PERMISSIONS_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "checkUsageAccess" -> {
+                    // AppOpsManager.OPSTR_GET_USAGE_STATS is the
+                    // canonical "Usage Access" toggle. The package
+                    // itself can check via AppOpsManager; Settings
+                    // doesn't expose a public helper.
+                    val mode = (getSystemService(Context.APP_OPS_SERVICE)
+                        as? AppOpsManager)?.unsafeCheckOpNoThrow(
+                        AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        Process.myUid(),
+                        packageName,
+                    )
+                    // MODE_ALLOWED == 0; everything else is denied.
+                    result.success(mode == AppOpsManager.MODE_ALLOWED)
+                }
+                "checkOverlay" -> {
+                    // canDrawOverlays is API-23+. Same minSdk as the
+                    // app, so unconditional; Build.VERSION check
+                    // kept for forward-portability (matches the
+                    // isDeviceOwner pattern above).
+                    val granted = if (Build.VERSION.SDK_INT >=
+                        Build.VERSION_CODES.M
+                    ) {
+                        Settings.canDrawOverlays(this)
+                    } else {
+                        true
+                    }
+                    result.success(granted)
+                }
+                "openUsageAccessSettings" -> {
+                    try {
+                        startActivity(
+                            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                        result.success(true)
+                    } catch (e: Exception) {
+                        // Some OEM ROMs (MIUI historically) ship
+                        // without the usage-access settings activity;
+                        // fall back to the app details page so the
+                        // user can still find the toggle.
+                        result.error(
+                            "NO_USAGE_SETTINGS",
+                            e.message ?: "Usage access settings unavailable",
+                            null,
+                        )
+                    }
+                }
+                "openOverlaySettings" -> {
+                    try {
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:$packageName"),
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error(
+                            "NO_OVERLAY_SETTINGS",
+                            e.message ?: "Overlay settings unavailable",
+                            null,
+                        )
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

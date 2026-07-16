@@ -11,6 +11,7 @@ import '../widgets/kid_device_lock_config_banner.dart';
 import '../widgets/destructive_confirm_dialog.dart';
 import 'kid_device_pairing_screen.dart';
 import 'lock_active_screen.dart';
+import 'device_permissions_screen.dart';
 import '../models/models.dart';
 
 class LockConfigScreen extends StatefulWidget {
@@ -454,6 +455,34 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
     // Falls through to local blocking only in single-device mode
     // (parent + kid share one phone, no kid device paired).
     if (!shouldSkipLocalBlockingOnKidDevice(_kidDevice)) {
+      // Proactive permission check before startBlocking — flutter_
+      // screentime would otherwise fail silently and just show a
+      // post-hoc snackbar. Single-device parents often hit this
+      // path: their phone is the only one, so a missing grant
+      // here means the lock never starts. Route them through the
+      // dedicated setup screen instead of relying on a toast.
+      final granted = await _blockingService.currentPermissions();
+      final allGranted =
+          granted.values.isNotEmpty && granted.values.every((g) => g);
+      if (!allGranted) {
+        if (!mounted) return;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => DevicePermissionsScreen(
+              onContinue: () =>
+                  Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => LockActiveScreen(
+                    sessionId: session.id,
+                    childName: widget.childName,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        return;
+      }
       final blocked = await _blockingService.startBlocking();
       if (!blocked && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
