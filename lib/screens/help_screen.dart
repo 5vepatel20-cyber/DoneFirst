@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_theme.dart';
 import 'upgrade_screen.dart';
 
@@ -15,7 +16,7 @@ class HelpScreen extends StatelessWidget {
   static const List<_FaqCategory> _categories = [
     _FaqCategory(
       title: 'Getting started',
-      icon: Icons.rocket_launch,
+      icon: LucideIcons.rocket,
       tint: AppColors.primary,
       items: [
         _FaqItem(
@@ -51,7 +52,7 @@ class HelpScreen extends StatelessWidget {
     ),
     _FaqCategory(
       title: 'Proofs & AI verification',
-      icon: Icons.verified_outlined,
+      icon: LucideIcons.badgeCheck,
       tint: AppColors.success,
       items: [
         _FaqItem(
@@ -85,7 +86,7 @@ class HelpScreen extends StatelessWidget {
     ),
     _FaqCategory(
       title: 'Notifications',
-      icon: Icons.notifications_outlined,
+      icon: LucideIcons.bell,
       tint: AppColors.accent,
       items: [
         _FaqItem(
@@ -110,7 +111,7 @@ class HelpScreen extends StatelessWidget {
     ),
     _FaqCategory(
       title: 'Account & privacy',
-      icon: Icons.shield_outlined,
+      icon: LucideIcons.shield,
       tint: AppColors.info,
       items: [
         _FaqItem(
@@ -145,7 +146,7 @@ class HelpScreen extends StatelessWidget {
     ),
     _FaqCategory(
       title: 'Billing & plans',
-      icon: Icons.workspace_premium,
+      icon: LucideIcons.award,
       tint: AppColors.warning,
       items: [
         _FaqItem(
@@ -170,7 +171,7 @@ class HelpScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Help & Support')),
+      appBar: AppBar(title: Text('Help & Support', style: AppText.screenTitle())),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
@@ -191,31 +192,25 @@ class HelpScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.support_agent,
+                    LucideIcons.headset,
+                    size: 18,
                     color: AppColors.primary,
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Need more help?',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: AppColors.textPrimary,
-                        ),
+                        style: AppText.cardHeader(),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
                         'Email support@donefirst.app and a human will '
                         'reply within one business day.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
+                        style: AppText.bodySecondary(),
                       ),
                     ],
                   ),
@@ -248,11 +243,7 @@ class _CategorySection extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 category.title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: category.tint,
-                ),
+                style: AppText.cardHeader(color: category.tint),
               ),
             ],
           ),
@@ -291,18 +282,14 @@ class _FaqTile extends StatelessWidget {
       child: ExpansionTile(
         title: Text(
           item.question,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          style: AppText.cardHeader(size: 14),
         ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         expandedAlignment: Alignment.centerLeft,
         children: [
           Text(
             item.answer,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
+            style: AppText.bodySecondary(size: 13).copyWith(height: 1.5),
           ),
         ],
       ),

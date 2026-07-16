@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/coparent_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
+import '../widgets/monogram_avatar.dart';
 
 class CoparentScreen extends StatefulWidget {
   const CoparentScreen({super.key});
@@ -92,11 +94,12 @@ class _CoparentScreenState extends State<CoparentScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: const Icon(
-                          Icons.mail_outline,
+                          LucideIcons.mailOpen,
+                          size: 18,
                           color: AppColors.accent,
                         ),
-                        title: const Text('You\'ve been invited!'),
-                        subtitle: Text('Join as co-parent'),
+                        title: Text('You\'ve been invited!', style: AppText.cardHeader()),
+                        subtitle: Text('Join as co-parent', style: AppText.bodySecondary()),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -134,13 +137,14 @@ class _CoparentScreenState extends State<CoparentScreen> {
                       child: Row(
                         children: [
                           Icon(
-                            Icons.people_outline,
+                            LucideIcons.users,
+                            size: 18,
                             color: AppColors.textSecondary,
                           ),
                           const SizedBox(width: 8),
-                          const Text(
+                          Text(
                             'No co-parents yet',
-                            style: TextStyle(color: AppColors.textSecondary),
+                            style: AppText.bodySecondary(),
                           ),
                         ],
                       ),
@@ -151,16 +155,15 @@ class _CoparentScreenState extends State<CoparentScreen> {
                     (p) => Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.success.withValues(alpha:0.1),
-                          child: Text(
-                            (p.displayName.isNotEmpty ? p.displayName : '?')[0]
-                                .toUpperCase(),
-                            style: TextStyle(color: AppColors.success),
-                          ),
+                        leading: MonogramAvatar.parent(
+                          name: p.displayName.isNotEmpty ? p.displayName : '?',
+                          size: 40,
                         ),
-                        title: Text(p.displayName.isNotEmpty ? p.displayName : 'Unknown'),
-                        subtitle: Text(p.email),
+                        title: Text(
+                          p.displayName.isNotEmpty ? p.displayName : 'Unknown',
+                          style: AppText.body(),
+                        ),
+                        subtitle: Text(p.email, style: AppText.bodySecondary()),
                       ),
                     ),
                   ),
@@ -188,7 +191,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
                                 controller: _emailController,
                                 decoration: const InputDecoration(
                                   labelText: 'Partner\'s email',
-                                  prefixIcon: Icon(Icons.email),
+                                  prefixIcon: Icon(LucideIcons.mail, size: 18),
                                 ),
                                 keyboardType: TextInputType.emailAddress,
                               ),
@@ -212,14 +215,16 @@ class _CoparentScreenState extends State<CoparentScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: const Icon(
-                          Icons.hourglass_empty,
+                          LucideIcons.hourglass,
+                          size: 18,
                           color: AppColors.accent,
                         ),
-                        title: Text(inv.inviteeEmail),
-                        subtitle: const Text('Pending'),
+                        title: Text(inv.inviteeEmail, style: AppText.body()),
+                        subtitle: Text('Pending', style: AppText.bodySecondary()),
                         trailing: IconButton(
                           icon: const Icon(
-                            Icons.close,
+                            LucideIcons.x,
+                            size: 18,
                             color: AppColors.danger,
                           ),
                           onPressed: () async {
@@ -241,12 +246,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textSecondary,
-          letterSpacing: 0.5,
-        ),
+        style: AppText.cardHeader(),
       ),
     );
   }
