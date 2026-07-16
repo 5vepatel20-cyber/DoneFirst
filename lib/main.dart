@@ -17,6 +17,7 @@ import 'screens/session_complete_parent_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/upgrade_screen.dart';
 import 'screens/device_permissions_screen.dart';
+import 'screens/session_complete_kid_screen.dart';
 import 'screens/kid/kid_root.dart';
 
 export 'app_globals.dart' show realtimeService, toastService, rootScaffoldMessengerKey;
@@ -105,6 +106,16 @@ class DoneFirstApp extends StatelessWidget {
             case '/device-permissions':
               return MaterialPageRoute(
                 builder: (_) => const DevicePermissionsScreen(),
+              );
+            case '/session-complete-kid':
+              final args = settings.arguments as Map<String, dynamic>? ?? {};
+              return MaterialPageRoute(
+                builder: (_) => SessionCompleteKidScreen(
+                  childName: args['childName'] as String? ?? '',
+                  tasksCompleted: args['tasksCompleted'] as int? ?? 0,
+                  streakDays: args['streakDays'] as int? ?? 0,
+                  minutesStudied: args['minutesStudied'] as int? ?? 0,
+                ),
               );
             case '/session-complete-parent':
               final args = settings.arguments as Map<String, dynamic>? ?? {};

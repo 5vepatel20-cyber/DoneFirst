@@ -12,7 +12,6 @@ import '../theme/app_theme.dart';
 import '../widgets/ring_timer.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/milestone_celebration.dart';
-import '../widgets/session_complete_celebration.dart';
 import '../services/milestone_service.dart';
 import 'task_entry_screen.dart';
 import 'kid_history_screen.dart';
@@ -55,7 +54,6 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   DateTime _now = DateTime.now();
   bool _breakRequested = false;
   MilestoneInfo? _currentMilestone;
-  bool _showSessionComplete = false;
   bool _hadActiveSession = false;
   final _milestoneService = MilestoneService();
 
@@ -115,12 +113,35 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
       }
     }
     if (_hadActiveSession && newSession == null && _activeSession != null) {
+      // Snapshot the values we need before clearing _activeSession
+      // below — the new full-screen route captures them at push
+      // time and the screen never re-reads from the kid home.
+      final completedTasks = _tasks.where((t) => !t.isPending).length;
+      final completedStreak = newStreak;
+      // The session row's minLockMinutes is the minimum the parent
+      // committed to; the kid's actual elapsed time would be more
+      // honest but it isn't surfaced by SessionService.getActive.
+      // Floor at 1 so the stat pill always reads "1 min" rather
+      // than "0 min" for the (rare) zero-length auto-lifts.
+      final completedMinutes = _activeSession?.minLockMinutes ?? 0;
       setState(() {
-        _showSessionComplete = true;
         _streak = newStreak;
         _streakGraceUsed = newStreakGraceUsed;
       });
       _previousStreak = newStreak;
+      // Push the full-screen kid celebration. Replaces the legacy
+      // SessionCompleteCelebration overlay so the kid gets a focused
+      // moment without the home-screen chrome behind it.
+      if (!mounted) return;
+      Navigator.of(context).pushNamed(
+        '/session-complete-kid',
+        arguments: {
+          'childName': widget.childName,
+          'tasksCompleted': completedTasks,
+          'streakDays': completedStreak,
+          'minutesStudied': completedMinutes,
+        },
+      );
     } else {
       if (newStreak > _previousStreak) {
         final milestone = _milestoneService.wasMilestoneReached(
@@ -202,13 +223,10 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
               milestone: _currentMilestone!,
               onDismiss: () => setState(() => _currentMilestone = null),
             ),
-          if (_showSessionComplete)
-            SessionCompleteCelebration(
-              childName: widget.childName,
-              tasksCompleted: _tasks.where((t) => !t.isPending).length,
-              streakDays: _streak,
-              onDismiss: () => setState(() => _showSessionComplete = false),
-            ),
+          // Session-complete celebration is no longer rendered as a
+          // Stack overlay here — kid_home_screen now pushes the full-
+          // screen /session-complete-kid route when the realtime
+          // subscription reports an ended session. See _checkActive.
         ],
       ),
     );
