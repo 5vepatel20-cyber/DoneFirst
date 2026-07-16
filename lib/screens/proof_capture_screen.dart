@@ -144,7 +144,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
-                              Icons.camera_alt,
+                              LucideIcons.camera,
                               size: 48,
                               color: AppColors.primary,
                             ),
@@ -233,7 +233,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
-                                    Icons.close,
+                                    LucideIcons.x,
                                     size: 14,
                                     color: Colors.white,
                                   ),
