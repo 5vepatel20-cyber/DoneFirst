@@ -240,56 +240,55 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
 
   Future<void> _showRenameDialog(KidDevice device) async {
     final controller = TextEditingController(text: device.deviceName ?? '');
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rename device'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            labelText: 'Device name',
-            hintText: 'e.g. Bedroom tablet, School iPad',
-          ),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (newName == null) {
-      controller.dispose();
-      return;
-    }
-    // Empty string clears the override and falls back to the
-    // kid-side default. Don't pass through unchanged text — that's
-    // a no-op DB call we can avoid.
-    if (newName.trim() == (device.deviceName ?? '').trim()) {
-      controller.dispose();
-      return;
-    }
     try {
-      await _service.renameDevice(device.id, newName);
-      await _load();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn’t rename: $e')),
+      final newName = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Rename device'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Device name',
+              hintText: 'e.g. Bedroom tablet, School iPad',
+            ),
+            onSubmitted: (v) => Navigator.pop(ctx, v),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       );
+      if (newName == null) return;
+      // Empty string clears the override and falls back to the
+      // kid-side default. Don't pass through unchanged text —
+      // that's a no-op DB call we can avoid.
+      if (newName.trim() == (device.deviceName ?? '').trim()) return;
+      try {
+        await _service.renameDevice(device.id, newName);
+        await _load();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Couldn’t rename: $e')),
+        );
+      }
+    } finally {
+      // Single dispose site covers cancel, no-op, success, server
+      // error, AND the early `if (!mounted) return;` inside the
+      // catch block. The previous three separate dispose calls
+      // missed the unmounted-during-error path — every rename in
+      // that race would leak one controller + its listeners.
+      controller.dispose();
     }
-    // Dialog controller is local-scope; release it on every exit
-    // path (save, cancel, no-op, server error). Each rename leaks
-    // one controller + listeners otherwise.
-    controller.dispose();
   }
 
   String get _countdownLabel {
