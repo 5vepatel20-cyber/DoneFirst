@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_theme.dart';
 import 'upgrade_screen.dart';
 
@@ -15,7 +16,7 @@ class HelpScreen extends StatelessWidget {
   static const List<_FaqCategory> _categories = [
     _FaqCategory(
       title: 'Getting started',
-      icon: Icons.rocket_launch,
+      icon: LucideIcons.rocket,
       tint: AppColors.primary,
       items: [
         _FaqItem(
@@ -51,7 +52,7 @@ class HelpScreen extends StatelessWidget {
     ),
     _FaqCategory(
       title: 'Proofs & AI verification',
-      icon: Icons.verified_outlined,
+      icon: LucideIcons.badgeCheck,
       tint: AppColors.success,
       items: [
         _FaqItem(
@@ -85,7 +86,7 @@ class HelpScreen extends StatelessWidget {
     ),
     _FaqCategory(
       title: 'Notifications',
-      icon: Icons.notifications_outlined,
+      icon: LucideIcons.bell,
       tint: AppColors.accent,
       items: [
         _FaqItem(
@@ -110,7 +111,7 @@ class HelpScreen extends StatelessWidget {
     ),
     _FaqCategory(
       title: 'Account & privacy',
-      icon: Icons.shield_outlined,
+      icon: LucideIcons.shield,
       tint: AppColors.info,
       items: [
         _FaqItem(
@@ -145,7 +146,7 @@ class HelpScreen extends StatelessWidget {
     ),
     _FaqCategory(
       title: 'Billing & plans',
-      icon: Icons.workspace_premium,
+      icon: LucideIcons.crown,
       tint: AppColors.warning,
       items: [
         _FaqItem(
@@ -191,7 +192,7 @@ class HelpScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.support_agent,
+                    LucideIcons.headphones,
                     color: AppColors.primary,
                   ),
                 ),
