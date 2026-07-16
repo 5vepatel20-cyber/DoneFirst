@@ -12,6 +12,8 @@ import '../services/break_service.dart';
 import '../main.dart' as app;
 import '../theme/app_theme.dart';
 import '../widgets/shimmer_loading.dart';
+import '../widgets/monogram_avatar.dart';
+import '../widgets/status_dot.dart';
 import '../widgets/consent_gate.dart';
 import '../widgets/pin_guard.dart';
 import '../widgets/destructive_confirm_dialog.dart';
@@ -619,11 +621,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   Future<void> _signOut() async {
     await _auth.signOut();
-    if (mounted)
+    if (mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const AuthScreen()),
       );
+    }
   }
 
   /// Resolves the active session id for [childId] and pushes the
@@ -665,39 +668,31 @@ class _ParentDashboardState extends State<ParentDashboard> {
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha:0.1),
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.sageFill,
+                borderRadius: BorderRadius.circular(AppRadius.iconTile),
               ),
               child: const Icon(
                 LucideIcons.sprout,
                 size: 16,
-                color: AppColors.primary,
+                color: AppColors.forest,
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
-              'DoneFirst',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.2,
-                color: AppColors.textPrimary,
-              ),
-            ),
+            Text('DoneFirst', style: AppText.screenTitle()),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(LucideIcons.refreshCw),
             onPressed: _loadAll,
             tooltip: 'Refresh',
           ),
           Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.notifications_outlined),
+                icon: const Icon(LucideIcons.bell),
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -734,7 +729,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
             ],
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(LucideIcons.settings),
             onPressed: () => PinGuard.push(
               context,
               destination: const SettingsScreen(),
@@ -742,7 +737,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
             tooltip: 'Settings',
           ),
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(LucideIcons.logOut),
             onPressed: _signOut,
             tooltip: 'Sign out',
           ),
@@ -758,33 +753,31 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha:0.08),
+                    decoration: const BoxDecoration(
+                      color: AppColors.sageFill,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.person_add,
-                      size: 48,
-                      color: AppColors.primary,
+                      LucideIcons.userPlus,
+                      size: 44,
+                      color: AppColors.forest,
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
+                  Text(
                     'Add your first child to get started',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: AppColors.textPrimary,
-                    ),
+                    style: AppText.cardHeader(size: 17),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'You can always add more later',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: AppText.bodySecondary(),
                   ),
                   const SizedBox(height: 24),
                   FilledButton.icon(
                     onPressed: _addChild,
-                    icon: const Icon(Icons.person_add),
+                    icon: const Icon(LucideIcons.userPlus, size: 18),
                     label: const Text('Add Child'),
                   ),
                 ],
@@ -804,18 +797,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       child: Row(
                         children: [
                           Icon(
-                            Icons.auto_awesome,
-                            color: AppColors.accent,
-                            size: 20,
+                            LucideIcons.sparkles,
+                            color: AppColors.warnDot,
+                            size: 18,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               '$_monthlySessionCount / ${UpgradeScreen.freeLimit} free sessions this month',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: AppText.body(size: 13),
                             ),
                           ),
                           if (_monthlySessionCount >= UpgradeScreen.freeLimit)
@@ -839,20 +829,20 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   Row(
                     children: [
                       Icon(
-                        Icons.smart_toy,
-                        size: 16,
+                        LucideIcons.bot,
+                        size: 15,
                         color: _mistralCallsToday >= 40
                             ? AppColors.danger
-                            : AppColors.textSecondary,
+                            : AppColors.muted,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         '$_mistralCallsToday / 50 AI checks today',
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: AppText.bodySecondary(
+                          size: 12,
                           color: _mistralCallsToday >= 40
                               ? AppColors.danger
-                              : AppColors.textSecondary,
+                              : AppColors.muted,
                         ),
                       ),
                     ],
@@ -865,13 +855,19 @@ class _ParentDashboardState extends State<ParentDashboard> {
                         child: Row(
                           children: [
                             _miniStat(
-                              Icons.play_circle,
+                              LucideIcons.playCircle,
                               '$_totalSessions',
                               'Sessions',
                             ),
-                            _miniStat(Icons.timer, '${_totalMinutes}m', 'Time'),
+                            const _StatDivider(),
                             _miniStat(
-                              Icons.verified,
+                              LucideIcons.timer,
+                              '${_totalMinutes}m',
+                              'Time',
+                            ),
+                            const _StatDivider(),
+                            _miniStat(
+                              LucideIcons.badgeCheck,
                               '$_totalApproved',
                               'Approved',
                             ),
@@ -892,17 +888,14 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             Row(
                               children: [
                                 const Icon(
-                                  Icons.today,
-                                  size: 18,
-                                  color: AppColors.primary,
+                                  LucideIcons.calendarDays,
+                                  size: 17,
+                                  color: AppColors.forest,
                                 ),
-                                const SizedBox(width: 6),
-                                const Text(
+                                const SizedBox(width: 8),
+                                Text(
                                   "Today's Schedule",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
+                                  style: AppText.cardHeader(size: 14),
                                 ),
                               ],
                             ),
@@ -921,8 +914,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        '$childName - ${s.durationMinutes}m',
-                                        style: const TextStyle(fontSize: 13),
+                                        '$childName · ${s.durationMinutes}m',
+                                        style: AppText.body(size: 13),
                                       ),
                                     ),
                                     if (!hasActive)
@@ -945,11 +938,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
                                         child: const Text('Start Now'),
                                       )
                                     else
-                                      const Text(
+                                      Text(
                                         'Already active',
-                                        style: TextStyle(
-                                          color: AppColors.success,
-                                          fontSize: 12,
+                                        style: AppText.bodySecondary(
+                                          size: 12,
+                                          color: AppColors.ok,
                                         ),
                                       ),
                                   ],
@@ -977,7 +970,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     padding: const EdgeInsets.only(top: 8),
                     child: OutlinedButton.icon(
                       onPressed: _addChild,
-                      icon: const Icon(Icons.person_add),
+                      icon: const Icon(LucideIcons.userPlus, size: 18),
                       label: const Text('Add Another Child'),
                     ),
                   ),
@@ -1011,7 +1004,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           ListTile(
-                            leading: const Icon(Icons.edit),
+                            leading: const Icon(LucideIcons.pencil),
                             title: const Text('Rename'),
                             onTap: () {
                               Navigator.pop(ctx);
@@ -1019,7 +1012,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             },
                           ),
                           ListTile(
-                            leading: const Icon(Icons.smartphone),
+                            leading: const Icon(LucideIcons.smartphone),
                             title: const Text('Pair kid device'),
                             subtitle: Text(
                               'Generate a code for ${child.name}’s phone',
@@ -1039,12 +1032,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           ),
                           ListTile(
                             leading: const Icon(
-                              Icons.delete,
+                              LucideIcons.trash2,
                               color: AppColors.danger,
                             ),
                             title: Text(
                               'Delete',
-                              style: TextStyle(color: AppColors.danger),
+                              style: AppText.body(color: AppColors.danger),
                             ),
                             onTap: () {
                               Navigator.pop(ctx);
@@ -1064,36 +1057,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     children: [
                       Text(
                         childName,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
+                        style: AppText.cardHeader(size: 17),
                       ),
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: hasActiveLock
-                                  ? AppColors.accent
-                                  : AppColors.success,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            hasActiveLock ? 'Lock Active' : 'No Active Lock',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: hasActiveLock
-                                  ? AppColors.accent
-                                  : AppColors.success,
-                            ),
-                          ),
-                        ],
-                      ),
+                      const SizedBox(height: 3),
+                      hasActiveLock
+                          ? const StatusDot.locked(label: 'Lock active')
+                          : const StatusDot.idle(label: 'No active lock'),
                       Builder(builder: (context) {
                         // Map the kid_devices_with_child view's
                         // status enum to a coloured dot + short label.
@@ -1124,37 +1093,50 @@ class _ParentDashboardState extends State<ParentDashboard> {
                         );
                       }),
                       if (child.streakCount > 0) ...[
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 6),
                         // Streak chip. Hidden when 0 so we never
                         // display a discouraging "0 day streak" to
                         // a kid who hasn't started yet.
-                        Row(
-                          children: [
-                            const Text('🔥', style: TextStyle(fontSize: 12)),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${child.streakCount} day streak',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.accent,
-                                fontWeight: FontWeight.w600,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.warnFill,
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.iconTile),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                LucideIcons.flame,
+                                size: 13,
+                                color: AppColors.warnDot,
                               ),
-                            ),
-                            if (child.lastStreakDate != null &&
-                                !_streakIsToday(child.lastStreakDate!))
-                              Padding(
-                                padding: const EdgeInsets.only(left: 4),
-                                child: Text(
-                                  '(at risk)',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary
-                                        .withValues(alpha: 0.8),
-                                    fontStyle: FontStyle.italic,
+                              const SizedBox(width: 5),
+                              Text(
+                                '${child.streakCount} day streak',
+                                style: AppText.bodySecondary(
+                                  size: 12,
+                                  color: AppColors.warn,
+                                ).copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              if (child.lastStreakDate != null &&
+                                  !_streakIsToday(child.lastStreakDate!))
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 5),
+                                  child: Text(
+                                    '(at risk)',
+                                    style: AppText.bodySecondary(
+                                      size: 11,
+                                      color: AppColors.muted,
+                                    ).copyWith(fontStyle: FontStyle.italic),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ],
@@ -1192,26 +1174,25 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.inbox,
+                      const Icon(
+                        LucideIcons.inbox,
                         size: 18,
-                        color: AppColors.accent,
+                        color: AppColors.warnDot,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '${_pendingProofs[childId]} ${_pendingProofs[childId] == 1 ? 'proof' : 'proofs'} to review',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.accent,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: AppText.body(
+                            size: 13,
+                            color: AppColors.warn,
+                          ).copyWith(fontWeight: FontWeight.w600),
                         ),
                       ),
                       const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 14,
-                        color: AppColors.accent,
+                        LucideIcons.chevronRight,
+                        size: 16,
+                        color: AppColors.warnDot,
                       ),
                     ],
                   ),
@@ -1241,7 +1222,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   child: Row(
                     children: [
                       const Icon(
-                        Icons.coffee_outlined,
+                        LucideIcons.coffee,
                         size: 18,
                         color: AppColors.warn,
                       ),
@@ -1249,16 +1230,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       Expanded(
                         child: Text(
                           '${_pendingBreaks[childId]} ${_pendingBreaks[childId] == 1 ? 'break request' : 'break requests'} waiting',
-                          style: const TextStyle(
-                            fontSize: 13,
+                          style: AppText.body(
+                            size: 13,
                             color: AppColors.warn,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          ).copyWith(fontWeight: FontWeight.w600),
                         ),
                       ),
                       const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 14,
+                        LucideIcons.chevronRight,
+                        size: 16,
                         color: AppColors.warn,
                       ),
                     ],
@@ -1280,7 +1260,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                         ),
                       ),
                     ),
-                    icon: const Icon(Icons.visibility, size: 18),
+                    icon: const Icon(LucideIcons.eye, size: 18),
                     label: const Text('Kid View'),
                   ),
                 ),
@@ -1303,7 +1283,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                               );
                             }
                           },
-                          icon: const Icon(Icons.pending, size: 18),
+                          icon: const Icon(LucideIcons.clock, size: 18),
                           label: const Text('View Lock'),
                         )
                       : FilledButton.icon(
@@ -1314,13 +1294,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
                               childName: childName,
                             ),
                           ),
-                          icon: const Icon(Icons.lock, size: 18),
+                          icon: const Icon(LucideIcons.lock, size: 18),
                           label: const Text('Start Lock'),
                         ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 2),
             Row(
               children: [
                 TextButton.icon(
@@ -1330,7 +1312,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       builder: (_) => ProofReviewScreen(childId: childId),
                     ),
                   ),
-                  icon: const Icon(Icons.history, size: 18),
+                  icon: const Icon(LucideIcons.history, size: 18),
                   label: const Text('History'),
                 ),
                 const SizedBox(width: 4),
@@ -1341,7 +1323,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       builder: (_) => SessionStatsScreen(childName: childName),
                     ),
                   ),
-                  icon: const Icon(Icons.analytics, size: 18),
+                  icon: const Icon(LucideIcons.barChart3, size: 18),
                   label: const Text('Stats'),
                 ),
                 const SizedBox(width: 4),
@@ -1355,7 +1337,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       ),
                     ),
                   ),
-                  icon: const Icon(Icons.calendar_month, size: 18),
+                  icon: const Icon(LucideIcons.calendar, size: 18),
                   label: const Text('Schedule'),
                 ),
                 const SizedBox(width: 4),
@@ -1369,7 +1351,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       ),
                     ),
                   ),
-                  icon: const Icon(Icons.photo_library, size: 18),
+                  icon: const Icon(LucideIcons.image, size: 18),
                   label: const Text('Gallery'),
                 ),
               ],
@@ -1384,7 +1366,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       builder: (_) => KidProfileScreen(child: child),
                     ),
                   ),
-                  icon: const Icon(Icons.face, size: 18),
+                  icon: const Icon(LucideIcons.user, size: 18),
                   label: const Text('Profile'),
                 ),
               ],
@@ -1399,23 +1381,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
     return Expanded(
       child: Column(
         children: [
-          Icon(icon, size: 20, color: AppColors.primary),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-            ),
-          ),
+          Icon(icon, size: 18, color: AppColors.forest),
+          const SizedBox(height: 6),
+          Text(value, style: AppText.statValue()),
+          const SizedBox(height: 2),
+          Text(label, style: AppText.bodySecondary(size: 11)),
         ],
       ),
     );
@@ -1452,17 +1422,12 @@ class _ChildAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasCustomization =
         child.emoji != null || child.color != null;
+    // Kids who never picked a custom emoji/color get the canonical
+    // sage-forest monogram (rounded-square, forest initial). Kids who
+    // chose an emoji keep it — but rendered in the same rounded-square
+    // tile shape so the row reads as one system.
     if (!hasCustomization) {
-      return CircleAvatar(
-        backgroundColor: AppColors.success.withValues(alpha: 0.1),
-        child: Text(
-          child.name.isEmpty ? '?' : child.name[0].toUpperCase(),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: AppColors.success,
-          ),
-        ),
-      );
+      return MonogramAvatar.parent(name: child.name, size: 46);
     }
 
     Color? color;
@@ -1473,18 +1438,31 @@ class _ChildAvatar extends StatelessWidget {
       }
     }
     return Container(
-      width: 40,
-      height: 40,
+      width: 46,
+      height: 46,
       decoration: BoxDecoration(
-        color: (color ?? AppColors.primary).withValues(alpha: 0.15),
-        shape: BoxShape.circle,
+        color: (color ?? AppColors.forest).withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppRadius.monogram),
       ),
-      child: Center(
-        child: Text(
-          child.emoji ?? child.name[0].toUpperCase(),
-          style: const TextStyle(fontSize: 22),
-        ),
+      alignment: Alignment.center,
+      child: Text(
+        child.emoji ??
+            (child.name.isEmpty ? '?' : child.name[0].toUpperCase()),
+        style: const TextStyle(fontSize: 24),
       ),
     );
   }
+}
+
+/// 1px vertical hairline separating the three family-stat tiles,
+/// matching the redesign's "tiles split by vertical hairlines" spec.
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 1,
+        height: 34,
+        color: AppColors.line,
+      );
 }
