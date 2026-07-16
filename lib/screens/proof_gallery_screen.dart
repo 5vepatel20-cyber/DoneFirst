@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../models/models.dart';
 import '../services/proof_service.dart';
 import '../services/session_service.dart';
@@ -109,7 +110,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
             )
           : _allProofs.isEmpty
           ? const EmptyState(
-              icon: Icons.photo_library,
+              icon: LucideIcons.image,
               title: 'No proof photos yet',
               subtitle: 'Proofs appear here after submission',
             )
@@ -242,7 +243,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                                           top: 2,
                                           right: 2,
                                           child: Icon(
-                                            Icons.check_circle,
+                                            LucideIcons.checkCircle2,
                                             color: AppColors.success,
                                             size: 16,
                                           ),
@@ -252,7 +253,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
                                           top: 2,
                                           right: 2,
                                           child: Icon(
-                                            Icons.cancel,
+                                            LucideIcons.xCircle,
                                             color: AppColors.danger,
                                             size: 16,
                                           ),
