@@ -163,24 +163,24 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     switch (status) {
       case BlockingStatus.permissionDenied:
         background = AppColors.danger.withValues(alpha: 0.1);
-        icon = Icons.block;
+        icon = LucideIcons.ban;
         text =
             'App blocking is off. Grant the permission in Settings to enforce the lock.';
         break;
       case BlockingStatus.permissionGranted:
         background = AppColors.success.withValues(alpha: 0.08);
-        icon = Icons.shield_outlined;
+        icon = LucideIcons.shieldCheck;
         text = 'App blocking ready. Tap Start Lock to begin.';
         break;
       case BlockingStatus.blockingActive:
         background = AppColors.success.withValues(alpha: 0.12);
-        icon = Icons.lock;
+        icon = LucideIcons.lock;
         text = 'Apps are being blocked. Homework time.';
         break;
       case BlockingStatus.blockingFailed:
       case BlockingStatus.blockingError:
         background = AppColors.danger.withValues(alpha: 0.1);
-        icon = Icons.error_outline;
+        icon = LucideIcons.alertCircle;
         text =
             'Blocking failed: ${_blockingService.lastError ?? 'unknown error'}';
         break;
@@ -1104,7 +1104,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Icon(
-                      Icons.comment,
+                      LucideIcons.messageSquare,
                       size: 14,
                       color: AppColors.primary,
                     ),
@@ -1130,7 +1130,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                   OutlinedButton.icon(
                     onPressed: () => _promptDecision(proof.id, 'rejected'),
                     icon: const Icon(
-                      Icons.close,
+                      LucideIcons.x,
                       size: 18,
                       color: AppColors.danger,
                     ),
@@ -1142,7 +1142,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                   const SizedBox(width: 8),
                   FilledButton.icon(
                     onPressed: () => _promptDecision(proof.id, 'approved'),
-                    icon: const Icon(Icons.check, size: 18),
+                    icon: const Icon(LucideIcons.check, size: 18),
                     label: const Text('Approve'),
                   ),
                 ],
