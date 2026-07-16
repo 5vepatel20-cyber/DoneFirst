@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_theme.dart';
 
 class UpgradeScreen extends StatelessWidget {
@@ -15,7 +16,7 @@ class UpgradeScreen extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _buildPlanCard(
-            icon: Icons.check_circle,
+            icon: LucideIcons.checkCircle,
             name: 'Free',
             price: '\$0',
             period: '/mo',
@@ -30,7 +31,7 @@ class UpgradeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _buildPlanCard(
-            icon: Icons.star,
+            icon: LucideIcons.star,
             name: 'DoneFirst Plus',
             price: '\$4.99',
             period: '/mo',
@@ -47,7 +48,7 @@ class UpgradeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _buildPlanCard(
-            icon: Icons.workspace_premium,
+            icon: LucideIcons.crown,
             name: 'DoneFirst Pro',
             price: '\$9.99',
             period: '/mo',
@@ -65,7 +66,7 @@ class UpgradeScreen extends StatelessWidget {
           const SizedBox(height: 32),
           Text(
             'Your first lock session is free. No credit card required to start.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: AppText.bodySecondary(size: 13),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -103,11 +104,7 @@ class UpgradeScreen extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         name,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
+                        style: AppText.cardHeader(color: color, size: 20),
                       ),
                       const Spacer(),
                       Row(
@@ -115,19 +112,15 @@ class UpgradeScreen extends StatelessWidget {
                         children: [
                           Text(
                             price,
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: color,
-                            ),
+                            style: AppText.statValue(color: color),
                           ),
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Text(
                               period,
-                              style: TextStyle(
-                                fontSize: 14,
+                              style: AppText.bodySecondary(
                                 color: color.withValues(alpha:0.7),
+                                size: 14,
                               ),
                             ),
                           ),
@@ -141,9 +134,9 @@ class UpgradeScreen extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Row(
                         children: [
-                          Icon(Icons.check, size: 18, color: color),
+                          Icon(LucideIcons.check, size: 18, color: color),
                           const SizedBox(width: 8),
-                          Text(f, style: const TextStyle(fontSize: 14)),
+                          Text(f, style: AppText.body(size: 14)),
                         ],
                       ),
                     ),
@@ -167,12 +160,11 @@ class UpgradeScreen extends StatelessWidget {
                       bottomLeft: Radius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Popular',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    style: AppText.bodySecondary(
+                      color: AppColors.card,
+                      size: 12,
                     ),
                   ),
                 ),

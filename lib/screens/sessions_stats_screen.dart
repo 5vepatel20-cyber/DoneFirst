@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../utils/subjects.dart';
@@ -159,35 +160,35 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
               padding: const EdgeInsets.all(20),
               children: [
                 _statCard(
-                  Icons.play_circle,
+                  LucideIcons.playCircle,
                   'Total Sessions',
                   '${_stats?['total_sessions'] ?? 0}',
                   AppColors.primary,
                 ),
                 const SizedBox(height: 12),
                 _statCard(
-                  Icons.timer,
+                  LucideIcons.timer,
                   'Total Study Time',
                   '${_stats?['total_minutes'] ?? 0} min',
                   AppColors.accent,
                 ),
                 const SizedBox(height: 12),
                 _statCard(
-                  Icons.check_circle,
+                  LucideIcons.circleCheck,
                   'Completed',
                   '${_stats?['completed'] ?? 0}',
                   AppColors.success,
                 ),
                 const SizedBox(height: 12),
                 _statCard(
-                  Icons.cancel,
+                  LucideIcons.circleX,
                   'Cancelled',
                   '${_stats?['cancelled'] ?? 0}',
                   AppColors.danger,
                 ),
                 const SizedBox(height: 12),
                 _statCard(
-                  Icons.verified,
+                  LucideIcons.badgeCheck,
                   'Proofs Approved',
                   '${_stats?['approved_proofs'] ?? 0}',
                   AppColors.info,
@@ -203,12 +204,9 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Completion Rate',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: AppText.cardHeader(),
                         ),
                         const SizedBox(height: 12),
                         _buildRateBar(),
@@ -227,12 +225,12 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
         .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     if (entries.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Text(
             'Tag tasks with a subject to see a per-subject breakdown.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: AppText.bodySecondary(size: 13),
           ),
         ),
       );
@@ -244,9 +242,9 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Time by Subject',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: AppText.cardHeader(),
             ),
             const SizedBox(height: 12),
             ...entries.map((e) {
@@ -261,30 +259,24 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
                         Expanded(
                           child: Text(
                             e.key,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: AppText.body(size: 13),
                           ),
                         ),
                         Text(
                           '${e.value} min',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
+                          style: AppText.bodySecondary(),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(AppRadius.iconTile),
                       child: LinearProgressIndicator(
                         value: pct,
                         minHeight: 6,
                         backgroundColor:
-                            AppColors.primary.withValues(alpha: 0.1),
-                        color: AppColors.primary,
+                            AppColors.sageFill,
+                        color: AppColors.forest,
                       ),
                     ),
                   ],
@@ -301,9 +293,9 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
     final total = (_stats?['total_sessions'] as int?) ?? 0;
     final completed = (_stats?['completed'] as int?) ?? 0;
     if (total == 0)
-      return const Text(
+      return Text(
         'No sessions yet',
-        style: TextStyle(color: AppColors.textSecondary),
+        style: AppText.bodySecondary(),
       );
 
     final rate = completed / total;
@@ -313,18 +305,18 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(AppRadius.iconTile),
           child: LinearProgressIndicator(
             value: rate,
             minHeight: 12,
-            backgroundColor: AppColors.border,
-            valueColor: const AlwaysStoppedAnimation(AppColors.success),
+            backgroundColor: AppColors.sageFill,
+            valueColor: const AlwaysStoppedAnimation(AppColors.forest),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           '$percent% of sessions completed successfully',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+          style: AppText.bodySecondary(size: 13),
         ),
       ],
     );
@@ -338,9 +330,9 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'This Week',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: AppText.cardHeader(),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -361,30 +353,26 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
                           if (minutes > 0)
                             Text(
                               '${minutes}m',
-                              style: const TextStyle(
-                                fontSize: 9,
-                                color: AppColors.textSecondary,
-                              ),
+                              style: AppText.bodySecondary(size: 9),
                             ),
                           const SizedBox(height: 2),
                           Container(
                             height: height.clamp(4.0, 100.0),
                             decoration: BoxDecoration(
                               color: i == DateTime.now().weekday - 1
-                                  ? AppColors.primary
-                                  : AppColors.primary.withValues(alpha:0.3),
-                              borderRadius: BorderRadius.circular(4),
+                                  ? AppColors.forest
+                                  : AppColors.sage.withValues(alpha:0.3),
+                              borderRadius: BorderRadius.circular(AppRadius.iconTile),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             weekdayNames[i],
-                            style: TextStyle(
-                              fontSize: 9,
+                            style: AppText.eyebrow(
                               color: i == DateTime.now().weekday - 1
-                                  ? AppColors.primary
-                                  : AppColors.textSecondary,
-                            ),
+                                  ? AppColors.forest
+                                  : AppColors.muted,
+                            ).copyWith(fontSize: 9),
                           ),
                         ],
                       ),
@@ -419,17 +407,11 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
+                  style: AppText.bodySecondary(size: 13),
                 ),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: AppText.statValue(),
                 ),
               ],
             ),
