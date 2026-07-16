@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/consent_service.dart';
@@ -17,6 +18,7 @@ import 'upgrade_screen.dart';
 import 'coparent_screen.dart';
 import 'help_screen.dart';
 import 'kid_device_pairing_screen.dart';
+import 'device_permissions_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -404,7 +406,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.copy),
+                        icon: const Icon(LucideIcons.copy, size: 20),
                         tooltip: 'Copy JSON',
                         onPressed: () async {
                           await Clipboard.setData(
@@ -419,7 +421,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         },
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(LucideIcons.x, size: 20),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -676,12 +678,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   title: Text(_displayName ?? 'Unknown'),
                   subtitle: Text(_userEmail ?? ''),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
                   onTap: _editProfile,
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.auto_awesome),
+                  leading: const Icon(LucideIcons.sparkles, size: 22),
                   title: const Text('DoneFirst Plus'),
                   subtitle: const Text(
                     '${UpgradeScreen.freeLimit} free sessions/month',
@@ -696,10 +698,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.people_outline),
+                  leading: const Icon(LucideIcons.users, size: 22),
                   title: const Text('Co-Parent'),
                   subtitle: const Text('Invite a partner to manage together'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
                   onTap: () => PinGuard.push(
                     context,
                     destination: const CoparentScreen(),
@@ -707,12 +709,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.smartphone),
+                  leading: const Icon(LucideIcons.smartphone, size: 22),
                   title: const Text('Kid devices'),
                   subtitle: const Text(
                     'Pair or revoke the device running your kid’s mode',
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
                   onTap: () => PinGuard.push(
                     context,
                     destination: const KidDevicePairingScreen(),
@@ -721,7 +723,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.lock_outline),
+                  // Manual re-check entry point for parents whose
+                  // blocking stopped working mid-session (e.g. an
+                  // OS update revoked the toggle). The proactive
+                  // case — first-time setup — is handled by the
+                  // lock_config_screen redirect; this is the
+                  // pull-on-demand surface for the proactive parent
+                  // who wants to audit the grants themselves.
+                  leading: const Icon(LucideIcons.shieldCheck, size: 22),
+                  title: const Text('Device permissions'),
+                  subtitle: const Text(
+                    'Re-check Usage access and Display over other apps',
+                  ),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DevicePermissionsScreen(),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(LucideIcons.lock, size: 22),
                   title: Text(
                     _pin == null ? 'Set Parent PIN' : 'Change Parent PIN',
                   ),
@@ -731,15 +755,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : 'PIN is set',
                   ),
                   trailing: _pin == null
-                      ? const Icon(Icons.arrow_forward_ios, size: 16)
+                      ? const Icon(LucideIcons.chevronRight, size: 16)
                       : Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: const Icon(
-                                Icons.delete_outline,
+                                LucideIcons.trash2,
                                 color: AppColors.danger,
-                                size: 20,
+                                size: 18,
                               ),
                               tooltip: 'Remove PIN',
                               onPressed: () async {
@@ -751,17 +775,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 );
                               },
                             ),
-                            const Icon(Icons.arrow_forward_ios, size: 16),
+                            const Icon(LucideIcons.chevronRight, size: 16),
                           ],
                         ),
                   onTap: _setPin,
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.key),
+                  leading: const Icon(LucideIcons.key, size: 22),
                   title: const Text('Change Password'),
                   subtitle: const Text('Update your login password'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
                   onTap: _changePassword,
                 ),
               ],
@@ -819,7 +843,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _section('Appearance'),
           Card(
             child: SwitchListTile(
-              secondary: const Icon(Icons.dark_mode),
+              secondary: const Icon(LucideIcons.moon, size: 22),
               title: const Text('Dark Mode'),
               value: darkModeNotifier.value,
               onChanged: (v) => setState(() => darkModeNotifier.value = v),
@@ -878,7 +902,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _section('Your Data'),
           Card(
             child: ListTile(
-              leading: const Icon(Icons.download_outlined),
+              leading: const Icon(LucideIcons.download, size: 22),
               title: const Text('Export My Data'),
               subtitle: const Text(
                 'Download a JSON copy of your profile, family, sessions, '
@@ -890,7 +914,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.chevron_right),
+                  : const Icon(LucideIcons.chevronRight, size: 16),
               onTap: _exporting ? null : _exportData,
             ),
           ),
@@ -927,7 +951,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.check_circle_outline,
+                            const Icon(LucideIcons.checkCircle2,
                                 size: 16, color: AppColors.success),
                             const SizedBox(width: 8),
                             Expanded(
@@ -963,12 +987,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.privacy_tip_outlined),
+                  leading: const Icon(LucideIcons.shield, size: 22),
                   title: const Text('Privacy Policy'),
                   subtitle: const Text(
                     'What we collect and how we use it',
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
                   onTap: () => _showPolicyDialog(
                     context,
                     'Privacy Policy',
@@ -977,10 +1001,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.description_outlined),
+                  leading: const Icon(LucideIcons.fileText, size: 22),
                   title: const Text('Terms of Service'),
                   subtitle: const Text('Rules for using DoneFirst'),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
                   onTap: () => _showPolicyDialog(
                     context,
                     'Terms of Service',
@@ -995,8 +1019,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: ListTile(
               leading: const Icon(
-                Icons.delete_forever,
+                LucideIcons.delete,
                 color: AppColors.danger,
+                size: 22,
               ),
               title: Text(
                 'Delete Account',
@@ -1012,12 +1037,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.help_outline),
+                  leading: const Icon(LucideIcons.helpCircle, size: 22),
                   title: const Text('Help & Support'),
                   subtitle: const Text(
                     'FAQ and troubleshooting tips',
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -1027,7 +1052,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.info_outline),
+                  leading: const Icon(LucideIcons.info, size: 22),
                   title: const Text('App version'),
                   subtitle: Text(
                     'DoneFirst $_appVersion',
@@ -1039,7 +1064,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.email_outlined),
+                  leading: const Icon(LucideIcons.mail, size: 22),
                   title: const Text('Resend verification email'),
                   subtitle: const Text(
                     "Didn't get the confirmation email? Send it again.",
@@ -1048,7 +1073,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(Icons.bug_report_outlined),
+                  leading: const Icon(LucideIcons.bug, size: 22),
                   title: const Text('Report a problem'),
                   subtitle: const Text(
                     'Copies our support email so you can write us.',
@@ -1103,7 +1128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(LucideIcons.x, size: 20),
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
