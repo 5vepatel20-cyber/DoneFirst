@@ -41,13 +41,14 @@ class _CoparentScreenState extends State<CoparentScreen> {
     final invites = results[0] as List<ParentInvite>;
     final coParents = results[1] as List<ParentUser>;
     final myInvites = results[2] as List<ParentInvite>;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _invites = invites;
         _coParents = coParents;
         _myInvites = myInvites;
         _loading = false;
       });
+    }
   }
 
   Future<void> _invite() async {

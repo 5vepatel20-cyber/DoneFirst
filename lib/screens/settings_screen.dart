@@ -167,10 +167,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           await _profileService.updateFamilyName(newFamily);
           setState(() => _familyName = newFamily);
         }
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text('Profile updated')));
+        }
       }
     } finally {
       // Dialog controllers are local-scope; release their listeners
@@ -612,10 +613,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _resendVerification() async {
     final email = _userEmail;
     if (email == null) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('No email on file.')));
+      }
       return;
     }
     try {
@@ -623,17 +625,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         type: OtpType.email,
         email: email,
       );
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Verification email re-sent to $email.'),
           ),
         );
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
     }
   }
 
@@ -646,20 +650,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await Clipboard.setData(
       const ClipboardData(text: supportEmail),
     );
-    if (mounted)
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('support@donefirst.app copied. Email us there.'),
         ),
       );
+    }
   }
 
   /// True for trivially-guessable 4-digit PINs. We reject two
   /// shapes — all-same digits (0000, 1111, …) and 4-in-a-row
   @override
   Widget build(BuildContext context) {
-    if (_loading)
+    if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),

@@ -301,11 +301,12 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
   Widget _buildRateBar() {
     final total = (_stats?['total_sessions'] as int?) ?? 0;
     final completed = (_stats?['completed'] as int?) ?? 0;
-    if (total == 0)
+    if (total == 0) {
       return const Text(
         'No sessions yet',
         style: TextStyle(color: AppColors.textSecondary),
       );
+    }
 
     final rate = completed / total;
     final percent = (rate * 100).round();

@@ -49,12 +49,13 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
     ]);
     final schedules = results[0] as List;
     final active = results[1] as HomeworkSession?;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _schedules = schedules.cast();
         _activeSessionId = active?.id;
         _loading = false;
       });
+    }
   }
 
   /// Shared dialog for both add and edit. Returns null on cancel.
