@@ -210,7 +210,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _showPinSnackBar('PINs didn’t match — try again.');
       return;
     }
-    await _parentPrefs.setPin(pin1);
+    try {
+      await _parentPrefs.setPin(pin1);
+    } catch (e) {
+      // Without this catch, a SharedPreferences write failure makes
+      // the parent think the new PIN was saved (the snackbar says
+      // "PIN saved") but the old PIN is still on file. They'd be
+      // locked out at the next gated action. Same risk shape as
+      // forgot_pin_flow.run — always surface the failure.
+      _showPinSnackBar('Couldn’t save PIN: $e');
+      return;
+    }
     if (!mounted) return;
     setState(() => _pin = pin1);
     ScaffoldMessenger.of(context).showSnackBar(

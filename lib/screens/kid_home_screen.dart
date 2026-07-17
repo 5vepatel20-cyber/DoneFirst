@@ -79,88 +79,104 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   }
 
   Future<void> _checkActive() async {
-    // Active session lookup is the gating read — only after we know
-    // its id can we fetch tasks + proofs. Streak is independent and
-    // can fire alongside the session lookup.
-    final results = await Future.wait([
-      _sessionService.getActiveSession(widget.childId),
-      _streakService.computeStreakResult(widget.childId),
-    ]);
-    final newSession = results[0] as HomeworkSession?;
-    final newStreak = (results[1] as StreakResult).streak;
-    final newStreakGraceUsed = (results[1] as StreakResult).graceUsed;
-    if (!mounted) return;
-    if (newSession != null) {
-      // Tasks + proofs + latest break request are independent —
-      // fetch in parallel instead of three sequential round-trips.
-      // The break lookup keeps the "Ask for a break" button in
-      // sync with server state (so it re-enables after the parent
-      // responds, instead of staying stuck on "Requested" forever).
-      final sessionResults = await Future.wait([
-        _proofService.getTasks(newSession.id),
-        _proofService.getProofsForSession(newSession.id),
-        _breakService.getLatestForSession(newSession.id),
+    try {
+      // Active session lookup is the gating read — only after we know
+      // its id can we fetch tasks + proofs. Streak is independent and
+      // can fire alongside the session lookup.
+      final results = await Future.wait([
+        _sessionService.getActiveSession(widget.childId),
+        _streakService.computeStreakResult(widget.childId),
       ]);
-      if (mounted) {
-        setState(() {
-          _tasks = sessionResults[0] as List<HomeworkTask>;
-          _proofs = sessionResults[1] as List<ProofSubmission>;
-          // True only if there's a pending request. Approved/denied
-          // /no request → re-enable the button.
-          _breakRequested = sessionResults[2] != null &&
-              (sessionResults[2] as BreakRequest).status == 'pending';
-        });
-      }
-    }
-    if (_hadActiveSession && newSession == null && _activeSession != null) {
-      // Snapshot the values we need before clearing _activeSession
-      // below — the new full-screen route captures them at push
-      // time and the screen never re-reads from the kid home.
-      final completedTasks = _tasks.where((t) => !t.isPending).length;
-      final completedStreak = newStreak;
-      // The session row's minLockMinutes is the minimum the parent
-      // committed to; the kid's actual elapsed time would be more
-      // honest but it isn't surfaced by SessionService.getActive.
-      // Floor at 1 so the stat pill always reads "1 min" rather
-      // than "0 min" for the (rare) zero-length auto-lifts.
-      final completedMinutes = _activeSession?.minLockMinutes ?? 0;
-      setState(() {
-        _streak = newStreak;
-        _streakGraceUsed = newStreakGraceUsed;
-      });
-      _previousStreak = newStreak;
-      // Push the full-screen kid celebration. Replaces the legacy
-      // SessionCompleteCelebration overlay so the kid gets a focused
-      // moment without the home-screen chrome behind it.
+      final newSession = results[0] as HomeworkSession?;
+      final newStreak = (results[1] as StreakResult).streak;
+      final newStreakGraceUsed = (results[1] as StreakResult).graceUsed;
       if (!mounted) return;
-      Navigator.of(context).pushNamed(
-        '/session-complete-kid',
-        arguments: {
-          'childName': widget.childName,
-          'tasksCompleted': completedTasks,
-          'streakDays': completedStreak,
-          'minutesStudied': completedMinutes,
-        },
-      );
-    } else {
-      if (newStreak > _previousStreak) {
-        final milestone = _milestoneService.wasMilestoneReached(
-          _previousStreak,
-          newStreak,
-        );
-        if (milestone != null) {
-          setState(() => _currentMilestone = milestone);
+      if (newSession != null) {
+        // Tasks + proofs + latest break request are independent —
+        // fetch in parallel instead of three sequential round-trips.
+        // The break lookup keeps the "Ask for a break" button in
+        // sync with server state (so it re-enables after the parent
+        // responds, instead of staying stuck on "Requested" forever).
+        final sessionResults = await Future.wait([
+          _proofService.getTasks(newSession.id),
+          _proofService.getProofsForSession(newSession.id),
+          _breakService.getLatestForSession(newSession.id),
+        ]);
+        if (mounted) {
+          setState(() {
+            _tasks = sessionResults[0] as List<HomeworkTask>;
+            _proofs = sessionResults[1] as List<ProofSubmission>;
+            // True only if there's a pending request. Approved/denied
+            // /no request → re-enable the button.
+            _breakRequested = sessionResults[2] != null &&
+                (sessionResults[2] as BreakRequest).status == 'pending';
+          });
         }
       }
-      _previousStreak = newStreak;
-      setState(() {
-        _streak = newStreak;
-        _streakGraceUsed = newStreakGraceUsed;
-      });
+      if (_hadActiveSession && newSession == null && _activeSession != null) {
+        // Snapshot the values we need before clearing _activeSession
+        // below — the new full-screen route captures them at push
+        // time and the screen never re-reads from the kid home.
+        final completedTasks = _tasks.where((t) => !t.isPending).length;
+        final completedStreak = newStreak;
+        // The session row's minLockMinutes is the minimum the parent
+        // committed to; the kid's actual elapsed time would be more
+        // honest but it isn't surfaced by SessionService.getActive.
+        // Floor at 1 so the stat pill always reads "1 min" rather
+        // than "0 min" for the (rare) zero-length auto-lifts.
+        final completedMinutes = _activeSession?.minLockMinutes ?? 0;
+        setState(() {
+          _streak = newStreak;
+          _streakGraceUsed = newStreakGraceUsed;
+        });
+        _previousStreak = newStreak;
+        // Push the full-screen kid celebration. Replaces the legacy
+        // SessionCompleteCelebration overlay so the kid gets a focused
+        // moment without the home-screen chrome behind it.
+        if (!mounted) return;
+        Navigator.of(context).pushNamed(
+          '/session-complete-kid',
+          arguments: {
+            'childName': widget.childName,
+            'tasksCompleted': completedTasks,
+            'streakDays': completedStreak,
+            'minutesStudied': completedMinutes,
+          },
+        );
+      } else {
+        if (newStreak > _previousStreak) {
+          final milestone = _milestoneService.wasMilestoneReached(
+            _previousStreak,
+            newStreak,
+          );
+          if (milestone != null) {
+            setState(() => _currentMilestone = milestone);
+          }
+        }
+        _previousStreak = newStreak;
+        setState(() {
+          _streak = newStreak;
+          _streakGraceUsed = newStreakGraceUsed;
+        });
+      }
+      _hadActiveSession = newSession != null;
+      _activeSession = newSession;
+    } catch (e) {
+      // Without this catch, a Supabase hiccup on the active-session
+      // or task fetch leaves the kid staring at the loading spinner
+      // forever. Surface the real exception so the kid (or parent)
+      // can pull-to-refresh.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t load your homework: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    _hadActiveSession = newSession != null;
-    _activeSession = newSession;
-    _loading = false;
   }
 
   Future<void> _requestBreak() async {

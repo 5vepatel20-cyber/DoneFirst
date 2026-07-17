@@ -40,33 +40,49 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
   }
 
   Future<void> _load() async {
-    final sessions = await _sessionService.getHistory(widget.childId);
-    // Build a date-by-session index up front so we can attribute
-    // each proof to its session's start date in O(1) instead of
-    // re-deriving it for every row.
-    final dateBySession = <String, String>{
-      for (final s in sessions)
-        s.id: s.startedAt.toIso8601String().substring(0, 10),
-    };
-    // Pull proofs in parallel for every session instead of one
-    // round-trip per session. With N sessions of M proofs each,
-    // this drops from N+1 round-trips to ~N parallel queries.
-    final proofLists = await Future.wait(
-      sessions.map((s) => _proofService.getProofsForSession(s.id)),
-    );
-    final allProofs = <_ProofWithDate>[];
-    for (var i = 0; i < sessions.length; i++) {
-      final date = dateBySession[sessions[i].id] ?? '';
-      for (final p in proofLists[i]) {
-        allProofs.add(_ProofWithDate(p, date));
+    try {
+      final sessions = await _sessionService.getHistory(widget.childId);
+      // Build a date-by-session index up front so we can attribute
+      // each proof to its session's start date in O(1) instead of
+      // re-deriving it for every row.
+      final dateBySession = <String, String>{
+        for (final s in sessions)
+          s.id: s.startedAt.toIso8601String().substring(0, 10),
+      };
+      // Pull proofs in parallel for every session instead of one
+      // round-trip per session. With N sessions of M proofs each,
+      // this drops from N+1 round-trips to ~N parallel queries.
+      final proofLists = await Future.wait(
+        sessions.map((s) => _proofService.getProofsForSession(s.id)),
+      );
+      final allProofs = <_ProofWithDate>[];
+      for (var i = 0; i < sessions.length; i++) {
+        final date = dateBySession[sessions[i].id] ?? '';
+        for (final p in proofLists[i]) {
+          allProofs.add(_ProofWithDate(p, date));
+        }
       }
-    }
-    if (mounted) {
-      setState(() {
-        _allProofs.clear();
-        _allProofs.addAll(allProofs);
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _allProofs.clear();
+          _allProofs.addAll(allProofs);
+        });
+      }
+    } catch (e) {
+      // Same spinner-forever pattern as pending_proofs_screen +
+      // schedules_screen — always flip _loading off in finally so a
+      // Supabase hiccup doesn't leave the user staring at shimmer
+      // tiles forever, and surface the real exception.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t load proof gallery: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 

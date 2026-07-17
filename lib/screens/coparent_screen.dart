@@ -29,25 +29,40 @@ class _CoparentScreenState extends State<CoparentScreen> {
   }
 
   Future<void> _load() async {
-    _familyId = await _sessionService.getOrCreateFamily();
-    // Three independent fetches sharing the same _familyId. Run
-    // them in parallel so the screen goes from 'family lookup +
-    // 3 fetches' to 'family lookup + 1 fetch' worth of latency.
-    final results = await Future.wait<Object?>([
-      _coparentService.getPendingInvites(_familyId!),
-      _coparentService.getCoParents(_familyId!),
-      _coparentService.getMyInvites(),
-    ]);
-    final invites = results[0] as List<ParentInvite>;
-    final coParents = results[1] as List<ParentUser>;
-    final myInvites = results[2] as List<ParentInvite>;
-    if (mounted) {
-      setState(() {
-        _invites = invites;
-        _coParents = coParents;
-        _myInvites = myInvites;
-        _loading = false;
-      });
+    try {
+      _familyId = await _sessionService.getOrCreateFamily();
+      // Three independent fetches sharing the same _familyId. Run
+      // them in parallel so the screen goes from 'family lookup +
+      // 3 fetches' to 'family lookup + 1 fetch' worth of latency.
+      final results = await Future.wait<Object?>([
+        _coparentService.getPendingInvites(_familyId!),
+        _coparentService.getCoParents(_familyId!),
+        _coparentService.getMyInvites(),
+      ]);
+      final invites = results[0] as List<ParentInvite>;
+      final coParents = results[1] as List<ParentUser>;
+      final myInvites = results[2] as List<ParentInvite>;
+      if (mounted) {
+        setState(() {
+          _invites = invites;
+          _coParents = coParents;
+          _myInvites = myInvites;
+        });
+      }
+    } catch (e) {
+      // Surface the failure (mirror of the pending_proofs_screen +
+      // schedules_screen fixes). Without this catch the spinner
+      // runs forever on a Supabase hiccup.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t load co-parent info: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -105,17 +120,52 @@ class _CoparentScreenState extends State<CoparentScreen> {
                             FilledButton(
                               onPressed: () async {
                                 final navigator = Navigator.of(context);
-                                await _coparentService.acceptInvite(inv.id);
-                                if (!mounted) return;
-                                navigator.pushReplacementNamed('/dashboard');
+                                final messenger =
+                                    ScaffoldMessenger.of(context);
+                                try {
+                                  await _coparentService.acceptInvite(inv.id);
+                                  if (!mounted) return;
+                                  navigator.pushReplacementNamed('/dashboard');
+                                } catch (e) {
+                                  // Without this catch, a Supabase
+                                  // hiccup on acceptInvite leaves the
+                                  // invite pending with no feedback —
+                                  // the user clicks Accept and nothing
+                                  // happens.
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Couldn’t accept invite: $e',
+                                      ),
+                                      backgroundColor: AppColors.danger,
+                                    ),
+                                  );
+                                }
                               },
                               child: const Text('Accept'),
                             ),
                             const SizedBox(width: 4),
                             TextButton(
                               onPressed: () async {
-                                await _coparentService.cancelInvite(inv.id);
-                                await _load();
+                                final messenger =
+                                    ScaffoldMessenger.of(context);
+                                try {
+                                  await _coparentService.cancelInvite(inv.id);
+                                  await _load();
+                                } catch (e) {
+                                  // Same shape as the Accept button:
+                                  // a Supabase hiccup on cancelInvite
+                                  // would leave the invite still
+                                  // pending with no feedback.
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Couldn’t decline invite: $e',
+                                      ),
+                                      backgroundColor: AppColors.danger,
+                                    ),
+                                  );
+                                }
                               },
                               child: const Text('Decline'),
                             ),
