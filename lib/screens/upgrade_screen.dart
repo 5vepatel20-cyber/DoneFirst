@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_theme.dart';
 
 class UpgradeScreen extends StatelessWidget {
@@ -15,7 +16,7 @@ class UpgradeScreen extends StatelessWidget {
         children: [
           const SizedBox(height: 16),
           _buildPlanCard(
-            icon: Icons.check_circle,
+            icon: LucideIcons.checkCircle2,
             name: 'Free',
             price: '\$0',
             period: '/mo',
@@ -30,7 +31,7 @@ class UpgradeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _buildPlanCard(
-            icon: Icons.star,
+            icon: LucideIcons.sparkles,
             name: 'DoneFirst Plus',
             price: '\$4.99',
             period: '/mo',
@@ -47,7 +48,7 @@ class UpgradeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _buildPlanCard(
-            icon: Icons.workspace_premium,
+            icon: LucideIcons.crown,
             name: 'DoneFirst Pro',
             price: '\$9.99',
             period: '/mo',
@@ -141,7 +142,7 @@ class UpgradeScreen extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Row(
                         children: [
-                          Icon(Icons.check, size: 18, color: color),
+                          Icon(LucideIcons.check, size: 18, color: color),
                           const SizedBox(width: 8),
                           Text(f, style: const TextStyle(fontSize: 14)),
                         ],
