@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/coparent_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
@@ -92,7 +93,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: const Icon(
-                          Icons.mail_outline,
+                          LucideIcons.mail,
                           color: AppColors.accent,
                         ),
                         title: const Text('You\'ve been invited!'),
@@ -134,7 +135,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
                       child: Row(
                         children: [
                           Icon(
-                            Icons.people_outline,
+                            LucideIcons.users,
                             color: AppColors.textSecondary,
                           ),
                           const SizedBox(width: 8),
@@ -188,7 +189,7 @@ class _CoparentScreenState extends State<CoparentScreen> {
                                 controller: _emailController,
                                 decoration: const InputDecoration(
                                   labelText: 'Partner\'s email',
-                                  prefixIcon: Icon(Icons.email),
+                                  prefixIcon: Icon(LucideIcons.mail),
                                 ),
                                 keyboardType: TextInputType.emailAddress,
                               ),
@@ -212,14 +213,14 @@ class _CoparentScreenState extends State<CoparentScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: const Icon(
-                          Icons.hourglass_empty,
+                          LucideIcons.hourglass,
                           color: AppColors.accent,
                         ),
                         title: Text(inv.inviteeEmail),
                         subtitle: const Text('Pending'),
                         trailing: IconButton(
                           icon: const Icon(
-                            Icons.close,
+                            LucideIcons.x,
                             color: AppColors.danger,
                           ),
                           onPressed: () async {
