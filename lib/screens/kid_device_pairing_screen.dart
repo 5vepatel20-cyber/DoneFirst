@@ -82,6 +82,8 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
   void Function(Map<String, dynamic>)? _previousOnNewEvent;
 
   void _onRealtimeEvent(Map<String, dynamic> newRow) {
+    final eventType = newRow['event_type'] as String?;
+    final claimedCode = newRow['device_pairing_code'] as String?;
     // RLS keeps realtime scoped to the parent's family, but the
     // event row only contains the raw columns (no child_name /
     // device_name join). Cheapest correct path: refetch the
@@ -95,8 +97,6 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
     // the loop close ("code entered → kid device appears in list")
     // instead of watching the timer tick down a code the kid has
     // already used.
-    final eventType = newRow['event_type'] as String?;
-    final claimedCode = newRow['device_pairing_code'] as String?;
     if (eventType == KidDeviceEvent.typeCodeClaimed &&
         claimedCode != null &&
         _activeCode != null &&
@@ -180,9 +180,17 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
       final code = await _service.generatePairingCode(childId: childId);
       if (!mounted) return;
       _startCountdown(code);
+      // Defensive: if the initial time-until-expiry is already
+      // non-positive (timezone/storage race we don't fully trust),
+      // skip rendering an Active card that just says "Expired".
+      // Jump straight to the Expired state so the parent can
+      // retry instead of seeing the card flash and vanish.
+      final alreadyExpired = !code.timeUntilExpiry.isNegative &&
+          code.timeUntilExpiry == Duration.zero;
       setState(() {
-        _activeCode = code;
+        _activeCode = alreadyExpired ? null : code;
         _activeCodeChildId = childId;
+        _codeExpired = alreadyExpired;
       });
     } catch (e) {
       if (!mounted) return;

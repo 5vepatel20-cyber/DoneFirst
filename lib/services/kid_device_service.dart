@@ -32,7 +32,12 @@ class KidDeviceService {
     Duration validFor = const Duration(minutes: 10),
   }) async {
     final code = _generateSixDigitCode();
-    final expiresAt = DateTime.now().add(validFor);
+    // Use UTC + explicit Z suffix. Postgres `timestamptz` columns
+    // interpret naive ISO strings as the session timezone (UTC on
+    // Supabase), so a local-time string from a parent in EDT would
+    // be persisted as if it were UTC — four hours of "drift" the
+    // way you don't want it. Sending UTC+`Z` removes the ambiguity.
+    final expiresAt = DateTime.now().toUtc().add(validFor);
     final userId = _supabase.auth.currentUser!.id;
 
     // Resolve the parent's family_id. We need it because the
