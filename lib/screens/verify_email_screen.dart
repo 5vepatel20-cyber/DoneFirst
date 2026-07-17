@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
@@ -100,7 +101,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.mark_email_unread,
+                  LucideIcons.mail,
                   size: 48,
                   color: AppColors.accent,
                 ),
@@ -141,13 +142,13 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(Icons.refresh),
+                    : const Icon(LucideIcons.refreshCw),
                 label: const Text('I\'ve Verified — Continue'),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: _resend,
-                icon: const Icon(Icons.send, size: 18),
+                icon: const Icon(LucideIcons.send, size: 18),
                 label: const Text('Resend Email'),
               ),
               const SizedBox(height: 12),
