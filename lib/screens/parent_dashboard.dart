@@ -606,6 +606,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 'will be unpaired — the kid will need to re-pair each device.';
 
     if (!mounted) return;
+    // Capture messenger BEFORE the destructive dialog so the catch
+    // block below can show a snackbar without tripping
+    // use_build_context_synchronously (we'd otherwise be reading
+    // `context` after a real network round-trip on the dialog).
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await DestructiveConfirmDialog.show(
       context,
       title: 'Delete ${child.name}?',
@@ -621,8 +626,21 @@ class _ParentDashboardState extends State<ParentDashboard> {
       warningText: warningText,
     );
     if (!confirmed) return;
-    await _sessionService.deleteChild(child.id);
-    await _loadAll();
+    try {
+      await _sessionService.deleteChild(child.id);
+      await _loadAll();
+    } catch (e) {
+      // Without this catch, a Supabase hiccup on deleteChild closes
+      // the dialog cleanly but leaves the kid row in the DB and the
+      // parent's next refresh shows them still listed. Surface the
+      // error so they can retry.
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t delete ${child.name}: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _signOut() async {

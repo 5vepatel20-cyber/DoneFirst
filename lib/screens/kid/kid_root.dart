@@ -5,6 +5,7 @@ import '../../../services/heartbeat_service.dart';
 import '../../../services/kid_auth_service.dart';
 import '../../../services/kid_realtime_service.dart';
 import '../../../services/kiosk_service.dart';
+import '../../../theme/app_theme.dart';
 import '../auth_screen.dart';
 import 'locked_screen.dart';
 import 'on_break_screen.dart';
@@ -61,14 +62,30 @@ class _KidRootState extends State<KidRoot> {
     // calls Supabase.auth.recoverSession. Neither call depends on
     // the other — fire them in parallel so a slow platform-channel
     // hop doesn't delay session restore (or vice versa).
-    final results = await Future.wait<Object?>([
-      kiosk.refreshDeviceOwner(),
-      kidAuth.restoreSession(),
-    ]);
-    final restored = results[1] as bool;
-    if (restored && kidAuth.childId != null) {
-      await realtime.start(kidAuth.childId!);
-      heartbeat.start();
+    bool restored = false;
+    try {
+      final results = await Future.wait<Object?>([
+        kiosk.refreshDeviceOwner(),
+        kidAuth.restoreSession(),
+      ]);
+      restored = results[1] as bool;
+      if (restored && kidAuth.childId != null) {
+        await realtime.start(kidAuth.childId!);
+        heartbeat.start();
+      }
+    } catch (e) {
+      // Without this catch the kid would see a stuck loading
+      // screen forever with no feedback. The next call to setState
+      // would also be skipped. We land on WaitingScreen so the kid
+      // at least sees something actionable.
+      debugPrint('KidRoot bootstrap failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t start the kid app: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     }
     if (mounted) setState(() {});
   }

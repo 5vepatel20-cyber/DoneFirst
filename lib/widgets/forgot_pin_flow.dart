@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/parent_preferences_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/pin_strength.dart';
 
 /// "Forgot PIN?" recovery flow.
@@ -56,8 +57,29 @@ class ForgotPinFlow {
     // `pinRejectionReason`; if it pops, the value is good. The
     // null check is the only one we still need here.
     if (newPin == null) return false;
+    if (!context.mounted) return false;
 
-    await ParentPreferencesService().setPin(newPin);
+    // Capture the messenger before the await so we can surface a
+    // failure from inside the catch without tripping
+    // use_build_context_synchronously.
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ParentPreferencesService().setPin(newPin);
+    } catch (e) {
+      // Catastrophic silent bug if we don't catch: the dialog
+      // closes, we return true to PinScreen, the parent pops back
+      // to the dashboard and tries to use the new PIN — but the
+      // SharedPreferences write never landed, so the old PIN is
+      // still on file. They'd be locked out forever. Always
+      // surface the failure.
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t save new PIN: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return false;
+    }
     return true;
   }
 

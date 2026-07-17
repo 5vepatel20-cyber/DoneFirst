@@ -36,21 +36,46 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picked = await _picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 70,
-      maxWidth: 1920,
-    );
-    if (picked != null) setState(() => _images.add(File(picked.path)));
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 70,
+        maxWidth: 1920,
+      );
+      if (picked != null) setState(() => _images.add(File(picked.path)));
+    } catch (e) {
+      // Camera permission denied, no camera on the device, or the
+      // picker plugin threw on a misconfigured build. The older
+      // code had no catch so the kid would tap "Take Photo" and
+      // see nothing happen. Surface the real reason so they know
+      // whether to retry or use the gallery instead.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t open camera: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _pickGallery() async {
-    final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-      maxWidth: 1920,
-    );
-    if (picked != null) setState(() => _images.add(File(picked.path)));
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+        maxWidth: 1920,
+      );
+      if (picked != null) setState(() => _images.add(File(picked.path)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t open gallery: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _submit() async {

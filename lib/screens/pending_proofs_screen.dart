@@ -41,10 +41,23 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
     setState(() => _loading = true);
     try {
       _proofs = await _proofService.getPendingProofs(widget.childId);
-    } catch (_) {
+    } catch (e) {
+      // Mirror the schedules_screen fix: always flip _loading off
+      // (the older code only did that inside the try, so a Supabase
+      // hiccup left the spinner running forever) and surface the
+      // real exception so the parent can retry from the dashboard.
       _proofs = [];
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t load pending proofs: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    if (mounted) setState(() => _loading = false);
   }
 
   void _toggleSelect(String proofId) {

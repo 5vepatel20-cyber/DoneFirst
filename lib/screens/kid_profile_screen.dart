@@ -126,6 +126,11 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
             : '${child.name} has $pairedDevices paired devices. All of them '
                 'will be unpaired — the kid will need to re-pair each device.';
 
+    // Capture messenger BEFORE the destructive dialog so the catch
+    // block below can show a snackbar without tripping
+    // use_build_context_synchronously (we'd otherwise be reading
+    // `context` after a real network round-trip on the dialog).
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await DestructiveConfirmDialog.show(
       context,
       title: 'Delete ${child.name}?',
@@ -141,7 +146,21 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
       warningText: warningText,
     );
     if (!confirmed) return;
-    await _sessionService.deleteChild(child.id);
+    try {
+      await _sessionService.deleteChild(child.id);
+    } catch (e) {
+      // Without this catch, a Supabase hiccup on deleteChild closes
+      // the dialog cleanly but leaves the kid row in the DB and the
+      // parent's next refresh shows them still listed. Surface the
+      // error so they can retry.
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t delete ${child.name}: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
     // Pop back to the dashboard (which re-fetches on resume) instead
     // of leaving the user on a now-stale profile screen for a
