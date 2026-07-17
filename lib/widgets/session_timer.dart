@@ -213,6 +213,6 @@ class _SessionTimerState extends State<SessionTimer> {
   String _formatTime(DateTime dt) {
     final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    return '${h}:${dt.minute.toString().padLeft(2, '0')} $ampm';
+    return '$h:${dt.minute.toString().padLeft(2, '0')} $ampm';
   }
 }

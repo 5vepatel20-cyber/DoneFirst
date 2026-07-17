@@ -104,7 +104,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _selectedSubject,
+                  initialValue: _selectedSubject,
                   decoration: const InputDecoration(
                     labelText: 'Subject',
                     prefixIcon: Icon(LucideIcons.bookOpen, size: 18),

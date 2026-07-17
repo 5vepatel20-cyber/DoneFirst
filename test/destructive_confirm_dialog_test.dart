@@ -15,7 +15,7 @@ void main() {
 
   // Pumps the dialog via the static helper and returns both the
   // tester and the pending future so callers can `await` it.
-  Future<(WidgetTester, Future<bool>)> _pump(
+  Future<(WidgetTester, Future<bool>)> pump(
     WidgetTester tester, {
     required String title,
     required String description,
@@ -54,7 +54,7 @@ void main() {
   }
 
   testWidgets('renders title, description, confirm label', (tester) async {
-    final (_, pending) = await _pump(
+    final (_, pending) = await pump(
       tester,
       title: 'Delete Avery?',
       description: 'Body copy explaining consequences.',
@@ -72,7 +72,7 @@ void main() {
   });
 
   testWidgets('Delete button is disabled until phrase matches', (tester) async {
-    final (_, pending) = await _pump(
+    final (_, pending) = await pump(
       tester,
       title: 'Delete Avery?',
       description: 'Body.',
@@ -103,7 +103,7 @@ void main() {
 
   testWidgets('matches are case-insensitive via trim, exact match required',
       (tester) async {
-    final (_, pending) = await _pump(
+    final (_, pending) = await pump(
       tester,
       title: 't',
       description: 'd',
@@ -129,7 +129,7 @@ void main() {
   testWidgets('warning block renders only when warningText supplied',
       (tester) async {
     // No warning text → no warning block.
-    await _pump(
+    await pump(
       tester,
       title: 't',
       description: 'd',
@@ -142,7 +142,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // With warningText → icon appears.
-    final (_, pending) = await _pump(
+    final (_, pending) = await pump(
       tester,
       title: 't',
       description: 'd',
@@ -158,7 +158,7 @@ void main() {
 
   testWidgets('custom warningIcon overrides the default alertTriangle',
       (tester) async {
-    final (_, pending) = await _pump(
+    final (_, pending) = await pump(
       tester,
       title: 't',
       description: 'd',
@@ -175,7 +175,7 @@ void main() {
   });
 
   testWidgets('Cancel returns false', (tester) async {
-    final (_, pending) = await _pump(
+    final (_, pending) = await pump(
       tester,
       title: 't',
       description: 'd',
@@ -188,7 +188,7 @@ void main() {
 
   testWidgets('tapping Delete with matching phrase returns true',
       (tester) async {
-    final (_, pending) = await _pump(
+    final (_, pending) = await pump(
       tester,
       title: 't',
       description: 'd',
@@ -204,7 +204,7 @@ void main() {
 
   testWidgets('submitting via keyboard returns true when phrase matches',
       (tester) async {
-    final (_, pending) = await _pump(
+    final (_, pending) = await pump(
       tester,
       title: 't',
       description: 'd',
@@ -218,7 +218,7 @@ void main() {
 
   testWidgets('submitting via keyboard does not pop when phrase does not match',
       (tester) async {
-    final (_, pending) = await _pump(
+    final (_, pending) = await pump(
       tester,
       title: 't',
       description: 'd',

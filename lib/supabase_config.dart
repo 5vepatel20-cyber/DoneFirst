@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// the project ref from the dashboard URL.
 ///
 /// Build command:
-///   flutter build apk --dart-define=SUPABASE_URL=https://<ref>.supabase.co
+///   flutter build apk --dart-define=SUPABASE_URL=https://&lt;ref&gt;.supabase.co
 const String supabaseUrl = String.fromEnvironment(
   'SUPABASE_URL',
   defaultValue: 'https://wxjtksxugsirpowptpmz.supabase.co',
