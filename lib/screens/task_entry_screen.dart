@@ -34,37 +34,82 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
   }
 
   Future<void> _loadTasks() async {
-    final tasks = await _proofService.getTasks(widget.sessionId);
-    setState(() => _tasks = tasks);
+    try {
+      final tasks = await _proofService.getTasks(widget.sessionId);
+      if (!mounted) return;
+      setState(() => _tasks = tasks);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t load tasks: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _addTask() async {
     final desc = _controller.text.trim();
     if (desc.isEmpty) return;
-    await _proofService.addTask(
-      widget.sessionId,
-      desc,
-      subject: _selectedSubject,
-    );
-    _controller.clear();
-    await _loadTasks();
+    try {
+      await _proofService.addTask(
+        widget.sessionId,
+        desc,
+        subject: _selectedSubject,
+      );
+      _controller.clear();
+      await _loadTasks();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t add task: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _deleteTask(String taskId) async {
-    await _proofService.deleteTask(taskId);
-    await _loadTasks();
+    try {
+      await _proofService.deleteTask(taskId);
+      await _loadTasks();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t delete task: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _retakeProof(String taskId, String description) async {
-    // Delete old proof if exists
-    final oldProof = await _proofService.getLatestProof(taskId);
-    if (oldProof != null) {
-      await _proofService.deleteProof(oldProof.id);
+    // Retake flow: replace the existing task with a fresh one.
+    //
+    // The previous version did deleteTask() then addTask() — if the
+    // add failed, the kid was left with no task at all (bug audit
+    // pattern #9). Reordered so the add runs first; on failure the
+    // old task is still there, at worst a brief duplicate.
+    try {
+      await _proofService.addTask(widget.sessionId, description);
+      final oldProof = await _proofService.getLatestProof(taskId);
+      if (oldProof != null) {
+        await _proofService.deleteProof(oldProof.id);
+      }
+      await _proofService.deleteTask(taskId);
+      await _loadTasks();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t retake proof: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     }
-    // Reset task status to pending
-    await _proofService.deleteTask(taskId);
-    await _proofService.addTask(widget.sessionId, description);
-    await _loadTasks();
   }
 
   @override
