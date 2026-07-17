@@ -407,11 +407,25 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       ),
     );
     if (minutes != null && minutes > 0) {
-      await _sessionService.extendSession(widget.sessionId, minutes);
-      await _loadAll();
-      if (mounted) {
+      try {
+        await _sessionService.extendSession(widget.sessionId, minutes);
+        await _loadAll();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lock extended by $minutes minutes')),
+          );
+        }
+      } catch (e) {
+        // Without this catch, a network blip on extendSession would
+        // bail out and the parent would never see the success
+        // snackbar — but worse, they'd see no error either, and
+        // wouldn't know their kid's lock silently never extended.
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lock extended by $minutes minutes')),
+          SnackBar(
+            content: Text('Couldn’t extend lock: $e'),
+            backgroundColor: AppColors.danger,
+          ),
         );
       }
     }
@@ -484,14 +498,28 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   }
 
   Future<void> _togglePause() async {
-    if (_paused) {
-      await _sessionService.resumeSession(widget.sessionId);
-      await _applyLockState(active: true);
-    } else {
-      await _sessionService.pauseSession(widget.sessionId);
-      await _applyLockState(active: false);
+    try {
+      if (_paused) {
+        await _sessionService.resumeSession(widget.sessionId);
+        await _applyLockState(active: true);
+      } else {
+        await _sessionService.pauseSession(widget.sessionId);
+        await _applyLockState(active: false);
+      }
+      await _loadAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _paused
+                ? 'Couldn’t resume lock: $e'
+                : 'Couldn’t pause lock: $e',
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     }
-    await _loadAll();
   }
 
   Future<void> _unlock({String reason = 'finished'}) async {
@@ -569,38 +597,66 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     String decision, {
     String? note,
   }) async {
-    await _proofService.updateParentDecision(
-      proofId,
-      decision,
-      parentNote: note,
-    );
-    await _loadAll();
+    try {
+      await _proofService.updateParentDecision(
+        proofId,
+        decision,
+        parentNote: note,
+      );
+      await _loadAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            decision == 'approved'
+                ? 'Couldn’t approve proof: $e'
+                : 'Couldn’t reject proof: $e',
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _batchApproveAll({String? note}) async {
     // Collect pending IDs up front and fire a single batch update
     // via the service — one round-trip instead of one per proof.
-    final pendingIds = _proofs
-        .where((p) => p.isPending)
-        .map((p) => p.id)
-        .toList(growable: false);
-    if (pendingIds.isNotEmpty) {
-      await _proofService.batchApproveOrReject(
-        pendingIds,
-        'approved',
-        parentNote: note,
+    try {
+      final pendingIds = _proofs
+          .where((p) => p.isPending)
+          .map((p) => p.id)
+          .toList(growable: false);
+      if (pendingIds.isNotEmpty) {
+        await _proofService.batchApproveOrReject(
+          pendingIds,
+          'approved',
+          parentNote: note,
+        );
+      }
+      if (_session != null) {
+        await _notificationService.insertNotification(
+          parentId: _session!.parentId,
+          childId: _session!.childId,
+          type: 'proof_submitted',
+          title: 'All proofs approved',
+          body: '${widget.childName}\'s homework all approved',
+        );
+      }
+      await _loadAll();
+    } catch (e) {
+      // Same reasoning as _handleDecision: a single Supabase hiccup
+      // here could mark some proofs approved and leave others
+      // pending, and the parent would see neither the success nor
+      // the failure without a snackbar.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t approve all proofs: $e'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     }
-    if (_session != null) {
-      await _notificationService.insertNotification(
-        parentId: _session!.parentId,
-        childId: _session!.childId,
-        type: 'proof_submitted',
-        title: 'All proofs approved',
-        body: '${widget.childName}\'s homework all approved',
-      );
-    }
-    await _loadAll();
   }
 
   Future<void> _batchApproveAllWithNote() async {
@@ -725,23 +781,37 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   }
 
   Future<void> _handleBreak(String breakId, String decision) async {
-    if (decision == 'approved') {
-      await _breakService.approveBreak(breakId);
-      await _applyLockState(active: false);
-      setState(() {
-        _activeBreakTimer = true;
-        // Track the approved break id so the BreakTimer onComplete
-        // and onCancel callbacks can persist the end-of-break to
-        // Supabase. Without this, the kid-side realtime listener
-        // would never see a status='completed' / 'cancelled' event
-        // and would stay in KidLockState.onBreak forever (or until
-        // the parent ended the whole session).
-        _activeBreakId = breakId;
-      });
-    } else {
-      await _breakService.denyBreak(breakId);
+    try {
+      if (decision == 'approved') {
+        await _breakService.approveBreak(breakId);
+        await _applyLockState(active: false);
+        setState(() {
+          _activeBreakTimer = true;
+          // Track the approved break id so the BreakTimer onComplete
+          // and onCancel callbacks can persist the end-of-break to
+          // Supabase. Without this, the kid-side realtime listener
+          // would never see a status='completed' / 'cancelled' event
+          // and would stay in KidLockState.onBreak forever (or until
+          // the parent ended the whole session).
+          _activeBreakId = breakId;
+        });
+      } else {
+        await _breakService.denyBreak(breakId);
+      }
+      await _loadAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            decision == 'approved'
+                ? 'Couldn’t approve break: $e'
+                : 'Couldn’t deny break: $e',
+          ),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     }
-    await _loadAll();
   }
 
   /// Compact minute/hour formatter for the cancel + end-early
@@ -866,35 +936,71 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                           // Capture the id BEFORE clearing it; we need
                           // it for the end-of-break write below.
                           final id = _activeBreakId;
+                          // Capture the messenger now so the catch
+                          // block below can show a snackbar without
+                          // tripping use_build_context_synchronously
+                          // (we'd otherwise be using `context` after
+                          // three awaits inside the try).
+                          final messenger =
+                              ScaffoldMessenger.of(context);
                           setState(() {
                             _activeBreakTimer = false;
                             _activeBreakId = null;
                           });
-                          // Persist the end-of-break so the kid app's
-                          // realtime listener flips out of onBreak and
-                          // re-engages the lock. Best-effort: a
-                          // network blip here means the kid stays
-                          // unlocked until the parent ends the session,
-                          // which the existing unlock path handles.
-                          if (id != null) {
-                            await _breakService.endBreak(id);
+                          try {
+                            // Persist the end-of-break so the kid app's
+                            // realtime listener flips out of onBreak
+                            // and re-engages the lock.
+                            if (id != null) {
+                              await _breakService.endBreak(id);
+                            }
+                            await _applyLockState(active: true);
+                            await _loadAll();
+                          } catch (e) {
+                            // Without this catch, a network blip on
+                            // endBreak would leave the BreakTimer UI
+                            // cleared but the kid-side lock still
+                            // paused — the parent would think the
+                            // break ended cleanly. Surface it so
+                            // they know to retry from the dashboard.
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Break ended but didn’t sync: $e. '
+                                  'Tap Refresh on the dashboard.',
+                                ),
+                                backgroundColor: AppColors.danger,
+                              ),
+                            );
                           }
-                          await _applyLockState(active: true);
-                          await _loadAll();
                         },
                         onCancel: () async {
                           final id = _activeBreakId;
+                          final messenger =
+                              ScaffoldMessenger.of(context);
                           setState(() {
                             _activeBreakTimer = false;
                             _activeBreakId = null;
                           });
-                          // Distinguish parent-cancelled from timer-
-                          // completed in the data-export report.
-                          if (id != null) {
-                            await _breakService.cancelBreak(id);
+                          try {
+                            // Distinguish parent-cancelled from timer-
+                            // completed in the data-export report.
+                            if (id != null) {
+                              await _breakService.cancelBreak(id);
+                            }
+                            await _applyLockState(active: true);
+                            await _loadAll();
+                          } catch (e) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Break cancelled but didn’t sync: $e. '
+                                  'Tap Refresh on the dashboard.',
+                                ),
+                                backgroundColor: AppColors.danger,
+                              ),
+                            );
                           }
-                          await _applyLockState(active: true);
-                          await _loadAll();
                         },
                       ),
                     ],

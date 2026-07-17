@@ -35,37 +35,86 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   }
 
   Future<void> _markRead(String id) async {
-    await _notificationService.markAsRead(id);
-    if (!mounted) return;
-    setState(() {
-      // Local flip avoids a full reload — the row already exists in
-      // memory and there's no other state to recompute.
-      final i = _notifications.indexWhere((n) => n.id == id);
-      if (i >= 0) {
-        _notifications[i] = AppNotification(
-          id: _notifications[i].id,
-          parentId: _notifications[i].parentId,
-          childId: _notifications[i].childId,
-          type: _notifications[i].type,
-          title: _notifications[i].title,
-          body: _notifications[i].body,
-          read: true,
-          createdAt: _notifications[i].createdAt,
-        );
-      }
-    });
+    // Snapshot the in-memory row BEFORE the network call so we can
+    // restore it if the write fails — without this, a Supabase hiccup
+    // would silently leave the dot cleared in UI but `read=false`
+    // server-side, and the next _load() would resurrect the unread dot.
+    final i = _notifications.indexWhere((n) => n.id == id);
+    final original = i >= 0 ? _notifications[i] : null;
+    try {
+      await _notificationService.markAsRead(id);
+      if (!mounted) return;
+      setState(() {
+        if (i >= 0 && original != null) {
+          _notifications[i] = AppNotification(
+            id: original.id,
+            parentId: original.parentId,
+            childId: original.childId,
+            type: original.type,
+            title: original.title,
+            body: original.body,
+            read: true,
+            createdAt: original.createdAt,
+          );
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t mark as read: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _markAllRead() async {
-    await _notificationService.markAllAsRead();
-    await _load();
+    try {
+      await _notificationService.markAllAsRead();
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t mark all read: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _delete(String id) async {
+    // Snapshot the in-memory row BEFORE the dismiss so we can
+    // restore it if the Supabase delete fails. Same reasoning as
+    // _markRead — without the restore path the next pull-to-refresh
+    // would resurrect a row the user thinks they dismissed.
+    final i = _notifications.indexWhere((n) => n.id == id);
+    final original = i >= 0 ? _notifications[i] : null;
     // Dismiss-then-delete so the row leaves the UI immediately
     // rather than snapping back if the delete is slow.
     setState(() => _notifications.removeWhere((n) => n.id == id));
-    await _notificationService.deleteNotification(id);
+    try {
+      await _notificationService.deleteNotification(id);
+    } catch (e) {
+      if (!mounted) return;
+      // Restore the row at its original index so the list feels
+      // honest about what actually persisted.
+      if (original != null) {
+        setState(() {
+          _notifications.insert(
+            i.clamp(0, _notifications.length),
+            original,
+          );
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t delete notification: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   IconData _iconForType(String type) {

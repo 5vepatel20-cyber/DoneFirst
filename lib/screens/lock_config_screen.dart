@@ -135,20 +135,29 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
       );
       if (name != null && name.isNotEmpty) {
         // createPreset + _loadPresets can throw on a network blip
-        // or RLS hiccup. Without try/finally the controller
-        // would leak on every failed save.
-        await _presetService.createPreset(
-          name: name,
-          minLockMinutes: _minLock,
-          maxLiftMinutes: _maxLift,
-          approvalMode: _approvalMode,
-          selectedPacks: _selectedPacks.toList(),
-        );
-        await _loadPresets();
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Preset saved!')));
+        // or RLS hiccup. The finally block disposes the controller
+        // on every exit path; the catch surfaces a snackbar so the
+        // parent knows the save failed instead of staring at a
+        // silent spinner. (Bug audit 2026-07 pattern #1.)
+        try {
+          await _presetService.createPreset(
+            name: name,
+            minLockMinutes: _minLock,
+            maxLiftMinutes: _maxLift,
+            approvalMode: _approvalMode,
+            selectedPacks: _selectedPacks.toList(),
+          );
+          await _loadPresets();
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Preset saved!')));
+          }
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Couldn’t save preset: $e')),
+          );
         }
       }
     } finally {
