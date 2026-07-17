@@ -19,7 +19,14 @@ const String supabaseUrl = String.fromEnvironment(
 /// Direct-HTTP callers (HeartbeatService, KidAuthService for the
 /// pairing bootstrap) need this so they can sign edge-function
 /// requests without going through the Supabase client.
-const String supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+const String supabaseAnonKey = String.fromEnvironment(
+  'SUPABASE_ANON_KEY',
+  // Safe to commit — anon keys are public by design. RLS is what
+  // protects user data, not key secrecy. Override with
+  // --dart-define=SUPABASE_ANON_KEY=... for non-public builds.
+  defaultValue:
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4anRrc3h1Z3NpcnBvd3B0cG16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMzMzMTgsImV4cCI6MjA5ODkwOTMxOH0.Ng9onu4901Q1yY0YnrM1XLyo5yOBoQbUariFqG-M3go',
+);
 
 Future<void> initSupabase() async {
   await Supabase.initialize(
