@@ -27,27 +27,32 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   Future<void> _checkVerification() async {
     setState(() => _checking = true);
+    // Capture the Navigator + messenger before the first await so the
+    // post-await branches don't need a `mounted` guard for the context
+    // itself — only the captured handles, which are safe to use as long
+    // as the State is still mounted (handled by `if (!mounted) return`).
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final user = await _auth.signIn(widget.email, widget.password);
-      if (user != null && user.emailConfirmedAt != null && mounted) {
+      if (user != null && user.emailConfirmedAt != null) {
         await _sessionService.ensureParentRecord(
           user.id,
           widget.email,
           widget.displayName,
         );
-        Navigator.pushReplacement(
-          context,
+        if (!mounted) return;
+        navigator.pushReplacement(
           MaterialPageRoute(builder: (_) => const ParentDashboard()),
         );
         return;
       }
     } catch (_) {}
-    if (mounted) {
-      setState(() => _checking = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not verified yet. Check your email.')),
-      );
-    }
+    if (!mounted) return;
+    setState(() => _checking = false);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Not verified yet. Check your email.')),
+    );
   }
 
   Future<void> _resend() async {

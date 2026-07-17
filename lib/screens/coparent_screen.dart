@@ -103,12 +103,10 @@ class _CoparentScreenState extends State<CoparentScreen> {
                           children: [
                             FilledButton(
                               onPressed: () async {
+                                final navigator = Navigator.of(context);
                                 await _coparentService.acceptInvite(inv.id);
-                                if (mounted)
-                                  Navigator.pushReplacementNamed(
-                                    context,
-                                    '/dashboard',
-                                  );
+                                if (!mounted) return;
+                                navigator.pushReplacementNamed('/dashboard');
                               },
                               child: const Text('Accept'),
                             ),

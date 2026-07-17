@@ -285,90 +285,91 @@ class _SettingsScreenState extends State<SettingsScreen> {
       actionLabel: 'Continue',
     );
     if (!pinOk) return;
+    if (!mounted) return;
+    // Capture messenger + controllers NOW so the awaits below don't
+    // need to re-touch BuildContext for ScaffoldMessenger.of(). The
+    // controllers need try/finally to dispose exactly once even on
+    // the early-return paths.
+    final messenger = ScaffoldMessenger.of(context);
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmController = TextEditingController();
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Change Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: currentPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Current password'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: newPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'New password'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: confirmController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Confirm new password',
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Change Password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: currentPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Current password',
+                ),
               ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: newPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'New password'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: confirmController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm new password',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Update'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Update'),
-          ),
-        ],
-      ),
-    );
-    if (result == true) {
+      );
+      if (result != true) return;
+      if (!mounted) return;
       final newPass = newPasswordController.text.trim();
       final confirm = confirmController.text.trim();
       if (newPass.length < 6) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Password must be at least 6 characters'),
-            ),
-          );
-        }
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Password must be at least 6 characters'),
+          ),
+        );
         return;
       }
       if (newPass != confirm) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Passwords do not match')),
-          );
-        }
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Passwords do not match')),
+        );
         return;
       }
       try {
         await _auth.changePassword(newPass);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Password updated successfully')),
-          );
-        }
+        if (!mounted) return;
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Password updated successfully')),
+        );
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
+        if (!mounted) return;
+        messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    } finally {
+      currentPasswordController.dispose();
+      newPasswordController.dispose();
+      confirmController.dispose();
     }
-    // Dialog controllers are local-scope; dispose on every exit
-    // path (save, cancel, validation failure, server error).
-    currentPasswordController.dispose();
-    newPasswordController.dispose();
-    confirmController.dispose();
   }
 
   Future<void> _exportData() async {
@@ -486,6 +487,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       actionLabel: 'Continue',
     );
     if (!pinOk) return;
+    if (!mounted) return;
+    // Capture handles + controllers so the post-await branches don't
+    // touch BuildContext again — eliminates use_build_context_synchronously.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     final confirmController = TextEditingController();
     final passwordController = TextEditingController();
     final confirmed = await showDialog<bool>(
@@ -560,14 +566,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       },
     );
-    confirmController.dispose();
     // Snapshot the password before disposing — reading .text from a
     // disposed TextEditingController is undefined per the contract,
     // and even though today's implementation happens to return the
     // last value, we'd rather not depend on that.
     final password = passwordController.text;
+    confirmController.dispose();
     passwordController.dispose();
     if (confirmed != true) return;
+    if (!mounted) return;
     try {
       // Re-authenticate the user with the password they just typed.
       // Supabase considers the access token expired if it's been a while
@@ -580,13 +587,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       await _supabaseReauthForDelete(email, password);
       await _auth.deleteAccount();
-      if (mounted)
-        Navigator.pushNamedAndRemoveUntil(context, '/auth', (_) => false);
+      if (!mounted) return;
+      navigator.pushNamedAndRemoveUntil('/auth', (_) => false);
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     }
   }
 
@@ -767,10 +772,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               tooltip: 'Remove PIN',
                               onPressed: () async {
+                                final messenger = ScaffoldMessenger.of(context);
                                 await _parentPrefs.setPin(null);
                                 if (!mounted) return;
                                 setState(() => _pin = null);
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                messenger.showSnackBar(
                                   const SnackBar(content: Text('PIN removed')),
                                 );
                               },
