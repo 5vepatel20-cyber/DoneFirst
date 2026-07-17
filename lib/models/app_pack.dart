@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class AppPack {
   final String name;
@@ -26,7 +27,7 @@ class AppPack {
         'Twitter',
         'WhatsApp',
       ],
-      icon: Icons.people,
+      icon: LucideIcons.users,
     ),
     AppPack(
       name: 'Games',
@@ -39,7 +40,7 @@ class AppPack {
         'Candy Crush',
         'Subway Surfers',
       ],
-      icon: Icons.sports_esports,
+      icon: LucideIcons.gamepad2,
     ),
     AppPack(
       name: 'Entertainment',
@@ -53,7 +54,7 @@ class AppPack {
         'HBO Max',
         'Amazon Prime Video',
       ],
-      icon: Icons.tv,
+      icon: LucideIcons.tv,
     ),
     AppPack(
       name: 'All Distractions',
@@ -69,7 +70,7 @@ class AppPack {
         'Netflix',
         'Twitch',
       ],
-      icon: Icons.block,
+      icon: LucideIcons.ban,
     ),
   ];
 }
