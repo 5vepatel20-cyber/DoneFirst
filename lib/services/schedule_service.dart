@@ -37,8 +37,8 @@ class ScheduleService {
     await _supabase
         .from('recurring_schedules')
         .update({
-          if (durationMinutes != null) 'duration_minutes': durationMinutes,
-          if (approvalMode != null) 'approval_mode': approvalMode,
+          ?'duration_minutes': durationMinutes,
+          ?'approval_mode': approvalMode,
         })
         .eq('id', scheduleId);
   }

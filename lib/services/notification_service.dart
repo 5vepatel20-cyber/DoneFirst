@@ -48,7 +48,7 @@ class NotificationService {
           'child_id': childId,
           'type': type,
           'title': title,
-          if (body != null) 'body': body,
+          ?'body': body,
           'read': false,
         })
         .select()

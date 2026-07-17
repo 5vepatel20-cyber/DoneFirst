@@ -44,11 +44,11 @@ class LockPresetService {
     await _supabase
         .from('lock_presets')
         .update({
-          if (name != null) 'name': name,
-          if (minLockMinutes != null) 'min_lock_minutes': minLockMinutes,
-          if (maxLiftMinutes != null) 'max_lift_minutes': maxLiftMinutes,
-          if (approvalMode != null) 'approval_mode': approvalMode,
-          if (selectedPacks != null) 'selected_packs': selectedPacks,
+          ?'name': name,
+          ?'min_lock_minutes': minLockMinutes,
+          ?'max_lift_minutes': maxLiftMinutes,
+          ?'approval_mode': approvalMode,
+          ?'selected_packs': selectedPacks,
         })
         .eq('id', presetId);
   }

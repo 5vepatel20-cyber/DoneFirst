@@ -69,7 +69,7 @@ class ProofService {
     await _supabase.from('proof_submissions').update({
       'parent_decision': 'approved',
       'parent_acted_at': DateTime.now().toIso8601String(),
-      if (parentNote != null) 'parent_note': parentNote,
+      ?'parent_note': parentNote,
     }).eq('id', proofId);
   }
 
@@ -80,7 +80,7 @@ class ProofService {
     await _supabase.from('proof_submissions').update({
       'parent_decision': 'rejected',
       'parent_acted_at': DateTime.now().toIso8601String(),
-      if (parentNote != null) 'parent_note': parentNote,
+      ?'parent_note': parentNote,
     }).eq('id', proofId);
   }
 
@@ -93,7 +93,7 @@ class ProofService {
     final update = {
       'parent_decision': decision,
       'parent_acted_at': DateTime.now().toIso8601String(),
-      if (parentNote != null) 'parent_note': parentNote,
+      ?'parent_note': parentNote,
     };
     // One update for the whole batch instead of one per ID. The
     // pending_proofs_screen can pass up to a few dozen at once, so
