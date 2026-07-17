@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../models/models.dart';
+import '../services/kid_device_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/destructive_confirm_dialog.dart';
 
 final List<Color> kidColors = [
   AppColors.primary,
@@ -37,6 +39,7 @@ class KidProfileScreen extends StatefulWidget {
 
 class _KidProfileScreenState extends State<KidProfileScreen> {
   final _sessionService = SessionService();
+  final _kidDeviceService = KidDeviceService();
   late TextEditingController _nameController;
   int _selectedColor = 0;
   int _selectedEmoji = 0;
@@ -97,6 +100,53 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _deleteChild() async {
+    final navigator = Navigator.of(context);
+    final child = widget.child;
+    // Same warning shape as parent_dashboard._deleteChild — pull
+    // paired-device count first so we can show "you're also about to
+    // unpair a device" before the type-to-confirm gate.
+    int pairedDevices = 0;
+    String? firstDeviceName;
+    try {
+      final devices = await _kidDeviceService.listDevicesForChild(child.id);
+      final active = devices.where((d) => !d.isRevoked).toList();
+      pairedDevices = active.length;
+      firstDeviceName = active.isEmpty ? null : active.first.deviceName;
+    } catch (_) {}
+    if (!mounted) return;
+
+    final warningText = pairedDevices == 0
+        ? null
+        : pairedDevices == 1
+            ? '${child.name}\'s paired device (${firstDeviceName ?? "unlabeled"}) '
+                'will be unpaired. The kid will need to re-pair on their phone.'
+            : '${child.name} has $pairedDevices paired devices. All of them '
+                'will be unpaired — the kid will need to re-pair each device.';
+
+    final confirmed = await DestructiveConfirmDialog.show(
+      context,
+      title: 'Delete ${child.name}?',
+      description:
+          'This will permanently remove ${child.name}\'s:\n'
+          '  • Homework sessions and proofs\n'
+          '  • Tasks and proof images\n'
+          '  • Recurring schedules\n'
+          '  • Session stats and streak history\n\n'
+          'This cannot be undone.',
+      confirmPhrase: child.name,
+      confirmButtonLabel: 'Delete forever',
+      warningText: warningText,
+    );
+    if (!confirmed) return;
+    await _sessionService.deleteChild(child.id);
+    if (!mounted) return;
+    // Pop back to the dashboard (which re-fetches on resume) instead
+    // of leaving the user on a now-stale profile screen for a
+    // deleted child.
+    navigator.popUntil((r) => r.isFirst);
   }
 
   @override
@@ -236,6 +286,34 @@ class _KidProfileScreenState extends State<KidProfileScreen> {
                   )
                 : const Icon(LucideIcons.check, size: 16),
             label: const Text('Save Profile'),
+          ),
+          const SizedBox(height: 32),
+          // Surface delete here so parents can find it without having
+          // to discover the long-press popup on the dashboard. Uses
+          // a plain OutlinedButton in danger colour (not FilledButton)
+          // so it doesn't visually compete with the primary Save
+          // action above.
+          OutlinedButton.icon(
+            onPressed: _deleteChild,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.danger,
+              side: const BorderSide(color: AppColors.danger),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            icon: const Icon(LucideIcons.trash2, size: 16),
+            label: Text(
+              'Delete $childName',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Permanently removes this child, their sessions, and all data.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
