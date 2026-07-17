@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../lib/screens/kid_device_setup_screen.dart';
-import '../lib/theme/app_theme.dart';
+import 'package:donefirst/screens/kid_device_setup_screen.dart';
+import 'package:donefirst/theme/app_theme.dart';
 
 /// Smoke test for the setup guide screen. We don't simulate ADB or
 /// test the device-owner promotion — that needs a real device.

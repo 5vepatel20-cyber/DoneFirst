@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/kid_realtime_service.dart';
+import 'package:donefirst/services/kid_realtime_service.dart';
 
 /// Tests for the realtime retry state machine.
 ///

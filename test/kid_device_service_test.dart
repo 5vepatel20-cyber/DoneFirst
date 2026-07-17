@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/services/kid_device_service.dart';
-import '../lib/supabase_config.dart';
+import 'package:donefirst/services/kid_device_service.dart';
+import 'package:donefirst/supabase_config.dart';
 
 /// Tests for KidDeviceService. The Supabase-backed methods
 /// (generatePairingCode, listFamilyDevices, revokeDevice, etc.)

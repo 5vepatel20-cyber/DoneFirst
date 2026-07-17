@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/services/realtime_service.dart';
-import '../lib/supabase_config.dart';
+import 'package:donefirst/services/realtime_service.dart';
+import 'package:donefirst/supabase_config.dart';
 
 /// RealtimeService tests without a live Supabase. We can't actually
 /// fire channel callbacks from outside, so we directly poke the

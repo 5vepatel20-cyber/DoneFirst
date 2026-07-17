@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/app_globals.dart' as app;
-import '../lib/services/kid_device_service.dart';
-import '../lib/services/realtime_service.dart';
-import '../lib/supabase_config.dart';
-import '../lib/widgets/kid_device_event_toast_listener.dart';
+import 'package:donefirst/app_globals.dart' as app;
+import 'package:donefirst/services/kid_device_service.dart';
+import 'package:donefirst/services/realtime_service.dart';
+import 'package:donefirst/supabase_config.dart';
+import 'package:donefirst/widgets/kid_device_event_toast_listener.dart';
 
 /// Tests for KidDeviceEventToastListener. The widget mounts into
 /// the global [RealtimeService.onNewKidDeviceEvent] slot and

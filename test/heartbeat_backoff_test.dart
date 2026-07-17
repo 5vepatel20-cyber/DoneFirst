@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/services/heartbeat_service.dart';
-import '../lib/supabase_config.dart';
+import 'package:donefirst/services/heartbeat_service.dart';
+import 'package:donefirst/supabase_config.dart';
 
 /// HeartbeatService backoff behavior.
 ///

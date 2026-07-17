@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/supabase_config.dart';
+import 'package:donefirst/supabase_config.dart';
 
 /// Tests for KidDeviceService.renameDevice. We can't run the real
 /// Supabase update without a live backend, but the trimming /

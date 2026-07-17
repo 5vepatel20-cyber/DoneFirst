@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/app_globals.dart' as app;
-import '../lib/services/kid_device_service.dart';
-import '../lib/supabase_config.dart';
+import 'package:donefirst/app_globals.dart' as app;
+import 'package:donefirst/services/kid_device_service.dart';
+import 'package:donefirst/supabase_config.dart';
 
 /// Tests for the realtime handler hot-path: when a code_claimed
 /// event arrives matching the active code, the active code state

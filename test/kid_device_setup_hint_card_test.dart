@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/supabase_config.dart';
-import '../lib/widgets/kid_device_setup_hint_card.dart';
+import 'package:donefirst/supabase_config.dart';
+import 'package:donefirst/widgets/kid_device_setup_hint_card.dart';
 
 /// Smoke tests for the dashboard's "no kid device paired" hint
 /// card. Verifies it renders the headline + subhead and that

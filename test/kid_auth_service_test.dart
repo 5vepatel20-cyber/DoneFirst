@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/services/kid_auth_service.dart';
-import '../lib/supabase_config.dart';
+import 'package:donefirst/services/kid_auth_service.dart';
+import 'package:donefirst/supabase_config.dart';
 
 /// Tests for KidAuthService.claimPairingCode against a mocked HTTP
 /// client. We can't easily mock http.Client inside the service

@@ -1,12 +1,12 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/services/blocking_service.dart';
-import '../lib/services/heartbeat_service.dart';
-import '../lib/services/kid_auth_service.dart';
-import '../lib/services/kid_realtime_service.dart';
-import '../lib/services/kiosk_service.dart';
-import '../lib/supabase_config.dart';
+import 'package:donefirst/services/blocking_service.dart';
+import 'package:donefirst/services/heartbeat_service.dart';
+import 'package:donefirst/services/kid_auth_service.dart';
+import 'package:donefirst/services/kid_realtime_service.dart';
+import 'package:donefirst/services/kiosk_service.dart';
+import 'package:donefirst/supabase_config.dart';
 
 /// Integration tests for the kid-side lock flow.
 ///

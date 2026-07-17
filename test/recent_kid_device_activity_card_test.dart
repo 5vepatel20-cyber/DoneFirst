@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/app_globals.dart' as app;
-import '../lib/services/kid_device_service.dart';
-import '../lib/supabase_config.dart';
-import '../lib/widgets/recent_kid_device_activity_card.dart';
+import 'package:donefirst/app_globals.dart' as app;
+import 'package:donefirst/services/kid_device_service.dart';
+import 'package:donefirst/supabase_config.dart';
+import 'package:donefirst/widgets/recent_kid_device_activity_card.dart';
 
 /// Smoke tests for RecentKidDeviceActivityCard. We can't fire
 /// `KidDeviceEventService.listFamilyEvents` without a live Supabase,

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../lib/app_globals.dart' as app;
-import '../lib/supabase_config.dart';
+import 'package:donefirst/app_globals.dart' as app;
+import 'package:donefirst/supabase_config.dart';
 
 /// Tests for ToastService. The service keys off the global
 /// ScaffoldMessengerKey, which isn't attached in the unit-test

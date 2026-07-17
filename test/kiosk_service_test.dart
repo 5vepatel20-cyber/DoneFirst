@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/kiosk_service.dart';
+import 'package:donefirst/services/kiosk_service.dart';
 
 /// Tests for KioskService against the in-memory MethodChannel
 /// harness. Real native-side behaviour (lock-task, isDeviceOwner)
