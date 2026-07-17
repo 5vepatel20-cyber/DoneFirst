@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../utils/subjects.dart';
@@ -159,35 +160,35 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
               padding: const EdgeInsets.all(20),
               children: [
                 _statCard(
-                  Icons.play_circle,
+                  LucideIcons.playCircle,
                   'Total Sessions',
                   '${_stats?['total_sessions'] ?? 0}',
                   AppColors.primary,
                 ),
                 const SizedBox(height: 12),
                 _statCard(
-                  Icons.timer,
+                  LucideIcons.timer,
                   'Total Study Time',
                   '${_stats?['total_minutes'] ?? 0} min',
                   AppColors.accent,
                 ),
                 const SizedBox(height: 12),
                 _statCard(
-                  Icons.check_circle,
+                  LucideIcons.checkCircle2,
                   'Completed',
                   '${_stats?['completed'] ?? 0}',
                   AppColors.success,
                 ),
                 const SizedBox(height: 12),
                 _statCard(
-                  Icons.cancel,
+                  LucideIcons.xCircle,
                   'Cancelled',
                   '${_stats?['cancelled'] ?? 0}',
                   AppColors.danger,
                 ),
                 const SizedBox(height: 12),
                 _statCard(
-                  Icons.verified,
+                  LucideIcons.badgeCheck,
                   'Proofs Approved',
                   '${_stats?['approved_proofs'] ?? 0}',
                   AppColors.info,
