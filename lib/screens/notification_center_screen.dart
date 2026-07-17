@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
@@ -70,15 +71,15 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   IconData _iconForType(String type) {
     switch (type) {
       case 'proof_submitted':
-        return Icons.camera_alt;
+        return LucideIcons.camera;
       case 'break_requested':
-        return Icons.coffee;
+        return LucideIcons.coffee;
       case 'break_granted':
-        return Icons.coffee_outlined;
+        return LucideIcons.cupSoda;
       case 'session_complete':
-        return Icons.check_circle;
+        return LucideIcons.checkCircle2;
       default:
-        return Icons.notifications;
+        return LucideIcons.bell;
     }
   }
 
@@ -120,7 +121,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                 children: const [
                   SizedBox(height: 120),
                   EmptyState(
-                    icon: Icons.notifications_none,
+                    icon: LucideIcons.bellOff,
                     title: 'No notifications',
                     subtitle: 'Activity appears here',
                   ),
@@ -146,7 +147,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                         color: AppColors.danger,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.delete, color: Colors.white),
+                      child: const Icon(LucideIcons.trash2, color: Colors.white),
                     ),
                     onDismissed: (_) => _delete(n.id),
                     child: Card(
