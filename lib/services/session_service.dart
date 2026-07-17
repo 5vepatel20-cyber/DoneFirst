@@ -140,8 +140,8 @@ class SessionService {
           'family_id': familyId,
           'name': name,
           'parent_id': parentId,
-          ?'color': color,
-          ?'emoji': emoji,
+          'color': ?color,
+          'emoji': ?emoji,
         })
         .select()
         .single();
@@ -166,8 +166,8 @@ class SessionService {
     await _supabase
         .from('children')
         .update({
-          ?'color': color,
-          ?'emoji': emoji,
+          'color': ?color,
+          'emoji': ?emoji,
         })
         .eq('id', childId);
   }
