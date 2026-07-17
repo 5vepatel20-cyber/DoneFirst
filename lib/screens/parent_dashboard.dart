@@ -162,6 +162,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   Future<void> _loadAll() async {
     setState(() => _loading = true);
+    // Capture messenger BEFORE the awaits so the catch block below
+    // can show a snackbar without tripping
+    // use_build_context_synchronously (we'd otherwise be reading
+    // `context` after a real network round-trip).
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await _sessionService.getOrCreateFamily();
       final children = await _sessionService.getChildren(_auth.currentUser!.id);
@@ -286,8 +291,25 @@ class _ParentDashboardState extends State<ParentDashboard> {
         _pendingBreaks[entry.key] = entry.value.$3;
         _kidDeviceStatus[entry.key] = entry.value.$4;
       }
-    } catch (_) {}
-    setState(() => _loading = false);
+    } catch (e) {
+      // Top-level catch covers getOrCreateFamily / getChildren /
+      // monthly counts / family_id / totals reads. Without this
+      // the dashboard silently shows an empty list and the
+      // parent has no idea why. The per-child reads inside are
+      // fail-soft (each wrapped in its own catch) so a hiccup on
+      // one child doesn't blow away the whole load — which means
+      // the per-child catches were always doing the right thing,
+      // but they were silently swallowing network errors on the
+      // top-level reads too.
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t load dashboard: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   /// True if the family has at least one child on the dashboard
