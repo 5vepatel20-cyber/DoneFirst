@@ -75,18 +75,25 @@ class BreakService {
 
   /// Approve a pending break. Stamps `started_at = now()` so the
   /// kid app's realtime subscription can compute "am I on a break
-  /// right now?" from the latest row. Without started_at the kid
-  /// would only see a status flip and would have no way to know
-  /// when the break should end — the parent-side BreakTimer is
-  /// purely local and isn't visible to the kid.
+  /// right now?" from the latest row, AND `break_ends_at` so the
+  /// kid can self-expire locally if the parent app crashes before
+  /// calling [endBreak]. The end-of-break timestamp is derived
+  /// from the same constant the BreakTimer widget uses (5 min),
+  /// so the kid's local auto-expire lines up with the parent's
+  /// visual countdown.
+  ///
+  /// Without `break_ends_at` the kid would stay unlocked forever
+  /// if the parent's app died mid-break — the BreakTimer is
+  /// purely local and never writes `ended_at` on its own.
+  static const Duration approvedBreakDuration = Duration(minutes: 5);
+
   Future<void> approveBreak(String requestId) async {
-    await _supabase
-        .from('break_requests')
-        .update({
-          'status': 'approved',
-          'started_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', requestId);
+    final now = DateTime.now();
+    await _supabase.from('break_requests').update({
+      'status': 'approved',
+      'started_at': now.toIso8601String(),
+      'break_ends_at': now.add(approvedBreakDuration).toIso8601String(),
+    }).eq('id', requestId);
   }
 
   Future<void> denyBreak(String requestId) async {

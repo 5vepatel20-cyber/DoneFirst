@@ -71,6 +71,57 @@ void main() {
     });
   });
 
+  group('BreakRequestPayload.isExpiredBy', () {
+    // Tests the crash-resilience contract for migration 16: even if
+    // the parent app crashes before writing status='completed' /
+    // 'cancelled', the kid's realtime service uses break_ends_at
+    // to self-expire the break locally.
+    final approveStart = DateTime.utc(2026, 7, 1, 10, 0);
+    final endsAt = DateTime.utc(2026, 7, 1, 10, 5); // 5 min later
+
+    BreakRequestPayload approved({DateTime? breakEndsAt}) => BreakRequestPayload(
+          id: 'br-1',
+          sessionId: 'sess-1',
+          status: 'approved',
+          createdAt: approveStart,
+          startedAt: approveStart,
+          breakEndsAt: breakEndsAt,
+        );
+
+    test('isExpiredBy is false before break_ends_at', () {
+      final br = approved(breakEndsAt: endsAt);
+      expect(br.isExpiredBy(approveStart), isFalse);
+      expect(br.isExpiredBy(endsAt.subtract(const Duration(seconds: 1))), isFalse);
+    });
+
+    test('isExpiredBy is true at and after break_ends_at', () {
+      final br = approved(breakEndsAt: endsAt);
+      expect(br.isExpiredBy(endsAt), isTrue);
+      expect(br.isExpiredBy(endsAt.add(const Duration(minutes: 1))), isTrue);
+    });
+
+    test('isExpiredBy returns false when break_ends_at is null (legacy row)',
+        () {
+      // Pre-migration rows have no break_ends_at. The kid falls
+      // back to waiting for the realtime completed/cancelled event
+      // in that case. We must NOT pretend such a row is expired.
+      final br = approved(breakEndsAt: null);
+      expect(br.isExpiredBy(endsAt.add(const Duration(days: 1))), isFalse);
+    });
+
+    test('fromMap parses break_ends_at from a postgres row', () {
+      final br = BreakRequestPayload.fromMap({
+        'id': 'br-1',
+        'session_id': 'sess-1',
+        'status': 'approved',
+        'created_at': '2026-07-01T10:00:00Z',
+        'started_at': '2026-07-01T10:00:00Z',
+        'break_ends_at': '2026-07-01T10:05:00Z',
+      });
+      expect(br.breakEndsAt?.toUtc(), endsAt);
+    });
+  });
+
   group('HomeworkSessionPayload + KidLockState interaction', () {
     test('an "active" session is consistent with KidLockState.locked', () {
       // The realtime service treats status='active' as locked.

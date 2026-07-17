@@ -137,6 +137,14 @@ class BreakRequestPayload {
   final DateTime createdAt;
   final DateTime? startedAt;
   final DateTime? endedAt;
+  /// Parent-stamped expiry. Set by BreakService.approveBreak at
+  /// `now + 5 min` (see migration 16). The kid-side realtime
+  /// service uses this for a crash-resilient local auto-expire
+  /// timer, so the kid doesn't stay unlocked indefinitely if the
+  /// parent app crashes before calling endBreak. May be null on
+  /// pre-migration rows; the kid falls back to waiting for the
+  /// realtime completed/cancelled event in that case.
+  final DateTime? breakEndsAt;
 
   const BreakRequestPayload({
     required this.id,
@@ -145,6 +153,7 @@ class BreakRequestPayload {
     required this.createdAt,
     this.startedAt,
     this.endedAt,
+    this.breakEndsAt,
   });
 
   factory BreakRequestPayload.fromMap(Map<String, dynamic> map) =>
@@ -158,6 +167,8 @@ class BreakRequestPayload {
         startedAt:
             DateTime.tryParse(map['started_at']?.toString() ?? ''),
         endedAt: DateTime.tryParse(map['ended_at']?.toString() ?? ''),
+        breakEndsAt:
+            DateTime.tryParse(map['break_ends_at']?.toString() ?? ''),
       );
 
   /// True iff the parent has approved this break AND the break
@@ -167,6 +178,21 @@ class BreakRequestPayload {
   /// BreakRequest model.
   bool get isActive =>
       status == 'approved' && startedAt != null && endedAt == null;
+
+  /// Wall-clock expiry. Returns the parent-stamped
+  /// `break_ends_at`, or null when the parent didn't stamp it
+  /// (legacy / migration-mid-roll rows).
+  DateTime? get expiresAt => breakEndsAt;
+
+  /// True iff [now] is past the parent-stamped expiry. The realtime
+  /// service checks this on every event AND on the bootstrap read,
+  /// so the kid never stays in `KidLockState.onBreak` past the
+  /// break's intended end time even if the parent never writes
+  /// `ended_at`.
+  bool isExpiredBy(DateTime now) {
+    final exp = expiresAt;
+    return exp != null && !now.isBefore(exp);
+  }
 }
 
 /// Subscribes to homework_sessions for the signed-in kid device and
@@ -187,6 +213,12 @@ class KidRealtimeService extends ChangeNotifier {
   HomeworkSessionPayload? _session;
   BreakRequestPayload? _activeBreak;
   bool _isHealthy = false;
+  /// Local auto-expire timer armed from a break's
+  /// `break_ends_at`. Fires once at the wall-clock expiry and
+  /// re-engages the lock without waiting for the parent's
+  /// endBreak write. Defends against a parent app that crashes
+  /// mid-break.
+  Timer? _breakExpireTimer;
 
   KidLockState get state => _state;
   HomeworkSessionPayload? get session => _session;
@@ -285,6 +317,8 @@ class KidRealtimeService extends ChangeNotifier {
   Future<void> stop() async {
     _retryTimer?.cancel();
     _retryTimer = null;
+    _breakExpireTimer?.cancel();
+    _breakExpireTimer = null;
     await _sub?.cancel();
     _sub = null;
     await _supabase.removeChannel(_channel!);
@@ -356,7 +390,10 @@ class KidRealtimeService extends ChangeNotifier {
     try {
       final response = await _supabase
           .from('break_requests')
-          .select('id, session_id, status, created_at, started_at, ended_at')
+          .select(
+            'id, session_id, status, created_at, started_at, ended_at, '
+            'break_ends_at',
+          )
           .eq('session_id', sessionId)
           .eq('status', 'approved')
           .filter('ended_at', 'is', null)
@@ -464,9 +501,12 @@ class KidRealtimeService extends ChangeNotifier {
       _subscribeBreaksForActiveSession();
     } else {
       // No session → no break can be active. Clear state and let
-      // _recomputeState push us to KidLockState.unlocked.
+      // _recomputeState push us to KidLockState.unlocked. Also
+      // disarm any stale expiry timer from a previous session.
       _activeBreak = null;
       _subscribedBreakSessionId = null;
+      _breakExpireTimer?.cancel();
+      _breakExpireTimer = null;
     }
     _recomputeState();
     _enforce();
@@ -474,13 +514,59 @@ class KidRealtimeService extends ChangeNotifier {
   }
 
   void _applyBreak(BreakRequestPayload? brk) {
-    if (brk != null && brk.isActive) {
+    if (brk != null && brk.isActive && !brk.isExpiredBy(DateTime.now())) {
       _activeBreak = brk;
+      _armBreakExpireTimer(brk);
     } else {
-      // Either an ended break, a denied one, or a DELETE. Drop
-      // _activeBreak so the lock re-engages.
+      // Either an ended break, a denied one, a DELETE, or the
+      // parent-stamped expiry has already passed. Drop _activeBreak
+      // and disarm the timer so the lock re-engages.
       _activeBreak = null;
+      _breakExpireTimer?.cancel();
+      _breakExpireTimer = null;
     }
+    _recomputeState();
+    _enforce();
+    notifyListeners();
+  }
+
+  /// Schedule a one-shot timer that fires at the break's
+  /// `break_ends_at` wall-clock timestamp and re-engages the lock
+  /// locally. Defends against the parent app crashing mid-break
+  /// before writing status='completed' or 'cancelled'. Without
+  /// this, a crashed parent leaves the kid permanently unlocked.
+  void _armBreakExpireTimer(BreakRequestPayload brk) {
+    _breakExpireTimer?.cancel();
+    _breakExpireTimer = null;
+    final exp = brk.breakEndsAt;
+    if (exp == null) return; // legacy row — rely on realtime event alone
+    final delay = exp.difference(DateTime.now());
+    if (delay.isNegative || delay == Duration.zero) {
+      // Already past expiry — fire immediately on the next event
+      // loop tick so the lock re-engages without waiting for a
+      // realtime completed/cancelled event that may never arrive.
+      debugPrint(
+        'KidRealtimeService: break $exp already expired at arm time; '
+        'clearing _activeBreak synchronously',
+      );
+      _activeBreak = null;
+      _recomputeState();
+      _enforce();
+      notifyListeners();
+      return;
+    }
+    _breakExpireTimer = Timer(delay, _onBreakExpireTimerFire);
+  }
+
+  void _onBreakExpireTimerFire() {
+    _breakExpireTimer = null;
+    final current = _activeBreak;
+    if (current == null) return; // already cleared by a realtime event
+    debugPrint(
+      'KidRealtimeService: local break-expiry timer fired '
+      '(parent app presumed crashed); re-engaging lock',
+    );
+    _activeBreak = null;
     _recomputeState();
     _enforce();
     notifyListeners();
