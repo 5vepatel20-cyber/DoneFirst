@@ -75,24 +75,33 @@ class _PinScreenState extends State<PinScreen> {
   void _startLockoutCountdown() {
     _lockoutTimer?.cancel();
     _lockoutTimer = Timer.periodic(const Duration(seconds: 1), (t) async {
-      final remaining = await _tracker.remainingLockoutSeconds();
-      if (!mounted) {
-        t.cancel();
-        return;
+      try {
+        final remaining = await _tracker.remainingLockoutSeconds();
+        if (!mounted) {
+          t.cancel();
+          return;
+        }
+        if (remaining <= 0) {
+          t.cancel();
+          _lockoutTimer = null;
+          await _tracker.reset();
+          if (!mounted) return;
+          setState(() {
+            _lockedOut = false;
+            _lockoutSeconds = 0;
+            _error = false;
+          });
+          return;
+        }
+        setState(() => _lockoutSeconds = remaining);
+      } catch (_) {
+        // Periodic Timer swallows callback exceptions silently —
+        // without this catch, a SharedPreferences hiccup on
+        // remainingLockoutSeconds() would freeze the visible
+        // countdown at its last value (the timer keeps firing,
+        // the UI just stops updating). Catching keeps the timer
+        // alive and lets the next tick retry.
       }
-      if (remaining <= 0) {
-        t.cancel();
-        _lockoutTimer = null;
-        await _tracker.reset();
-        if (!mounted) return;
-        setState(() {
-          _lockedOut = false;
-          _lockoutSeconds = 0;
-          _error = false;
-        });
-        return;
-      }
-      setState(() => _lockoutSeconds = remaining);
     });
   }
 
