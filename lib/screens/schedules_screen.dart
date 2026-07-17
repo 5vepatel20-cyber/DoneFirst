@@ -39,22 +39,38 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   }
 
   Future<void> _load() async {
-    // Schedules + the active session lookup are independent reads.
-    // The "Start now" button on each schedule row depends on
-    // _activeSessionId being set, but the two reads themselves
-    // don't depend on each other — fire them in parallel.
-    final results = await Future.wait<Object?>([
-      _scheduleService.getSchedules(widget.childId),
-      _sessionService.getActiveSession(widget.childId),
-    ]);
-    final schedules = results[0] as List;
-    final active = results[1] as HomeworkSession?;
-    if (mounted) {
-      setState(() {
-        _schedules = schedules.cast();
-        _activeSessionId = active?.id;
-        _loading = false;
-      });
+    try {
+      // Schedules + the active session lookup are independent reads.
+      // The "Start now" button on each schedule row depends on
+      // _activeSessionId being set, but the two reads themselves
+      // don't depend on each other — fire them in parallel.
+      final results = await Future.wait<Object?>([
+        _scheduleService.getSchedules(widget.childId),
+        _sessionService.getActiveSession(widget.childId),
+      ]);
+      final schedules = results[0] as List;
+      final active = results[1] as HomeworkSession?;
+      if (mounted) {
+        setState(() {
+          _schedules = schedules.cast();
+          _activeSessionId = active?.id;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      // Without this catch, a transient RLS hiccup on either read
+      // would leave _loading = true forever (the setState above
+      // is the only place it flips false) and the spinner would
+      // spin until the parent gives up.
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t load schedules: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
     }
   }
 
@@ -178,13 +194,23 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       title: 'Add Recurring Schedule',
     );
     if (result != null) {
-      await _scheduleService.addSchedule(
-        childId: widget.childId,
-        dayOfWeek: result.dayOfWeek,
-        durationMinutes: result.durationMinutes,
-        approvalMode: result.approvalMode,
-      );
-      await _load();
+      try {
+        await _scheduleService.addSchedule(
+          childId: widget.childId,
+          dayOfWeek: result.dayOfWeek,
+          durationMinutes: result.durationMinutes,
+          approvalMode: result.approvalMode,
+        );
+        await _load();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t add schedule: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
     }
   }
 
@@ -202,12 +228,22 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       allowPickDay: false,
     );
     if (result != null) {
-      await _scheduleService.updateSchedule(
-        s.id,
-        durationMinutes: result.durationMinutes,
-        approvalMode: result.approvalMode,
-      );
-      await _load();
+      try {
+        await _scheduleService.updateSchedule(
+          s.id,
+          durationMinutes: result.durationMinutes,
+          approvalMode: result.approvalMode,
+        );
+        await _load();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t update schedule: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
     }
   }
 
