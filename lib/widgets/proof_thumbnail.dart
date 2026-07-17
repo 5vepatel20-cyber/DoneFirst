@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_theme.dart';
 
 /// Renders a proof-of-work photo with consistent placeholder / error /
@@ -38,7 +39,7 @@ class ProofThumbnail extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.broken_image_outlined,
+                LucideIcons.imageOff,
                 size: 32,
                 color: AppColors.textSecondary,
               ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/auth_service.dart';
 import '../services/consent_service.dart';
 import '../utils/policy_text.dart';
@@ -190,7 +191,7 @@ class _ConsentGateState extends State<ConsentGate> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(LucideIcons.x),
                       onPressed: () => Navigator.pop(c2),
                     ),
                   ],

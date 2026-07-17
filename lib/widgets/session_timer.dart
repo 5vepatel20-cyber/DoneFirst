@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_theme.dart';
 
 class SessionTimer extends StatefulWidget {
@@ -172,14 +173,14 @@ class _SessionTimerState extends State<SessionTimer> {
                 children: [
                   if (widget.minUnlockMinutes != null)
                     _infoChip(
-                      Icons.lock,
+                      LucideIcons.lock,
                       'Min unlock: ${_formatTime(widget.sessionStart.add(Duration(minutes: widget.minUnlockMinutes!)))}',
                     ),
                   const SizedBox(width: 8),
                   if (widget.autoLiftMinutes != null &&
                       widget.autoLiftMinutes! > 0)
                     _infoChip(
-                      Icons.lock_open,
+                      LucideIcons.unlock,
                       'Auto-lift: ${_formatTime(widget.sessionStart.add(Duration(minutes: widget.autoLiftMinutes!)))}',
                     ),
                 ],

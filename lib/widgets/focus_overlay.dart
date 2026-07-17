@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_theme.dart';
 
 class FocusOverlay extends StatelessWidget {
@@ -39,7 +40,7 @@ class FocusOverlay extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Icon(
-                        Icons.lock,
+                        LucideIcons.lock,
                         color: Colors.white,
                         size: 16,
                       ),

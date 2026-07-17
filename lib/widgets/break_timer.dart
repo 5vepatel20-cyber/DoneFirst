@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_theme.dart';
 
 class BreakTimer extends StatefulWidget {
@@ -59,7 +60,7 @@ class _BreakTimerState extends State<BreakTimer> {
           children: [
             Row(
               children: [
-                const Icon(Icons.coffee, color: AppColors.info),
+                const Icon(LucideIcons.coffee, color: AppColors.info),
                 const SizedBox(width: 8),
                 const Text(
                   'Break Time!',

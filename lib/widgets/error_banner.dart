@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_theme.dart';
 
 class ErrorBanner extends StatelessWidget {
@@ -21,7 +22,7 @@ class ErrorBanner extends StatelessWidget {
       color: AppColors.danger.withValues(alpha:0.1),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: AppColors.danger, size: 18),
+          const Icon(LucideIcons.alertCircle, color: AppColors.danger, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -42,7 +43,7 @@ class ErrorBanner extends StatelessWidget {
           if (onDismiss != null)
             IconButton(
               onPressed: onDismiss,
-              icon: const Icon(Icons.close, size: 16, color: AppColors.danger),
+              icon: const Icon(LucideIcons.x, size: 16, color: AppColors.danger),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
@@ -61,7 +62,7 @@ class RetryWidget extends StatelessWidget {
     super.key,
     required this.message,
     required this.onRetry,
-    this.icon = Icons.cloud_off,
+    this.icon = LucideIcons.wifiOff,
   });
 
   @override
@@ -92,7 +93,7 @@ class RetryWidget extends StatelessWidget {
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh, size: 18),
+              icon: const Icon(LucideIcons.refreshCw, size: 18),
               label: const Text('Try Again'),
             ),
           ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:donefirst/theme/app_theme.dart';
 
 /// Compact two-line status caption shown next to each child on
@@ -86,7 +87,7 @@ class KidDeviceStatusCaption extends StatelessWidget {
                   if (showPairCta) ...[
                     const SizedBox(width: 4),
                     const Icon(
-                      Icons.chevron_right,
+                      LucideIcons.chevronRight,
                       size: 12,
                       color: AppColors.faint,
                     ),
