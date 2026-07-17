@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/auth_service.dart';
 import '../services/consent_service.dart';
 import '../services/session_service.dart';
@@ -235,7 +236,7 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
             child: Row(
               children: [
                 Icon(
-                  allChecked ? Icons.verified_outlined : Icons.gavel,
+                  allChecked ? LucideIcons.badgeCheck : LucideIcons.scale,
                   color: allChecked
                       ? AppColors.success
                       : AppColors.textSecondary,
@@ -335,7 +336,7 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
                     border: const OutlineInputBorder(),
                     suffixIcon: _signatureValid
                         ? const Icon(
-                            Icons.check,
+                            LucideIcons.check,
                             color: AppColors.success,
                             size: 18,
                           )
