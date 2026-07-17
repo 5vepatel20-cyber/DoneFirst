@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../screens/kid_device_pairing_screen.dart';
 import '../screens/kid_device_setup_screen.dart';
