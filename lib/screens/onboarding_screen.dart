@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 
@@ -15,28 +16,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final _pages = [
     _OnboardingPage(
-      icon: Icons.shield_outlined,
+      icon: LucideIcons.shieldCheck,
       title: 'Block Distractions',
       description:
           'Lock distracting apps on your child\'s device until homework is done. They focus, you relax.',
       color: AppColors.primary,
     ),
     _OnboardingPage(
-      icon: Icons.camera_alt_outlined,
+      icon: LucideIcons.camera,
       title: 'Photo Proof Required',
       description:
           'Kids submit a photo of their completed work. Mistral AI verifies it\'s real homework — no shortcuts.',
       color: AppColors.accent,
     ),
     _OnboardingPage(
-      icon: Icons.check_circle_outline,
+      icon: LucideIcons.checkCircle2,
       title: 'You Stay In Control',
       description:
           'Approve or reject proof submissions. Set study sessions, break times, and auto-unlock rules.',
       color: AppColors.success,
     ),
     _OnboardingPage(
-      icon: Icons.rocket_launch_outlined,
+      icon: LucideIcons.rocket,
       title: 'Ready to Start?',
       description:
           'Create your family account and add your first child in under 2 minutes.',
