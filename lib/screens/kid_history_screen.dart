@@ -125,13 +125,14 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
   }
 
   Future<void> _showProofs(String sessionId) async {
-    final proofs = await _proofService.getProofsForSession(sessionId);
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Your Proofs')),
+    try {
+      final proofs = await _proofService.getProofsForSession(sessionId);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: const Text('Your Proofs')),
           body: proofs.isEmpty
               ? const Center(child: Text('No proofs submitted'))
               : ListView.builder(
@@ -221,5 +222,14 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
         ),
       ),
     );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t load proofs: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 }

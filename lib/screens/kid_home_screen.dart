@@ -165,31 +165,54 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
 
   Future<void> _requestBreak() async {
     if (_activeSession == null) return;
-    // Two independent inserts (break_request row + notifications row).
-    // Run them in parallel so the kid sees the snackbar after one
-    // round-trip's worth of latency, not two. If either fails the
-    // exception bubbles up the same way it did before.
-    await Future.wait([
-      _breakService.requestBreak(_activeSession!.id, widget.childId),
-      _notificationService.insertNotification(
-        parentId: _activeSession!.parentId,
-        childId: widget.childId,
-        type: 'break_requested',
-        title: 'Break requested',
-        body: '${widget.childName} wants a break',
-      ),
-    ]);
-    setState(() => _breakRequested = true);
-    if (mounted) {
+    try {
+      // Two independent inserts (break_request row + notifications row).
+      // Run them in parallel so the kid sees the snackbar after one
+      // round-trip's worth of latency, not two.
+      await Future.wait([
+        _breakService.requestBreak(_activeSession!.id, widget.childId),
+        _notificationService.insertNotification(
+          parentId: _activeSession!.parentId,
+          childId: widget.childId,
+          type: 'break_requested',
+          title: 'Break requested',
+          body: '${widget.childName} wants a break',
+        ),
+      ]);
+      setState(() => _breakRequested = true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Break request sent to parent!')),
+        );
+      }
+    } catch (e) {
+      // Without this catch, a Supabase hiccup would still leave
+      // _breakRequested = false (no setState) but the kid would
+      // never know why their parent didn't react. Surface the
+      // failure so they know to try again.
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Break request sent to parent!')),
+        SnackBar(
+          content: Text('Couldn’t send break request: $e'),
+          backgroundColor: AppColors.danger,
+        ),
       );
     }
   }
 
   Future<void> _deleteTask(String taskId) async {
-    await _proofService.deleteTask(taskId);
-    await _checkActive();
+    try {
+      await _proofService.deleteTask(taskId);
+      await _checkActive();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t delete task: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   int get _tasksRemaining => _tasks.where((t) => t.isPending).length;
