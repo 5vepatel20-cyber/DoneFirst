@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../services/schedule_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
@@ -258,13 +259,13 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.childName}\'s Schedule'),
-        actions: [IconButton(icon: const Icon(Icons.add), onPressed: _add)],
+        actions: [IconButton(icon: const Icon(LucideIcons.plus), onPressed: _add)],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _schedules.isEmpty
           ? EmptyState(
-              icon: Icons.calendar_month,
+              icon: LucideIcons.calendarDays,
               title: 'No recurring schedule',
               subtitle: 'Add weekly homework routines',
               actionLabel: 'Add Schedule',
@@ -294,7 +295,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
-                        Icons.calendar_today,
+                        LucideIcons.calendarCheck,
                         color: isToday
                             ? AppColors.primary
                             : AppColors.textSecondary,
@@ -336,13 +337,13 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                           ),
                         const SizedBox(width: 4),
                         IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          icon: const Icon(LucideIcons.pencil, size: 20),
                           tooltip: 'Edit schedule',
                           onPressed: () => _edit(s),
                         ),
                         IconButton(
                           icon: const Icon(
-                            Icons.delete_outline,
+                            LucideIcons.trash2,
                             size: 20,
                             color: AppColors.danger,
                           ),
