@@ -483,7 +483,7 @@ class _AuthScreenState extends State<AuthScreen> {
               child: Row(
                 children: [
                   Icon(
-                    allChecked ? Icons.verified_outlined : Icons.gavel,
+                    allChecked ? LucideIcons.badgeCheck : LucideIcons.scale,
                     color: allChecked
                         ? AppColors.success
                         : AppColors.textSecondary,
@@ -501,8 +501,8 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   Icon(
                     _consentExpanded
-                        ? Icons.expand_less
-                        : Icons.expand_more,
+                        ? LucideIcons.chevronUp
+                        : LucideIcons.chevronDown,
                     color: AppColors.textSecondary,
                   ),
                 ],
@@ -587,7 +587,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       border: const OutlineInputBorder(),
                       suffixIcon: _signatureValid
                           ? const Icon(
-                              Icons.check,
+                              LucideIcons.check,
                               color: AppColors.success,
                               size: 18,
                             )
