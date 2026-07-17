@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:donefirst/widgets/kid_device_status_caption.dart';
 import 'package:donefirst/supabase_config.dart';
@@ -164,14 +165,14 @@ void main() {
           ),
         ),
       ));
-      expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+      expect(find.byIcon(LucideIcons.chevronRight), findsOneWidget);
     });
 
     testWidgets('does not show a chevron on active states', (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: Scaffold(body: KidDeviceStatusCaption(status: 'online')),
       ));
-      expect(find.byIcon(Icons.chevron_right), findsNothing);
+      expect(find.byIcon(LucideIcons.chevronRight), findsNothing);
     });
   });
 }

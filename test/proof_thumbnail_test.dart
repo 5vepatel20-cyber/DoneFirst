@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:donefirst/widgets/proof_thumbnail.dart';
 
 void main() {
@@ -41,7 +42,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('Photo no longer available'), findsOneWidget);
-      expect(find.byIcon(Icons.broken_image_outlined), findsOneWidget);
+      expect(find.byIcon(LucideIcons.imageOff), findsOneWidget);
     });
   });
 }

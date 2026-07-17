@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:donefirst/widgets/error_banner.dart';
 
 void main() {
@@ -11,7 +12,7 @@ void main() {
         ),
       ));
       expect(find.text('Something went wrong'), findsOneWidget);
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      expect(find.byIcon(LucideIcons.alertCircle), findsOneWidget);
     });
 
     testWidgets('shows retry button', (tester) async {
@@ -38,7 +39,7 @@ void main() {
           ),
         ),
       ));
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.byIcon(LucideIcons.x));
       expect(dismissed, isTrue);
     });
   });
