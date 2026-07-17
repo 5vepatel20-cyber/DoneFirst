@@ -9,6 +9,14 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # CLI helper scripts — `print` is the conventional output for
+    # one-off `dart run scripts/foo.dart` invocations. The lints
+    # here (`avoid_print`, etc) target app/library code where you'd
+    # reach for a logger instead.
+    - scripts/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
