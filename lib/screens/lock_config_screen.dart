@@ -443,30 +443,25 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
   }
 
   Future<void> _startLock() async {
-    final session = await _sessionService.startSession(
-      childId: widget.childId,
-      minLockMinutes: _minLock,
-      maxLiftMinutes: _maxLift,
-      approvalMode: _approvalMode,
-    );
-    // If a kid device is paired, the kid app picks up the session
-    // via Supabase realtime and enforces the lock with its own
-    // flutter_screentime + kiosk lock-task on the kid's phone —
-    // which is the correct enforcement surface. Calling local
-    // flutter_screentime here would try to block apps on the
-    // parent's phone (useless if the kid has their own device),
-    // and would surface a permission error if no usage-stats grant
-    // exists on the parent device.
+    // Two paths converge here:
     //
-    // Falls through to local blocking only in single-device mode
-    // (parent + kid share one phone, no kid device paired).
+    //   1. **Kid device paired** — skip the permission gate entirely.
+    //      Enforcement rides on Supabase realtime to the kid app's own
+    //      flutter_screentime + kiosk lock-task, so the parent device's
+    //      own usage-stats / overlay grants don't matter.
+    //
+    //   2. **Single-device mode** (no kid device) — we have to block
+    //      apps on the parent's phone, which needs the OS grants. If
+    //      they aren't there, route through DevicePermissionsScreen
+    //      and only proceed once the parent has flipped both toggles.
+    //
+    // The previous version created the homework_sessions row BEFORE
+    // the permission check, which leaked an `active` row into the DB
+    // every time a parent hit "back" out of the permissions screen.
+    // The kid device's realtime subscription also saw that phantom
+    // session, briefly flashing the lock UI on the kid phone. Fix is
+    // to defer the insert until the gates have actually passed.
     if (!shouldSkipLocalBlockingOnKidDevice(_kidDevice)) {
-      // Proactive permission check before startBlocking — flutter_
-      // screentime would otherwise fail silently and just show a
-      // post-hoc snackbar. Single-device parents often hit this
-      // path: their phone is the only one, so a missing grant
-      // here means the lock never starts. Route them through the
-      // dedicated setup screen instead of relying on a toast.
       final granted = await _blockingService.currentPermissions();
       final allGranted =
           granted.values.isNotEmpty && granted.values.every((g) => g);
@@ -475,15 +470,11 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => DevicePermissionsScreen(
-              onContinue: () =>
-                  Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                  builder: (_) => LockActiveScreen(
-                    sessionId: session.id,
-                    childName: widget.childName,
-                  ),
-                ),
-              ),
+              // Continue → run the rest of the lock start (startBlocking
+              // + session insert + navigate). If the parent backs out of
+              // the permissions screen instead of granting, no session
+              // row is ever created — the gate is the gate.
+              onContinue: () => _actuallyStartLock(),
             ),
           ),
         );
@@ -504,17 +495,31 @@ class _LockConfigScreenState extends State<LockConfigScreen> {
         );
       }
     }
-    if (mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => LockActiveScreen(
-            sessionId: session.id,
-            childName: widget.childName,
-          ),
+    await _actuallyStartLock();
+  }
+
+  /// Create the homework_sessions row and navigate to the live lock
+  /// screen. Split out of [_startLock] so the permission-gate path
+  /// can call it from inside DevicePermissionsScreen.onContinue
+  /// without re-running the gate — that would re-open the
+  /// permissions screen recursively if the user took a moment.
+  Future<void> _actuallyStartLock() async {
+    final session = await _sessionService.startSession(
+      childId: widget.childId,
+      minLockMinutes: _minLock,
+      maxLiftMinutes: _maxLift,
+      approvalMode: _approvalMode,
+    );
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LockActiveScreen(
+          sessionId: session.id,
+          childName: widget.childName,
         ),
-      );
-    }
+      ),
+    );
   }
 }
 
