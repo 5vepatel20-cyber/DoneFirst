@@ -3,7 +3,7 @@
 // StatefulWidget and we only want to test the pure branch logic.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 const Duration _signedUrlLifetime = Duration(days: 7);
 const Duration _expiryWarnWindow = Duration(days: 2);

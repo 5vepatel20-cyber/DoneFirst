@@ -1,7 +1,8 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/proof_service.dart';
 import '../services/notification_service.dart';
@@ -26,7 +27,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
   final _notificationService = NotificationService();
   final _picker = ImagePicker();
   final _noteController = TextEditingController();
-  final List<File> _images = [];
+  final List<XFile> _images = [];
   bool _submitting = false;
 
   @override
@@ -42,7 +43,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
         imageQuality: 70,
         maxWidth: 1920,
       );
-      if (picked != null) setState(() => _images.add(File(picked.path)));
+      if (picked != null) setState(() => _images.add(picked));
     } catch (e) {
       // Camera permission denied, no camera on the device, or the
       // picker plugin threw on a misconfigured build. The older
@@ -66,7 +67,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
         imageQuality: 70,
         maxWidth: 1920,
       );
-      if (picked != null) setState(() => _images.add(File(picked.path)));
+      if (picked != null) setState(() => _images.add(picked));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -238,12 +239,19 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                _images[i],
-                                fit: BoxFit.cover,
-                                height: double.infinity,
-                                width: double.infinity,
-                              ),
+                              child: kIsWeb
+                                  ? Image.network(
+                                      _images[i].path,
+                                      fit: BoxFit.cover,
+                                      height: double.infinity,
+                                      width: double.infinity,
+                                    )
+                                  : Image.file(
+                                      File(_images[i].path),
+                                      fit: BoxFit.cover,
+                                      height: double.infinity,
+                                      width: double.infinity,
+                                    ),
                             ),
                             Positioned(
                               top: 2,
