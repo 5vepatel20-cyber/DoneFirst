@@ -11,7 +11,7 @@ import '../supabase_config.dart';
 /// Owns the kid-app identity lifecycle:
 ///   - claimPairingCode(code) → POST to claim-pairing Edge Function,
 ///     store returned access_token + refresh_token, call
-///     Supabase.auth.recoverSession to materialize a Supabase session.
+///     Supabase.auth.setSession to materialize a Supabase session.
 ///   - persistSession() → write tokens to SharedPreferences.
 ///   - restoreSession() → on app launch, rebuild the Supabase
 ///     session from persisted tokens.
@@ -130,25 +130,22 @@ class KidAuthService extends ChangeNotifier {
       );
     }
 
-    // Persist tokens first so the pairing is complete even if
-    // recoverSession hangs (it does on web — likely a PKCE
-    // round-trip that never resolves in the browser).
     await _persistTokens(access, refresh);
 
-    // Materialize a Supabase session locally so RealtimeChannel
-    // picks up the auth state for downstream filters. Fire with a
-    // timeout so a slow/hanging recoverSession can't block the
-    // entire pairing flow.
+    // Materialize a Supabase session so currentSession is non-null
+    // and RealtimeChannel picks up the auth state for downstream
+    // filters.  setSession takes the refresh token + optional access
+    // token; it decodes the JWT locally and calls GET /auth/v1/user
+    // to hydrate the user object. recoverSession() was broken — it
+    // expects a full Session JSON string, not a raw access token.
     try {
-      await _supabase.auth
-          .recoverSession(access)
-          .timeout(const Duration(seconds: 5));
+      await _supabase.auth.setSession(refresh, accessToken: access);
     } catch (e) {
-      // recoverSession can throw on a malformed token, a refresh
-      // rotation the server rejected, or a timeout. We don't want
-      // any of these to abort the pairing — the tokens are already
-      // persisted and we set _childId/_familyId below.
-      debugPrint('recoverSession after claim-pairing failed: $e');
+      // setSession can throw on a network failure, a malformed
+      // token, or a refresh rotation the server rejected. We don't
+      // want any of these to abort the pairing — the tokens are
+      // already persisted and _childId/_familyId are set below.
+      debugPrint('setSession after claim-pairing failed: $e');
     }
 
     _childId = body['child_id']?.toString();
@@ -179,9 +176,15 @@ class KidAuthService extends ChangeNotifier {
       final access = prefs.getString(_kAccessToken);
       final refresh = prefs.getString(_kRefreshToken);
       if (access == null || refresh == null) return false;
-      await _supabase.auth.recoverSession(access);
+
+      // setSession takes refresh token + optional access token.
+      // It decodes the JWT locally and calls GET /auth/v1/user to
+      // hydrate the user object. recoverSession() was broken — it
+      // expects a full Session JSON string, not a raw access token.
+      await _supabase.auth.setSession(refresh, accessToken: access);
+
       // Pull child_id / family_id from the JWT's app_metadata claim.
-      // Auth.currentUser is non-null after recoverSession.
+      // Auth.currentUser is non-null after setSession.
       final user = _supabase.auth.currentUser;
       if (user == null) {
         await _clearTokens();
@@ -207,11 +210,27 @@ class KidAuthService extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      // recoverSession throws on expired/invalid tokens. Clear
-      // them so a stale token can't trap the kid on a black screen
-      // and they get a fresh pairing prompt.
-      debugPrint('restoreSession error: $e');
-      await _clearTokens();
+      // setSession can fail for two very different reasons:
+      // 1. Auth error (expired/invalid tokens) → clear so kid gets
+      //    a fresh pairing prompt instead of a stuck black screen.
+      // 2. Network error → keep tokens, the kid sees WaitingScreen
+      //    and will retry on reconnect.  Only clear if the error is
+      //    definitively an auth failure.
+      final msg = e.toString().toLowerCase();
+      final isAuthError =
+          msg.contains('expired') ||
+          msg.contains('invalid') ||
+          msg.contains('session') ||
+          msg.contains('unauthorized') ||
+          msg.contains('missing');
+      debugPrint('restoreSession error: $e (isAuthError=$isAuthError)');
+      if (isAuthError) {
+        await _clearTokens();
+        return false;
+      }
+      // Network or transient error — tokens are still valid.
+      // Return false so KidRoot shows PairingScreen briefly but
+      // the tokens survive for the next launch attempt.
       return false;
     }
   }
