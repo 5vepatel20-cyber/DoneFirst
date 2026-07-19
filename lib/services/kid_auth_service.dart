@@ -70,7 +70,15 @@ class KidAuthService extends ChangeNotifier {
   /// Returns the kid's display name if known, else null. Callers
   /// should fall back to a generic greeting ("there") when null.
   String? get childName => _childName;
-  bool get isPaired => _supabase.auth.currentSession != null;
+  /// True when we have either a live Supabase session or a decoded
+  /// kid identity from persisted tokens.  The two paths cover:
+  ///   1. setSession succeeded → currentSession is set (normal path)
+  ///   2. setSession failed (web CORS) but JWT decode succeeded →
+  ///      _childId is set (offline fallback)
+  /// PairingScreen has its own KidAuthService instance that shares
+  /// the same Supabase client, so path 1 triggers the screen
+  /// transition via the shared currentSession.
+  bool get isPaired => _supabase.auth.currentSession != null || _childId != null;
 
   /// Exchange a 6-digit pairing code for a Supabase session.
   ///
@@ -138,13 +146,12 @@ class KidAuthService extends ChangeNotifier {
     // token; it decodes the JWT locally and calls GET /auth/v1/user
     // to hydrate the user object. recoverSession() was broken — it
     // expects a full Session JSON string, not a raw access token.
+    // Timeout: on web the /auth/v1/user call may be slow or fail.
     try {
-      await _supabase.auth.setSession(refresh, accessToken: access);
+      await _supabase.auth
+          .setSession(refresh, accessToken: access)
+          .timeout(const Duration(seconds: 8));
     } catch (e) {
-      // setSession can throw on a network failure, a malformed
-      // token, or a refresh rotation the server rejected. We don't
-      // want any of these to abort the pairing — the tokens are
-      // already persisted and _childId/_familyId are set below.
       debugPrint('setSession after claim-pairing failed: $e');
     }
 
@@ -177,32 +184,43 @@ class KidAuthService extends ChangeNotifier {
       final refresh = prefs.getString(_kRefreshToken);
       if (access == null || refresh == null) return false;
 
-      // setSession takes refresh token + optional access token.
-      // It decodes the JWT locally and calls GET /auth/v1/user to
-      // hydrate the user object. recoverSession() was broken — it
-      // expects a full Session JSON string, not a raw access token.
-      await _supabase.auth.setSession(refresh, accessToken: access);
+      // Try setSession with a timeout. On web this calls
+      // GET /auth/v1/user which may be slow or fail due to CORS.
+      // If it fails, fall back to local JWT decoding to extract
+      // the app_metadata claims (child_id, family_id, device_id).
+      try {
+        await _supabase.auth
+            .setSession(refresh, accessToken: access)
+            .timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('setSession in restoreSession failed: $e');
+      }
 
-      // Pull child_id / family_id from the JWT's app_metadata claim.
-      // Auth.currentUser is non-null after setSession.
+      // If setSession succeeded, currentUser is populated.
+      // Otherwise fall back to decoding the JWT payload directly.
       final user = _supabase.auth.currentUser;
-      if (user == null) {
-        await _clearTokens();
-        return false;
+      if (user != null) {
+        final meta = user.appMetadata;
+        _childId = meta['child_id']?.toString();
+        _familyId = meta['family_id']?.toString();
+        _deviceId = meta['device_id']?.toString();
       }
-      final meta = user.appMetadata;
-      _childId = meta['child_id']?.toString();
-      _familyId = meta['family_id']?.toString();
-      _deviceId = meta['device_id']?.toString();
+      if (_childId == null) {
+        // setSession failed or user has no kid claims. Decode the
+        // access token JWT payload (base64url JSON, not encrypted)
+        // to extract app_metadata without a network call.
+        final claims = _decodeJwtPayload(access);
+        if (claims != null) {
+          final meta = claims['app_metadata'] as Map<String, dynamic>?;
+          _childId = meta?['child_id']?.toString();
+          _familyId = meta?['family_id']?.toString();
+          _deviceId = meta?['device_id']?.toString();
+        }
+      }
       if (_childId == null || _familyId == null || _deviceId == null) {
-        // The token doesn't look like one we minted — fail safe by
-        // clearing it so the kid lands back on the pairing screen.
         await _clearTokens();
         return false;
       }
-      // Pull the cached child_name so the lock screen can greet
-      // the kid after a cold launch. Stored at pair time, not from
-      // the JWT (which only carries ids).
       final cachedName = prefs.getString(_kChildName)?.trim();
       _childName = (cachedName != null && cachedName.isNotEmpty)
           ? cachedName
@@ -210,27 +228,7 @@ class KidAuthService extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      // setSession can fail for two very different reasons:
-      // 1. Auth error (expired/invalid tokens) → clear so kid gets
-      //    a fresh pairing prompt instead of a stuck black screen.
-      // 2. Network error → keep tokens, the kid sees WaitingScreen
-      //    and will retry on reconnect.  Only clear if the error is
-      //    definitively an auth failure.
-      final msg = e.toString().toLowerCase();
-      final isAuthError =
-          msg.contains('expired') ||
-          msg.contains('invalid') ||
-          msg.contains('session') ||
-          msg.contains('unauthorized') ||
-          msg.contains('missing');
-      debugPrint('restoreSession error: $e (isAuthError=$isAuthError)');
-      if (isAuthError) {
-        await _clearTokens();
-        return false;
-      }
-      // Network or transient error — tokens are still valid.
-      // Return false so KidRoot shows PairingScreen briefly but
-      // the tokens survive for the next launch attempt.
+      debugPrint('restoreSession error: $e');
       return false;
     }
   }
@@ -280,6 +278,33 @@ class KidAuthService extends ChangeNotifier {
       return jsonDecode(body) as Map<String, dynamic>;
     } catch (_) {
       return const {};
+    }
+  }
+
+  /// Decode the payload portion of a JWT without verification.
+  /// Used as a fallback when setSession / recoverSession fail on
+  /// web (CORS, network timeout) so we can still extract
+  /// app_metadata claims (child_id, family_id, device_id).
+  Map<String, dynamic>? _decodeJwtPayload(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      var payload = parts[1];
+      // base64url → base64 padding
+      payload = payload.replaceAll('-', '+').replaceAll('_', '/');
+      switch (payload.length % 4) {
+        case 2:
+          payload += '==';
+          break;
+        case 3:
+          payload += '=';
+          break;
+      }
+      return jsonDecode(
+        utf8.decode(base64Decode(payload)),
+      ) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
     }
   }
 }

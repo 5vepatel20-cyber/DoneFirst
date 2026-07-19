@@ -104,6 +104,7 @@ class _KidRootState extends State<KidRoot> {
     if (!kidAuth.isPaired) {
       return PairingScreen(
         onSignOut: _signOut,
+        authService: kidAuth,
       );
     }
     // Realtime drives the lock state. Fall back to waiting if it

@@ -18,14 +18,23 @@ class PairingScreen extends StatefulWidget {
   /// stored session and bounce back to the auth screen.
   final VoidCallback? onSignOut;
 
-  const PairingScreen({super.key, this.onSignOut});
+  /// The shared KidAuthService instance. PairingScreen uses this
+  /// (instead of creating its own) so that after pairing succeeds
+  /// the global instance's _childId is set and KidRoot's isPaired
+  /// check flips correctly.
+  final KidAuthService authService;
+
+  const PairingScreen({
+    super.key,
+    this.onSignOut,
+    required this.authService,
+  });
 
   @override
   State<PairingScreen> createState() => _PairingScreenState();
 }
 
 class _PairingScreenState extends State<PairingScreen> {
-  final _auth = KidAuthService();
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   bool _busy = false;
@@ -74,7 +83,7 @@ class _PairingScreenState extends State<PairingScreen> {
       _error = null;
     });
     try {
-      await _auth.claimPairingCode(code);
+      await widget.authService.claimPairingCode(code);
       // Don't navigate from here — main.dart listens on
       // KidAuthService and swaps the screen when isPaired flips.
     } catch (e) {
