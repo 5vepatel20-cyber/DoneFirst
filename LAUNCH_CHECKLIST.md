@@ -13,17 +13,20 @@ Status legend: ✅ done · ⚠️ done in code, needs infra apply · ❌ not don
 
 | # | Action | Status | Where |
 |---|---|---|---|
-| 1.1 | Run `rls_policies.sql` against the live Supabase project | ⚠️ | Supabase Dashboard → SQL Editor → New query → paste file → Run |
-| 1.2 | Run `schema_migrations.sql` migration 8 — creates `mistral_verification_log` table | ❌ | Supabase SQL Editor (file in repo) |
-| 1.2b | Run `schema_migrations.sql` migration 9 — creates `parental_consent` audit table | ❌ | Supabase SQL Editor |
-| 1.3 | Verify `proof-photos` bucket is private after running 1.1 (file ends with a SELECT that should return `public = false`) | ⚠️ | Should match the query in `rls_policies.sql` |
-| 1.4 | Deploy `verify-proof` Edge Function | ❌ | `supabase functions deploy verify-proof --project-ref wxjtksxugsirpowptpmz` |
-| 1.5 | Deploy `delete-account` Edge Function | ❌ | `supabase functions deploy delete-account --project-ref wxjtksxugsirpowptpmz` |
-| 1.6 | Set `MISTRAL_API_KEY` env var on `verify-proof` function | ❌ | Supabase Dashboard → Edge Functions → verify-proof → Environment Variables |
-| 1.7 | Set `MISTRAL_DAILY_LIMIT` env var (optional — defaults to 50) | ❌ | Same place as 1.6 |
-| 1.8 | **Rotate the existing Mistral API key** in the Mistral console. The previous key was baked into an earlier build and was exposed in this repo's working tree (now scrubbed from `DEVELOPER_HANDOFF.md`, but the key string was live on disk). | ❌ | https://console.mistral.ai/ |
+| 1.1 | Run `rls_policies.sql` against the live Supabase project | ✅ | Applied 2026-07-19 via CLI |
+| 1.2 | Run `schema_migrations.sql` migrations 1–9 (subjects, notes, presets, notifications, multi-image, streaks, mistral_verification_log, parental_consent) | ✅ | Applied 2026-07-19 via CLI |
+| 1.2b | Apply migrations 12–16 (parents.role, kid device policies, kid_device_events, break_requests lifecycle, break_ends_at) | ✅ | Applied 2026-07-19 via CLI |
+| 1.3 | Verify `proof-photos` bucket is private | ✅ | Verified — rls_policies.sql SET public = false was applied |
+| 1.4 | Deploy `verify-proof` Edge Function (v6, CORS fixed with `apikey` header) | ✅ | Deployed 2026-07-19 |
+| 1.5 | Deploy `delete-account` Edge Function (v6, CORS fixed) | ✅ | Deployed 2026-07-19 |
+| 1.5b | Deploy `claim-pairing` Edge Function (v5, CORS fixed) | ✅ | Deployed 2026-07-19 |
+| 1.5c | Deploy `heartbeat` Edge Function (v3, CORS fixed) | ✅ | Deployed 2026-07-19 |
+| 1.6 | Set `MISTRAL_API_KEY` env var on `verify-proof` function | ✅ | Set 2026-07-19 |
+| 1.7 | Set `MISTRAL_DAILY_LIMIT` env var (optional — defaults to 50) | ⚠️ | Not set — defaults to 50, can set later |
+| 1.8 | **Rotate the existing Mistral API key** in the Mistral console. The previous key was baked into an earlier build and was exposed in this repo's working tree. | ❌ | https://console.mistral.ai/ |
 | 1.9 | Re-test sign-up → ensure RLS doesn't block the `parents` insert | ❌ | Manual: web app, fresh email |
 | 1.10 | Create two-parent isolation test (account A can't read account B's children/photos) | ❌ | Manual: two real accounts, one login then the other |
+| 1.11 | Test kid pairing end-to-end in browser (generate code → enter code → verify device appears in parent UI) | ❌ | Manual: open parent dashboard, go to Device Pairing, generate code, open incognito, enter code |
 
 ## 2. Release signing (Android)
 
@@ -102,13 +105,21 @@ on Apple Developer enrollment.
 ## Quick commands you'll need
 
 ```bash
-# Supabase CLI (once installed: npm i -g supabase, then supabase login)
+# Supabase CLI
 supabase functions deploy verify-proof --project-ref wxjtksxugsirpowptpmz
 supabase functions deploy delete-account --project-ref wxjtksxugsirpowptpmz
+supabase functions deploy claim-pairing --project-ref wxjtksxugsirpowptpmz
+supabase functions deploy heartbeat --project-ref wxjtksxugsirpowptpmz
 
-# SQL Editor (run in order):
-# 1. schema_migrations.sql  (migrations 1-6, likely already applied)
-# 2. rls_policies.sql       (this branch's migration 7)
+# SQL migrations (already applied 2026-07-19, skip if already run):
+# 1. schema_migrations.sql  (migrations 1-9)
+# 2. rls_policies.sql       (RLS on all tables + storage bucket)
+# 3. migration_11 (device_pairings + kid_devices — reconstructed from live DB)
+# 4. migration_12 (parents.role column)
+# 5. migration_13 (kid_devices UPDATE policy + kid_devices_with_child view)
+# 6. migration_14 (kid_device_events audit table)
+# 7. migration_15 (break_requests lifecycle columns)
+# 8. migration_16 (break_ends_at column + partial index)
 
 # Android release
 flutter build appbundle --release

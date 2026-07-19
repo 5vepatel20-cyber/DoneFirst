@@ -130,25 +130,26 @@ class KidAuthService extends ChangeNotifier {
       );
     }
 
+    // Persist tokens first so the pairing is complete even if
+    // recoverSession hangs (it does on web — likely a PKCE
+    // round-trip that never resolves in the browser).
+    await _persistTokens(access, refresh);
+
     // Materialize a Supabase session locally so RealtimeChannel
-    // picks up the auth state for downstream filters.
+    // picks up the auth state for downstream filters. Fire with a
+    // timeout so a slow/hanging recoverSession can't block the
+    // entire pairing flow.
     try {
-      await _supabase.auth.recoverSession(access);
+      await _supabase.auth
+          .recoverSession(access)
+          .timeout(const Duration(seconds: 5));
     } catch (e) {
-      // recoverSession can throw on a malformed token (it's a JSON
-      // decode under the hood) or on a refresh rotation that the
-      // server rejected. We don't want that to abort the pairing
-      // — the parent app's device list still got its kid_devices
-      // row written by the edge function, so the kid is paired on
-      // the server side. We persist the tokens and let the user
-      // see the locked/unlocked screen; the next realtime
-      // round-trip will fail-and-retry if the JWT is truly bad.
+      // recoverSession can throw on a malformed token, a refresh
+      // rotation the server rejected, or a timeout. We don't want
+      // any of these to abort the pairing — the tokens are already
+      // persisted and we set _childId/_familyId below.
       debugPrint('recoverSession after claim-pairing failed: $e');
     }
-    // We persist both tokens so we can rebuild after a cold launch
-    // (see restoreSession below) regardless of whether the local
-    // recoverSession succeeded.
-    await _persistTokens(access, refresh);
 
     _childId = body['child_id']?.toString();
     _familyId = body['family_id']?.toString();
