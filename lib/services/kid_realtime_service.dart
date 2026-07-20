@@ -237,10 +237,16 @@ class KidRealtimeService extends ChangeNotifier {
   /// update.
   String? _subscribedBreakSessionId;
 
+  /// Supplies the current kid access token (live Supabase session
+  /// or persisted fallback). Used to authenticate the realtime
+  /// socket explicitly — see [_ensureRealtimeAuth].
+  final Future<String?> Function()? _tokenProvider;
+
   KidRealtimeService({
     required this.blocking,
     required this.kiosk,
     RealtimeRetryPolicy? retryPolicy,
+    this._tokenProvider,
   }) : _retryPolicy = retryPolicy ?? RealtimeRetryPolicy();
 
   /// Start listening for the given child. Idempotent — calling
@@ -251,6 +257,17 @@ class KidRealtimeService extends ChangeNotifier {
     _childId = childId;
     _retryPolicy.reset();
 
+    // Authenticate the realtime socket with the kid's JWT *before*
+    // subscribing. On web, setSession often fails (CORS on
+    // /auth/v1/user), so the Supabase auth client never pushes the
+    // token to the realtime socket and it falls back to the anon
+    // key. RLS then rejects the homework_sessions subscription and
+    // the kid is stranded on the "waiting" screen with no error
+    // logged. Setting it explicitly from the persisted token (the
+    // same fallback HeartbeatService uses) fixes both fresh-pair
+    // and cold-launch on web.
+    await _ensureRealtimeAuth();
+
     // Bootstrap by reading the latest session state once. Realtime
     // only delivers changes — if there's already an active session
     // when the kid app launches (e.g. parent started it before
@@ -259,6 +276,23 @@ class KidRealtimeService extends ChangeNotifier {
     await _loadInitial(childId);
 
     _subscribe();
+  }
+
+  /// Push the current kid access token onto the realtime socket so
+  /// the postgres_changes subscription authenticates as the kid
+  /// (RLS keys off the JWT's child_id claim). No-op when no token
+  /// provider was wired or no token is available.
+  Future<void> _ensureRealtimeAuth() async {
+    final provider = _tokenProvider;
+    if (provider == null) return;
+    try {
+      final token = await provider();
+      if (token != null && token.isNotEmpty) {
+        await _supabase.realtime.setAuth(token);
+      }
+    } catch (e) {
+      debugPrint('KidRealtimeService setAuth failed: $e');
+    }
   }
 
   void _subscribe() {
@@ -424,26 +458,28 @@ class KidRealtimeService extends ChangeNotifier {
     // timedOut. We only treat subscribed as healthy; everything
     // else flips the UI to KidLockState.waiting and releases the
     // lock so the kid isn't trapped.
-    final wasHealthy = _isHealthy;
     _isHealthy = status == RealtimeSubscribeStatus.subscribed;
-    if (error != null) {
-      debugPrint('Realtime subscribe error: $error');
-    }
+    // Always log the status — channelError/timedOut/closed can
+    // arrive with a null error, and without this a stuck
+    // subscription is completely invisible in the console.
+    debugPrint(
+      'Realtime subscribe status: $status'
+      '${error != null ? ' (error: $error)' : ''}',
+    );
     if (_isHealthy) {
       // Success — reset retry state and cancel any pending retry.
       _retryTimer?.cancel();
       _retryTimer = null;
       _retryPolicy.reset();
-    } else if (wasHealthy && !_isHealthy) {
-      // We were subscribed and now we're not. This is a runtime
-      // drop (server restart, network blip). Schedule a retry —
-      // supabase's internal reconnection will probably beat us,
-      // but if not, we'll rebuild the channel from scratch.
+    } else {
+      // Any non-subscribed status rebuilds the channel — whether a
+      // mid-session drop or a first attempt that never subscribed.
+      // The old code only retried on drops (wasHealthy), so a
+      // first-attempt channelError left the kid stuck on the
+      // waiting screen forever. _scheduleRetry respects the
+      // max-attempts cap so this can't loop indefinitely.
       _scheduleRetry();
     }
-    // First-subscribe failure (wasHealthy==false and never healthy)
-    // is handled by the caller of _subscribe() — we don't want to
-    // double-schedule.
     _recomputeState();
     notifyListeners();
   }
@@ -472,6 +508,9 @@ class KidRealtimeService extends ChangeNotifier {
       }
       _channel = null;
       _retryPolicy.bumpBackoff();
+      // Refresh the socket auth token in case it rotated since the
+      // last attempt, then rebuild the channel.
+      await _ensureRealtimeAuth();
       _subscribe();
     });
   }
