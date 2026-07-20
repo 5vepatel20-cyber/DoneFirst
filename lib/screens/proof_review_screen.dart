@@ -235,10 +235,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
                             ? ''
                             : 'Showing ${_filteredSessions.length} of '
                                 '${_allSessions.length}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
+                        style: AppText.bodySecondary(size: 12),
                       ),
                       const Spacer(),
                       _statusChip('All', null),

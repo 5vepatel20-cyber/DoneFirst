@@ -205,6 +205,20 @@ class AppSpacing {
 }
 
 class AppTheme {
+  /// A gentle fade-up transition applied on every platform (incl.
+  /// web, which otherwise snaps between routes with no animation).
+  /// Replacing the default instant/slide cut is the single cheapest
+  /// win against the app's old "wireframe" feel.
+  static const PageTransitionsTheme _transitions = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+      TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+      TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+      TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+      TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+    },
+  );
+
   static ThemeData get light {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppColors.forest,
@@ -223,6 +237,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      pageTransitionsTheme: _transitions,
       brightness: Brightness.light,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.paper,
@@ -237,7 +252,13 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: AppColors.card,
-        elevation: 0,
+        // Soft, brand-tinted drop shadow (not Material's grey tonal
+        // elevation) so cards lift off the page without looking like
+        // a flat wireframe. surfaceTintColor is cleared so the card
+        // keeps its true colour at elevation.
+        elevation: 3,
+        shadowColor: AppColors.forest.withValues(alpha: 0.10),
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.card),
           side: const BorderSide(color: AppColors.hair2, width: 0.5),
@@ -331,6 +352,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      pageTransitionsTheme: _transitions,
       brightness: Brightness.dark,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: const Color(0xFF12160F),

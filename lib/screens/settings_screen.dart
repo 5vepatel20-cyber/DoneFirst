@@ -13,6 +13,7 @@ import '../theme/theme_mode.dart';
 import '../utils/policy_text.dart';
 import '../utils/pin_strength.dart';
 import '../services/notification_preferences_service.dart';
+import '../widgets/monogram_avatar.dart';
 import '../widgets/pin_guard.dart';
 import 'upgrade_screen.dart';
 import 'coparent_screen.dart';
@@ -687,18 +688,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.primary.withValues(alpha:0.1),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  leading: MonogramAvatar.parent(
+                    name: _displayName ?? '',
+                    size: 44,
+                  ),
+                  title: Text(
+                    _displayName ?? 'Unknown',
+                    style: AppText.cardHeader(size: 16),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 2),
                     child: Text(
-                      _displayName?.substring(0, 1).toUpperCase() ?? '?',
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      _userEmail ?? '',
+                      style: AppText.bodySecondary(size: 13),
                     ),
                   ),
-                  title: Text(_displayName ?? 'Unknown'),
-                  subtitle: Text(_userEmail ?? ''),
                   trailing: const Icon(LucideIcons.chevronRight, size: 16),
                   onTap: _editProfile,
                 ),
@@ -1113,16 +1121,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _section(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textSecondary,
-          letterSpacing: 0.5,
-        ),
-      ),
+      padding: const EdgeInsets.only(bottom: 10, left: 2, top: 2),
+      child: Text(title.toUpperCase(), style: AppText.eyebrow()),
     );
   }
 

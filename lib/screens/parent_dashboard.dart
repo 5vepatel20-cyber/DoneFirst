@@ -841,94 +841,6 @@ class _ParentDashboardState extends State<ParentDashboard> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            LucideIcons.sparkles,
-                            color: AppColors.warnDot,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '$_monthlySessionCount / ${UpgradeScreen.freeLimit} free sessions this month',
-                              style: AppText.body(size: 13),
-                            ),
-                          ),
-                          if (_monthlySessionCount >= UpgradeScreen.freeLimit)
-                            FilledButton.tonal(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const UpgradeScreen()),
-                              ),
-                              child: const Text('Upgrade'),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // AI usage card — shows how many Mistral verification
-                  // calls the parent has made in the last 24h. Parents
-                  // who hit the daily cap get an explanation of why
-                  // proofs aren't being auto-approved.
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        LucideIcons.bot,
-                        size: 15,
-                        color: _mistralCallsToday >= 40
-                            ? AppColors.danger
-                            : AppColors.muted,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '$_mistralCallsToday / 50 AI checks today',
-                        style: AppText.bodySecondary(
-                          size: 12,
-                          color: _mistralCallsToday >= 40
-                              ? AppColors.danger
-                              : AppColors.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_totalSessions > 0) ...[
-                    const SizedBox(height: 12),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            _miniStat(
-                              LucideIcons.playCircle,
-                              '$_totalSessions',
-                              'Sessions',
-                            ),
-                            const _StatDivider(),
-                            _miniStat(
-                              LucideIcons.timer,
-                              '${_totalMinutes}m',
-                              'Time',
-                            ),
-                            const _StatDivider(),
-                            _miniStat(
-                              LucideIcons.badgeCheck,
-                              '$_totalApproved',
-                              'Approved',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                   if (_todaySchedules.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Card(
@@ -1027,6 +939,99 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       label: const Text('Add Another Child'),
                     ),
                   ),
+                  const SizedBox(height: 22),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2, bottom: 10),
+                    child: Text('This month', style: AppText.eyebrow()),
+                  ),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            LucideIcons.sparkles,
+                            color: AppColors.warnDot,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '$_monthlySessionCount / ${UpgradeScreen.freeLimit} free sessions this month',
+                              style: AppText.body(size: 13),
+                            ),
+                          ),
+                          if (_monthlySessionCount >= UpgradeScreen.freeLimit)
+                            FilledButton.tonal(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const UpgradeScreen()),
+                              ),
+                              child: const Text('Upgrade'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // AI usage card — shows how many Mistral verification
+                  // calls the parent has made in the last 24h. Parents
+                  // who hit the daily cap get an explanation of why
+                  // proofs aren't being auto-approved.
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        LucideIcons.bot,
+                        size: 15,
+                        color: _mistralCallsToday >= 40
+                            ? AppColors.danger
+                            : AppColors.muted,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$_mistralCallsToday / 50 AI checks today',
+                        style: AppText.bodySecondary(
+                          size: 12,
+                          color: _mistralCallsToday >= 40
+                              ? AppColors.danger
+                              : AppColors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_totalSessions > 0) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            _miniStat(
+                              LucideIcons.playCircle,
+                              '$_totalSessions',
+                              'Sessions',
+                            ),
+                            const _StatDivider(),
+                            _miniStat(
+                              LucideIcons.timer,
+                              '${_totalMinutes}m',
+                              'Time',
+                            ),
+                            const _StatDivider(),
+                            _miniStat(
+                              LucideIcons.badgeCheck,
+                              '$_totalApproved',
+                              'Approved',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
