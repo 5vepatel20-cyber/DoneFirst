@@ -24,8 +24,14 @@ import 'waiting_screen.dart';
 final KidAuthService kidAuth = KidAuthService();
 final BlockingService blocking = BlockingService();
 final KioskService kiosk = KioskService();
-final KidRealtimeService realtime =
-    KidRealtimeService(blocking: blocking, kiosk: kiosk);
+final KidRealtimeService realtime = KidRealtimeService(
+  blocking: blocking,
+  kiosk: kiosk,
+  // Realtime must authenticate as the kid even when setSession
+  // failed on web — feed it the persisted-token fallback so the
+  // homework_sessions subscription passes RLS.
+  tokenProvider: kidAuth.getAccessToken,
+);
 final HeartbeatService heartbeat = HeartbeatService(kidAuth: kidAuth);
 
 class KidRoot extends StatefulWidget {
