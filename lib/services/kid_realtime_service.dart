@@ -321,8 +321,16 @@ class KidRealtimeService extends ChangeNotifier {
     _breakExpireTimer = null;
     await _sub?.cancel();
     _sub = null;
-    await _supabase.removeChannel(_channel!);
-    _channel = null;
+    // Guard the null-assertion: on a fresh app launch/refresh,
+    // start() calls stop() before anything has subscribed, so
+    // _channel is still null. removeChannel(_channel!) would throw
+    // "Null check operator used on a null value", surfacing a scary
+    // red "Couldn't start the kid app" SnackBar even though nothing
+    // is actually wrong.
+    if (_channel != null) {
+      await _supabase.removeChannel(_channel!);
+      _channel = null;
+    }
     _isHealthy = false;
     _childId = null;
     _activeBreak = null;

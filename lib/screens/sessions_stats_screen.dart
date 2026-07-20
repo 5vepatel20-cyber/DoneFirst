@@ -245,9 +245,9 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Time by Subject',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: AppText.cardHeader(size: 16),
             ),
             const SizedBox(height: 12),
             ...entries.map((e) {
@@ -340,9 +340,9 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'This Week',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: AppText.cardHeader(size: 16),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -421,17 +421,11 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
+                  style: AppText.bodySecondary(size: 13),
                 ),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: AppText.statValue(),
                 ),
               ],
             ),

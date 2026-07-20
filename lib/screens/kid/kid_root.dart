@@ -143,7 +143,10 @@ class _KidRootState extends State<KidRoot> {
           // will reconcile within a tick.
           final session = realtime.session;
           if (session == null) {
-            return UnlockedScreen(childName: _childDisplayName);
+            return UnlockedScreen(
+          childName: _childDisplayName,
+          childId: kidAuth.childId,
+        );
           }
           return LockedScreen(
             session: session,
@@ -156,7 +159,10 @@ class _KidRootState extends State<KidRoot> {
           activeBreak: brk,
         );
       case KidLockState.unlocked:
-        return UnlockedScreen(childName: _childDisplayName);
+        return UnlockedScreen(
+          childName: _childDisplayName,
+          childId: kidAuth.childId,
+        );
       case KidLockState.waiting:
         return WaitingScreen(
           onReconnect: () {
