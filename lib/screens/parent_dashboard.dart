@@ -141,23 +141,25 @@ class _ParentDashboardState extends State<ParentDashboard> {
   void _onKidDeviceChanged(Map<String, dynamic> newRow) {
     final childId = newRow['child_id'] as String?;
     if (childId == null) return;
-    // Re-fetch the device row via the joined view so we get
-    // the derived 'online' / 'recent' / 'stale' status string
-    // the dashboard dot already knows how to render.
     _kidDeviceService.listDevicesForChild(childId).then((devices) {
       if (!mounted) return;
+      // Prefer a non-revoked device so the dashboard doesn't show
+      // "revoked" for a child who has since re-paired.
+      final best = devices.isEmpty
+          ? null
+          : devices.firstWhere(
+              (d) => !d.isRevoked,
+              orElse: () => devices.first,
+            );
       setState(() {
-        _kidDeviceStatus[childId] = devices.isEmpty
+        _kidDeviceStatus[childId] = best == null
             ? null
             : (
-                status: devices.first.status,
-                lastSeenAt: devices.first.lastSeenAt,
+                status: best.status,
+                lastSeenAt: best.lastSeenAt,
               );
       });
-    }).catchError((_) {
-      // Realtime refetch failures are non-fatal; the next
-      // pull-to-refresh or 10s timer will heal the dot.
-    });
+    }).catchError((_) {});
   }
 
   Future<void> _loadAll() async {
@@ -271,9 +273,14 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 final devices =
                     await _kidDeviceService.listDevicesForChild(child.id);
                 if (devices.isNotEmpty) {
+                  // Prefer a non-revoked device.
+                  final best = devices.firstWhere(
+                    (d) => !d.isRevoked,
+                    orElse: () => devices.first,
+                  );
                   deviceStatus = (
-                    status: devices.first.status,
-                    lastSeenAt: devices.first.lastSeenAt,
+                    status: best.status,
+                    lastSeenAt: best.lastSeenAt,
                   );
                 }
               } catch (_) {}

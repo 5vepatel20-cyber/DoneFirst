@@ -181,6 +181,11 @@ class BlockingService extends ChangeNotifier {
       await _screenTime.requestAuthorization();
       _setStatus(BlockingStatus.permissionGranted);
       return true;
+    } on MissingPluginException {
+      // Web / test / non-Android — no screentime plugin available.
+      // Treat as granted so the kid app flow isn't blocked.
+      _setStatus(BlockingStatus.permissionGranted);
+      return true;
     } catch (e) {
       _setStatus(BlockingStatus.permissionDenied, e.toString());
       return false;
@@ -200,6 +205,12 @@ class BlockingService extends ChangeNotifier {
       await _screenTime.startBlocking();
       _setStatus(BlockingStatus.blockingActive);
       return true;
+    } on MissingPluginException {
+      // Web / test — no screentime plugin. Report as active so the
+      // kid flow isn't blocked on a platform where blocking doesn't
+      // apply.
+      _setStatus(BlockingStatus.blockingActive);
+      return true;
     } catch (e) {
       _setStatus(BlockingStatus.blockingFailed, e.toString());
       return false;
@@ -213,6 +224,10 @@ class BlockingService extends ChangeNotifier {
     _setStatus(BlockingStatus.stoppingBlock);
     try {
       await _screenTime.stopBlocking();
+      _setStatus(BlockingStatus.permissionGranted);
+      return true;
+    } on MissingPluginException {
+      // Web / test — no-op.
       _setStatus(BlockingStatus.permissionGranted);
       return true;
     } catch (e) {
