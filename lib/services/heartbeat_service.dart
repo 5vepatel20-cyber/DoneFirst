@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../supabase_config.dart';
+import 'kid_auth_service.dart';
 
 /// Liveness signal back to the parent app.
 ///
@@ -45,7 +45,7 @@ class HeartbeatService {
   /// it as a network failure and back off.
   static const Duration _requestTimeout = Duration(seconds: 10);
 
-  final _supabase = Supabase.instance.client;
+  final KidAuthService _kidAuth;
   Timer? _timer;
   Duration _currentInterval = _baseInterval;
   bool _running = false;
@@ -55,6 +55,8 @@ class HeartbeatService {
   /// read this directly (the parent computes offline status from
   /// last_seen_at alone).
   Duration get currentInterval => _currentInterval;
+
+  HeartbeatService({required KidAuthService kidAuth}) : _kidAuth = kidAuth;
 
   /// Start the periodic heartbeat. Idempotent — calling twice
   /// does nothing.
@@ -77,13 +79,12 @@ class HeartbeatService {
   }
 
   Future<void> _send() async {
-    final session = _supabase.auth.currentSession;
-    if (session == null) {
+    final access = await _kidAuth.getAccessToken();
+    if (access == null) {
       // Not paired yet — silently no-op. The pairing screen will
       // start the heartbeat once it completes.
       return;
     }
-    final access = session.accessToken;
     final url = Uri.parse('$supabaseUrl/functions/v1/heartbeat');
     try {
       final response = await http

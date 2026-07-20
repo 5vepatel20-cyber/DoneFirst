@@ -117,7 +117,7 @@ void main() {
       // We don't await a real 30s tick — too slow for a unit test.
       // The 30s interval is verified by reading the source
       // (HeartbeatService._kHeartbeatInterval).
-      final svc = HeartbeatService();
+      final svc = HeartbeatService(kidAuth: KidAuthService());
       svc.start();
       svc.stop();
     });

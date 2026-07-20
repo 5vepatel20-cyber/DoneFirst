@@ -18,14 +18,18 @@ import '../../theme/app_theme.dart';
 /// again and the kid returns to whichever state they should be in.
 class WaitingScreen extends StatefulWidget {
   final VoidCallback onReconnect;
-  const WaitingScreen({super.key, required this.onReconnect});
+  final HeartbeatService heartbeat;
+  const WaitingScreen({
+    super.key,
+    required this.onReconnect,
+    required this.heartbeat,
+  });
 
   @override
   State<WaitingScreen> createState() => _WaitingScreenState();
 }
 
 class _WaitingScreenState extends State<WaitingScreen> {
-  final _heartbeat = HeartbeatService();
   Timer? _poll;
 
   @override
@@ -38,7 +42,7 @@ class _WaitingScreenState extends State<WaitingScreen> {
     // and main.dart will swap to the right screen.
     _poll = Timer.periodic(
       const Duration(seconds: 5),
-      (_) => _heartbeat.sendOnce().then((_) {
+      (_) => widget.heartbeat.sendOnce().then((_) {
         if (mounted) widget.onReconnect();
       }),
     );

@@ -26,7 +26,7 @@ final BlockingService blocking = BlockingService();
 final KioskService kiosk = KioskService();
 final KidRealtimeService realtime =
     KidRealtimeService(blocking: blocking, kiosk: kiosk);
-final HeartbeatService heartbeat = HeartbeatService();
+final HeartbeatService heartbeat = HeartbeatService(kidAuth: kidAuth);
 
 class KidRoot extends StatefulWidget {
   const KidRoot({super.key});
@@ -122,6 +122,7 @@ class _KidRootState extends State<KidRoot> {
                 realtime.start(kidAuth.childId!);
               }
             },
+            heartbeat: heartbeat,
           );
         }
         return LockedScreen(
@@ -164,6 +165,7 @@ class _KidRootState extends State<KidRoot> {
               realtime.start(kidAuth.childId!);
             }
           },
+          heartbeat: heartbeat,
         );
     }
   }

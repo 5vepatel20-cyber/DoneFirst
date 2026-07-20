@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:donefirst/services/heartbeat_service.dart';
+import 'package:donefirst/services/kid_auth_service.dart';
 import 'package:donefirst/supabase_config.dart';
 
 /// HeartbeatService backoff behavior.
@@ -32,21 +33,25 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
+  HeartbeatService _makeSvc() {
+    return HeartbeatService(kidAuth: KidAuthService());
+  }
+
   group('HeartbeatService backoff state machine', () {
     test('starts at baseline 30s', () {
-      final svc = HeartbeatService();
+      final svc = _makeSvc();
       expect(svc.currentInterval.inSeconds, 30);
       expect(svc.isRunning, isFalse);
     });
 
     test('failure doubles the interval (30s → 60s)', () {
-      final svc = HeartbeatService();
+      final svc = _makeSvc();
       svc.recordFailure();
       expect(svc.currentInterval.inSeconds, 60);
     });
 
     test('consecutive failures keep doubling up to 5 min cap', () {
-      final svc = HeartbeatService();
+      final svc = _makeSvc();
       // 30 → 60 → 120 → 240 → 300 (capped) → 300 (still capped).
       svc.recordFailure();
       expect(svc.currentInterval.inSeconds, 60);
@@ -69,7 +74,7 @@ void main() {
     });
 
     test('success resets the interval back to 30s', () {
-      final svc = HeartbeatService();
+      final svc = _makeSvc();
       svc.recordFailure();
       svc.recordFailure();
       svc.recordFailure();
@@ -79,13 +84,13 @@ void main() {
     });
 
     test('success on the first attempt is a no-op', () {
-      final svc = HeartbeatService();
+      final svc = _makeSvc();
       svc.recordSuccess();
       expect(svc.currentInterval.inSeconds, 30);
     });
 
     test('start() resets interval to baseline', () {
-      final svc = HeartbeatService();
+      final svc = _makeSvc();
       svc.recordFailure();
       svc.recordFailure();
       svc.recordFailure();
@@ -98,7 +103,7 @@ void main() {
     });
 
     test('stop() is idempotent on a never-started service', () {
-      final svc = HeartbeatService();
+      final svc = _makeSvc();
       svc.stop();
       svc.stop();
       expect(svc.isRunning, isFalse);

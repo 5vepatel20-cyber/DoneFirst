@@ -80,6 +80,21 @@ class KidAuthService extends ChangeNotifier {
   /// transition via the shared currentSession.
   bool get isPaired => _supabase.auth.currentSession != null || _childId != null;
 
+  /// Return the current access token, preferring the live Supabase
+  /// session and falling back to the persisted token in
+  /// SharedPreferences.  Used by HeartbeatService (and any other
+  /// caller that needs a raw Bearer token) so they don't break
+  /// when setSession failed on web and _supabase.auth.currentSession
+  /// is null.
+  Future<String?> getAccessToken() async {
+    // Fast path: live session exists.
+    final live = _supabase.auth.currentSession?.accessToken;
+    if (live != null) return live;
+    // Slow path: read from localStorage / SharedPreferences.
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kAccessToken);
+  }
+
   /// Exchange a 6-digit pairing code for a Supabase session.
   ///
   /// Throws a [KidAuthException] on any failure so the pairing
@@ -184,16 +199,25 @@ class KidAuthService extends ChangeNotifier {
       final refresh = prefs.getString(_kRefreshToken);
       if (access == null || refresh == null) return false;
 
-      // Try setSession with a timeout. On web this calls
-      // GET /auth/v1/user which may be slow or fail due to CORS.
-      // If it fails, fall back to local JWT decoding to extract
-      // the app_metadata claims (child_id, family_id, device_id).
+      // Try setSession with a generous timeout. On web this calls
+      // GET /auth/v1/user which may be slow due to CORS preflight.
+      // A failed setSession is not fatal — getAccessToken() and
+      // isPaired both fall back to the persisted tokens / JWT decode.
       try {
         await _supabase.auth
             .setSession(refresh, accessToken: access)
-            .timeout(const Duration(seconds: 8));
+            .timeout(const Duration(seconds: 15));
       } catch (e) {
         debugPrint('setSession in restoreSession failed: $e');
+        // Retry once without timeout — the SDK's internal retry may
+        // succeed on a slow network where the first attempt timed out.
+        try {
+          await _supabase.auth
+              .setSession(refresh, accessToken: access)
+              .timeout(const Duration(seconds: 20));
+        } catch (e2) {
+          debugPrint('setSession retry in restoreSession failed: $e2');
+        }
       }
 
       // If setSession succeeded, currentUser is populated.
