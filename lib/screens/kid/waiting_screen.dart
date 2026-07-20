@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../services/heartbeat_service.dart';
 import '../../theme/app_theme.dart';
+import 'kid_settings_button.dart';
 
 /// Transient "Reconnecting…" state shown when:
 ///   - the realtime channel is currently disconnected (WiFi drop,
@@ -19,10 +20,21 @@ import '../../theme/app_theme.dart';
 class WaitingScreen extends StatefulWidget {
   final VoidCallback onReconnect;
   final HeartbeatService heartbeat;
+
+  /// Name of the paired child, for the settings sheet. Optional so
+  /// the reconnect-race call path can omit it.
+  final String? childName;
+
+  /// Escape hatch: unpair the device from this stuck state. When
+  /// null the settings gear is hidden.
+  final Future<void> Function()? onUnpair;
+
   const WaitingScreen({
     super.key,
     required this.onReconnect,
     required this.heartbeat,
+    this.childName,
+    this.onUnpair,
   });
 
   @override
@@ -59,50 +71,65 @@ class _WaitingScreenState extends State<WaitingScreen> {
     return Scaffold(
       backgroundColor: AppColors.paper,
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: const BoxDecoration(
-                    color: AppColors.warnFill,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    LucideIcons.wifi,
-                    size: 56,
-                    color: AppColors.warn,
+        child: Stack(
+          children: [
+            if (widget.onUnpair != null)
+              Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 4, top: 4),
+                  child: KidSettingsButton(
+                    childName: widget.childName ?? 'this device',
+                    onUnpair: widget.onUnpair!,
                   ),
                 ),
-                const SizedBox(height: 28),
-                Text(
-                  "Can't reach the parent app",
-                  textAlign: TextAlign.center,
-                  style: AppText.title(size: 24),
+              ),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: const BoxDecoration(
+                        color: AppColors.warnFill,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        LucideIcons.wifi,
+                        size: 56,
+                        color: AppColors.warn,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Text(
+                      "Can't reach the parent app",
+                      textAlign: TextAlign.center,
+                      style: AppText.title(size: 24),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'WiFi or the DoneFirst service dropped for a '
+                      'moment. Lock is paused — check your WiFi '
+                      'and we\'ll reconnect automatically.',
+                      textAlign: TextAlign.center,
+                      style: AppText.bodySecondary(size: 15),
+                    ),
+                    const SizedBox(height: 32),
+                    const SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: AppColors.grass,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'WiFi or the DoneFirst service dropped for a '
-                  'moment. Lock is paused — check your WiFi '
-                  'and we\'ll reconnect automatically.',
-                  textAlign: TextAlign.center,
-                  style: AppText.bodySecondary(size: 15),
-                ),
-                const SizedBox(height: 32),
-                const SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    color: AppColors.grass,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

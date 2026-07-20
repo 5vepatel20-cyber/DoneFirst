@@ -8,6 +8,7 @@ import '../../models/recurring_schedule.dart';
 import '../../services/schedule_service.dart';
 import '../../services/streak_service.dart';
 import '../../theme/app_theme.dart';
+import 'kid_settings_button.dart';
 
 /// The kid's home. Shown when the realtime subscription is healthy
 /// and there's no active homework session.
@@ -27,10 +28,16 @@ class UnlockedScreen extends StatefulWidget {
   /// calm empty home rather than erroring.
   final String? childId;
 
+  /// Clears the pairing and returns to the pairing screen. Surfaced
+  /// through the settings gear in the header so a paired device is
+  /// no longer a dead end.
+  final Future<void> Function()? onUnpair;
+
   const UnlockedScreen({
     super.key,
     required this.childName,
     this.childId,
+    this.onUnpair,
   });
 
   @override
@@ -93,9 +100,7 @@ class _UnlockedScreenState extends State<UnlockedScreen>
       _streaks
           .getRecentSessions(childId, limit: 60)
           .catchError((_) => <HomeworkSession>[]),
-      _schedules
-          .getSchedules(childId)
-          .catchError((_) => <RecurringSchedule>[]),
+      _schedules.getSchedules(childId).catchError((_) => <RecurringSchedule>[]),
     ]);
 
     final streak = results[0] as int;
@@ -133,10 +138,12 @@ class _UnlockedScreenState extends State<UnlockedScreen>
     final scheduledDays = schedules.map((s) => s.dayOfWeek).toSet();
     final weeklyGoal = scheduledDays.isEmpty ? 5 : scheduledDays.length;
 
-    final todaySchedule =
-        schedules.where((s) => s.dayOfWeek == todayIndex).toList();
-    final todayScheduledMinutes =
-        todaySchedule.isEmpty ? null : todaySchedule.first.durationMinutes;
+    final todaySchedule = schedules
+        .where((s) => s.dayOfWeek == todayIndex)
+        .toList();
+    final todayScheduledMinutes = todaySchedule.isEmpty
+        ? null
+        : todaySchedule.first.durationMinutes;
 
     if (!mounted) return;
     setState(() {
@@ -170,12 +177,27 @@ class _UnlockedScreenState extends State<UnlockedScreen>
 
   String get _dateLabel {
     const days = [
-      'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-      'Friday', 'Saturday', 'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
     ];
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final now = DateTime.now();
     return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
@@ -200,7 +222,8 @@ class _UnlockedScreenState extends State<UnlockedScreen>
         icon: LucideIcons.partyPopper,
         tint: AppColors.grass,
         title: 'Done for today',
-        body: "Homework's finished — the rest of the day is yours. "
+        body:
+            "Homework's finished — the rest of the day is yours. "
             'Nice work.',
       );
     }
@@ -208,7 +231,8 @@ class _UnlockedScreenState extends State<UnlockedScreen>
       icon: LucideIcons.leaf,
       tint: AppColors.grass,
       title: "You're all caught up",
-      body: 'No homework scheduled right now. Enjoy your apps — '
+      body:
+          'No homework scheduled right now. Enjoy your apps — '
           "we'll let you know when it's homework time.",
     );
   }
@@ -216,8 +240,9 @@ class _UnlockedScreenState extends State<UnlockedScreen>
   @override
   Widget build(BuildContext context) {
     final status = _status;
-    final progress =
-        _weeklyGoal == 0 ? 0.0 : (_weekSessions / _weeklyGoal).clamp(0.0, 1.0);
+    final progress = _weeklyGoal == 0
+        ? 0.0
+        : (_weekSessions / _weeklyGoal).clamp(0.0, 1.0);
 
     return Scaffold(
       backgroundColor: AppColors.kidBg,
@@ -259,23 +284,22 @@ class _UnlockedScreenState extends State<UnlockedScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                _greeting,
-                style: AppText.bodySecondary(size: 14),
-              ),
+              Text(_greeting, style: AppText.bodySecondary(size: 14)),
               const SizedBox(height: 2),
               Text(
                 widget.childName,
                 style: AppText.title(size: 28, color: AppColors.kidInk),
               ),
               const SizedBox(height: 4),
-              Text(
-                _dateLabel,
-                style: AppText.bodySecondary(size: 12.5),
-              ),
+              Text(_dateLabel, style: AppText.bodySecondary(size: 12.5)),
             ],
           ),
         ),
+        if (widget.onUnpair != null)
+          KidSettingsButton(
+            childName: widget.childName,
+            onUnpair: widget.onUnpair!,
+          ),
         Container(
           width: 52,
           height: 52,
@@ -283,8 +307,11 @@ class _UnlockedScreenState extends State<UnlockedScreen>
             color: AppColors.okFill,
             borderRadius: BorderRadius.circular(AppRadius.kidCard),
           ),
-          child:
-              const Icon(LucideIcons.sprout, size: 26, color: AppColors.grass),
+          child: const Icon(
+            LucideIcons.sprout,
+            size: 26,
+            color: AppColors.grass,
+          ),
         ),
       ],
     );
@@ -320,7 +347,9 @@ class _UnlockedScreenState extends State<UnlockedScreen>
                       child: Text(
                         status.title,
                         style: AppText.cardHeader(
-                            size: 17, color: AppColors.kidInk),
+                          size: 17,
+                          color: AppColors.kidInk,
+                        ),
                       ),
                     ),
                   ],
@@ -371,8 +400,11 @@ class _UnlockedScreenState extends State<UnlockedScreen>
                       ),
                     ),
                     child: active
-                        ? const Icon(LucideIcons.check,
-                            size: 15, color: AppColors.card)
+                        ? const Icon(
+                            LucideIcons.check,
+                            size: 15,
+                            color: AppColors.card,
+                          )
                         : null,
                   ),
                   const SizedBox(height: 6),
@@ -484,9 +516,12 @@ class _UnlockedScreenState extends State<UnlockedScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(value,
-                  style: AppText.statValue(color: AppColors.kidInk)
-                      .copyWith(fontSize: 18)),
+              Text(
+                value,
+                style: AppText.statValue(
+                  color: AppColors.kidInk,
+                ).copyWith(fontSize: 18),
+              ),
               const SizedBox(height: 1),
               Text(label, style: AppText.bodySecondary(size: 11.5)),
             ],
@@ -497,17 +532,17 @@ class _UnlockedScreenState extends State<UnlockedScreen>
   }
 
   BoxDecoration _cardDecoration() => BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadius.kidCard),
-        border: Border.all(color: AppColors.kidLine),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.forest.withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      );
+    color: AppColors.card,
+    borderRadius: BorderRadius.circular(AppRadius.kidCard),
+    border: Border.all(color: AppColors.kidLine),
+    boxShadow: [
+      BoxShadow(
+        color: AppColors.forest.withValues(alpha: 0.05),
+        blurRadius: 16,
+        offset: const Offset(0, 6),
+      ),
+    ],
+  );
 
   static String _formatMinutes(int minutes) {
     if (minutes < 60) return '${minutes}m';
@@ -552,7 +587,9 @@ class _WeekRing extends StatelessWidget {
               children: [
                 Text(
                   loading ? '—' : '$done/$goal',
-                  style: AppText.statValue(color: AppColors.kidInk).copyWith(fontSize: 20),
+                  style: AppText.statValue(
+                    color: AppColors.kidInk,
+                  ).copyWith(fontSize: 20),
                 ),
                 Text('done', style: AppText.bodySecondary(size: 10)),
               ],

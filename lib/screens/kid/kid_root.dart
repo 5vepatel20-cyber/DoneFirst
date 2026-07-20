@@ -105,13 +105,21 @@ class _KidRootState extends State<KidRoot> {
     );
   }
 
+  /// Unpair from within the app (settings sheet). Unlike [_signOut]
+  /// we don't push AuthScreen — clearing the session flips
+  /// kidAuth.isPaired to false and the listener rebuilds this widget
+  /// straight to the PairingScreen. Stop the background services
+  /// first so a stale channel/heartbeat doesn't linger post-unpair.
+  Future<void> _unpair() async {
+    await realtime.stop();
+    heartbeat.stop();
+    await kidAuth.signOut();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!kidAuth.isPaired) {
-      return PairingScreen(
-        onSignOut: _signOut,
-        authService: kidAuth,
-      );
+      return PairingScreen(onSignOut: _signOut, authService: kidAuth);
     }
     // Realtime drives the lock state. Fall back to waiting if it
     // hasn't reported anything yet — most commonly because the
@@ -129,6 +137,8 @@ class _KidRootState extends State<KidRoot> {
               }
             },
             heartbeat: heartbeat,
+            childName: _childDisplayName,
+            onUnpair: _unpair,
           );
         }
         return LockedScreen(
@@ -151,9 +161,10 @@ class _KidRootState extends State<KidRoot> {
           final session = realtime.session;
           if (session == null) {
             return UnlockedScreen(
-          childName: _childDisplayName,
-          childId: kidAuth.childId,
-        );
+              childName: _childDisplayName,
+              childId: kidAuth.childId,
+              onUnpair: _unpair,
+            );
           }
           return LockedScreen(
             session: session,
@@ -161,14 +172,12 @@ class _KidRootState extends State<KidRoot> {
             onBreakRequestSent: () {},
           );
         }
-        return OnBreakScreen(
-          childName: _childDisplayName,
-          activeBreak: brk,
-        );
+        return OnBreakScreen(childName: _childDisplayName, activeBreak: brk);
       case KidLockState.unlocked:
         return UnlockedScreen(
           childName: _childDisplayName,
           childId: kidAuth.childId,
+          onUnpair: _unpair,
         );
       case KidLockState.waiting:
         return WaitingScreen(
@@ -178,6 +187,8 @@ class _KidRootState extends State<KidRoot> {
             }
           },
           heartbeat: heartbeat,
+          childName: _childDisplayName,
+          onUnpair: _unpair,
         );
     }
   }
