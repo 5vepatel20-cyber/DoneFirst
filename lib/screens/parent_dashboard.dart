@@ -169,16 +169,20 @@ class _ParentDashboardState extends State<ParentDashboard> {
     // use_build_context_synchronously (we'd otherwise be reading
     // `context` after a real network round-trip).
     final messenger = ScaffoldMessenger.of(context);
+    final parentId = _auth.currentUser?.id;
+    if (parentId == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
       await _sessionService.getOrCreateFamily();
-      final children = await _sessionService.getChildren(_auth.currentUser!.id);
+      final children = await _sessionService.getChildren(parentId);
       setState(() => _children = children);
 
       // Fan-out: monthly count, mistral usage, unread notifications,
       // today's schedules, and the parent's family_id are all
       // independent reads. Fire them in parallel so the dashboard
       // loads in max(latencies) instead of sum(latencies).
-      final parentId = _auth.currentUser!.id;
       final results = await Future.wait([
         _sessionService.getMonthlySessionCount(parentId),
         _proofService.getMistralCallsToday(),

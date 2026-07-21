@@ -120,6 +120,7 @@ class KidDeviceStatusCaption extends StatelessWidget {
         'online' => (AppColors.grass, 'Device online'),
         'recent' => (AppColors.warn, 'Device idle'),
         'stale' => (AppColors.muted, 'Device offline'),
+        'unknown' => (AppColors.muted, 'Device paired'),
         'revoked' => (AppColors.danger, 'Device revoked'),
         _ => (AppColors.disabled, 'No device paired'),
       };

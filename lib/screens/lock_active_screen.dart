@@ -19,6 +19,7 @@ import 'kid_device_pairing_screen.dart';
 import 'session_complete_parent_screen.dart';
 import 'proof_image_viewer.dart';
 import '../models/models.dart';
+import '../utils/subjects.dart';
 import '../main.dart' as app;
 
 class LockActiveScreen extends StatefulWidget {
@@ -67,6 +68,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   final _kidDeviceService = KidDeviceService();
   final _streakService = StreakService();
   List<ProofSubmission> _proofs = [];
+  List<HomeworkTask> _tasks = [];
   List<BreakRequest> _breakRequests = [];
   HomeworkSession? _session;
   KidDevice? _kidDevice;
@@ -326,6 +328,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     final results = await Future.wait([
       _sessionService.getSessionById(widget.sessionId),
       _proofService.getProofsForSession(widget.sessionId),
+      _proofService.getTasks(widget.sessionId),
       // Session-scoped, not child-scoped: the parent on this screen
       // wants to see breaks for the current session only. Passing
       // sessionId to getPendingRequests (which filters by child_id)
@@ -335,7 +338,8 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
     ]);
     _session = results[0] as HomeworkSession?;
     _proofs = results[1] as List<ProofSubmission>;
-    _breakRequests = results[2] as List<BreakRequest>;
+    _tasks = results[2] as List<HomeworkTask>;
+    _breakRequests = results[3] as List<BreakRequest>;
     if (mounted) {
       setState(() {
         _paused = _session?.isPaused ?? false;
@@ -586,7 +590,6 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
           minutesStudied: minutes,
           tasksCompleted: tasksApproved,
           streakDays: streak,
-          onDone: () => Navigator.of(context).pop(),
         ),
       ),
     );
@@ -697,6 +700,102 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       // Dialog controller is local-scope; dispose on every exit
       // path (approve-all, cancel, throw).
       controller.dispose();
+    }
+  }
+
+  void _showAddTaskDialog() {
+    final controller = TextEditingController();
+    String selectedSubject = kDefaultSubject;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Add homework task'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'What needs to be done?',
+                  hintText: 'e.g. Math worksheet page 12',
+                ),
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: selectedSubject,
+                decoration: const InputDecoration(
+                  labelText: 'Subject',
+                  prefixIcon: Icon(LucideIcons.bookOpen, size: 18),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                isExpanded: true,
+                items: kSubjects
+                    .map(
+                      (s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(s, style: const TextStyle(fontSize: 14)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setDialogState(() => selectedSubject = v);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final desc = controller.text.trim();
+                if (desc.isEmpty) return;
+                Navigator.pop(ctx);
+                try {
+                  await _proofService.addTask(
+                    widget.sessionId,
+                    desc,
+                    subject: selectedSubject,
+                  );
+                  await _loadAll();
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Couldn\'t add task: $e'),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    ).then((_) => controller.dispose());
+  }
+
+  Future<void> _deleteTask(String taskId) async {
+    try {
+      await _proofService.deleteTask(taskId);
+      await _loadAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn\'t delete task: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
     }
   }
 
@@ -1002,6 +1101,101 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                             );
                           }
                         },
+                      ),
+                    ],
+                    // ── Homework Tasks ──────────────────────────────
+                    if (_tasks.isNotEmpty || true) ...[
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    LucideIcons.listChecks,
+                                    size: 16,
+                                    color: AppColors.forest,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Homework tasks',
+                                    style: AppText.cardHeader(
+                                      color: AppColors.forest,
+                                      size: 14,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    '${_tasks.where((t) => !t.isPending).length}/${_tasks.length}',
+                                    style: AppText.bodySecondary(size: 12),
+                                  ),
+                                ],
+                              ),
+                              if (_tasks.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                ...(_tasks.map(
+                                  (t) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          t.isPending
+                                              ? LucideIcons.circle
+                                              : LucideIcons.checkCircle2,
+                                          size: 16,
+                                          color: t.isPending
+                                              ? AppColors.muted
+                                              : AppColors.success,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            t.description,
+                                            style: AppText.body(size: 13),
+                                          ),
+                                        ),
+                                        if (t.isPending)
+                                          GestureDetector(
+                                            onTap: () => _deleteTask(t.id),
+                                            child: const Icon(
+                                              LucideIcons.trash2,
+                                              size: 14,
+                                              color: AppColors.muted,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                )),
+                              ] else
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    'No tasks yet. Add tasks for your kid.',
+                                    style: AppText.bodySecondary(size: 12),
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _showAddTaskDialog,
+                                  icon: const Icon(LucideIcons.plus, size: 16),
+                                  label: const Text('Add task'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.forest,
+                                    side: const BorderSide(
+                                      color: AppColors.hair2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                     if (_breakRequests.isNotEmpty) ...[

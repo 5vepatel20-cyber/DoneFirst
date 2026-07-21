@@ -38,7 +38,8 @@ class KidDeviceService {
     // be persisted as if it were UTC — four hours of "drift" the
     // way you don't want it. Sending UTC+`Z` removes the ambiguity.
     final expiresAt = DateTime.now().toUtc().add(validFor);
-    final userId = _supabase.auth.currentUser!.id;
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) throw StateError('No authenticated user');
 
     // Resolve the parent's family_id. We need it because the
     // device_pairings INSERT requires the row to belong to a family

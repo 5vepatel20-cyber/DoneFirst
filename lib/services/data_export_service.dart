@@ -25,8 +25,9 @@ class DataExportService {
   /// Build the export for the currently signed-in parent. Returns a
   /// Map ready to be JSON-encoded.
   Future<Map<String, dynamic>> buildExport() async {
-    final userId = _supabase.auth.currentUser!.id;
-    final user = _supabase.auth.currentUser!;
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) throw StateError('No authenticated user');
+    final user = _supabase.auth.currentUser;
 
     final parentRow = await _supabase
         .from('parents')
@@ -100,7 +101,7 @@ class DataExportService {
       'exportedAt': DateTime.now().toUtc().toIso8601String(),
       'parent': {
         'id': userId,
-        'email': user.email,
+        'email': user?.email,
         'displayName': parentRow?['display_name'],
         'familyId': familyId,
         'role': parentRow?['role'],

@@ -259,6 +259,10 @@ class ProofService {
       'optional_note': note,
       'parent_decision': 'pending',
     }).select().single();
+    await _supabase
+        .from('homework_tasks')
+        .update({'status': 'submitted'})
+        .eq('id', taskId);
     if (imageUrls.isNotEmpty) {
       final proof = ProofSubmission.fromMap(response);
       final aiResult = await verifyWithMistral(imageUrls.first);
@@ -271,7 +275,7 @@ class ProofService {
         .from('homework_tasks')
         .select()
         .eq('session_id', sessionId)
-        .order('created_at', ascending: true);
+        .order('id', ascending: true);
     return response.map((m) => HomeworkTask.fromMap(m)).toList();
   }
 

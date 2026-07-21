@@ -104,7 +104,7 @@ class RealtimeService extends ChangeNotifier {
     _kidDevicesChannel = _supabase
         .channel('kid_devices')
         .onPostgresChanges(
-          event: PostgresChangeEvent.update,
+          event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'kid_devices',
           callback: (payload) {

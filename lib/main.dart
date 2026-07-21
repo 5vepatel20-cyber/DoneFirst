@@ -125,7 +125,6 @@ class DoneFirstApp extends StatelessWidget {
                   minutesStudied: args['minutesStudied'] as int? ?? 0,
                   tasksCompleted: args['tasksCompleted'] as int? ?? 0,
                   streakDays: args['streakDays'] as int? ?? 0,
-                  onDone: () => Navigator.of(context).pop(),
                 ),
               );
             default:
@@ -204,8 +203,17 @@ class _EntryPointState extends State<EntryPoint> {
     if (!mounted) return;
     if (role == 'kid') {
       Navigator.pushReplacementNamed(context, '/kid');
-    } else {
+    } else if (role != null) {
+      // role == 'parent' (or any known parent role) → dashboard.
       Navigator.pushReplacementNamed(context, '/dashboard');
+    } else {
+      // No parents row found — this is a kid auth user whose
+      // setSession succeeded (edge-function minted JWT). Route
+      // to KidRoot so restoreSession can hydrate the kid
+      // identity; sending them to the parent dashboard would
+      // crash on getOrCreateFamily() because kids aren't in the
+      // parents table.
+      Navigator.pushReplacementNamed(context, '/kid');
     }
   }
 

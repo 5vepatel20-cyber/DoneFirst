@@ -27,7 +27,7 @@ class SessionCompleteParentScreen extends StatefulWidget {
   final int minutesStudied;
   final int tasksCompleted;
   final int streakDays;
-  final VoidCallback onDone;
+  final VoidCallback? onDone;
 
   const SessionCompleteParentScreen({
     super.key,
@@ -35,7 +35,7 @@ class SessionCompleteParentScreen extends StatefulWidget {
     required this.minutesStudied,
     required this.tasksCompleted,
     required this.streakDays,
-    required this.onDone,
+    this.onDone,
   });
 
   @override
@@ -164,7 +164,13 @@ class _SessionCompleteParentScreenState
                   SizedBox(
                     width: 240,
                     child: FilledButton.icon(
-                      onPressed: widget.onDone,
+                      onPressed: widget.onDone ?? () {
+                        Navigator.of(context, rootNavigator: true)
+                            .pushNamedAndRemoveUntil(
+                          '/dashboard',
+                          (_) => false,
+                        );
+                      },
                       icon: const Icon(
                         LucideIcons.arrowLeft,
                         size: 16,

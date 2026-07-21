@@ -5,17 +5,21 @@ import 'consent_service.dart';
 class SessionService {
   final _supabase = Supabase.instance.client;
 
+  String? get _userId => _supabase.auth.currentUser?.id;
+
   Future<HomeworkSession> startSession({
     required String childId,
     required int minLockMinutes,
     required int maxLiftMinutes,
     required String approvalMode,
   }) async {
+    final parentId = _userId;
+    if (parentId == null) throw StateError('No authenticated user');
     final response = await _supabase
         .from('homework_sessions')
         .insert({
           'child_id': childId,
-          'parent_id': _supabase.auth.currentUser!.id,
+          'parent_id': parentId,
           'status': 'active',
           'min_lock_minutes': minLockMinutes,
           'max_lift_minutes': maxLiftMinutes,
@@ -98,7 +102,8 @@ class SessionService {
   }
 
   Future<List<Child>> getChildren([String? parentId]) async {
-    parentId ??= _supabase.auth.currentUser!.id;
+    parentId ??= _userId;
+    if (parentId == null) return [];
     final family = await _supabase
         .from('parents')
         .select('family_id')
@@ -114,7 +119,8 @@ class SessionService {
 
   Future<Child> addChild(String name, String familyId,
       {String? color, String? emoji}) async {
-    final parentId = _supabase.auth.currentUser!.id;
+    final parentId = _userId;
+    if (parentId == null) throw StateError('No authenticated user');
     // COPPA / GDPR-K: every time the parent enrolls a child in our
     // service, that's a fresh consent act for that minor's data.
     // Record it as an immutable audit row. Non-fatal if the audit
@@ -151,6 +157,70 @@ class SessionService {
   }
 
   Future<void> deleteChild(String childId) async {
+    // Delete the child's rows in FK dependency order.
+    //
+    // The main hazard is trigger-induced FK violations:
+    //   DELETE children
+    //     → CASCADE deletes device_pairings
+    //       → trg_code_cancelled fires → INSERT kid_device_events
+    //         → FK on child_id fails (children row is gone)
+    //
+    // Solution: delete device_pairings and kid_device_events for
+    // this child BEFORE touching children, so triggers fire while
+    // the child row still exists. Similarly, delete homework data
+    // before children to avoid homework_sessions FK violations.
+
+    // 1) Audit log + pairing codes — delete before children so
+    //    triggers fire while the child row still exists.
+    await _supabase
+        .from('kid_device_events')
+        .delete()
+        .eq('child_id', childId);
+    await _supabase
+        .from('device_pairings')
+        .delete()
+        .eq('child_id', childId);
+
+    // 2) Homework data in FK dependency order.
+    final sessions = await _supabase
+        .from('homework_sessions')
+        .select('id')
+        .eq('child_id', childId);
+    final sessionIds =
+        (sessions as List).map((r) => r['id'] as String).toList();
+
+    for (final sid in sessionIds) {
+      final tasks = await _supabase
+          .from('homework_tasks')
+          .select('id')
+          .eq('session_id', sid);
+      final taskIds =
+          (tasks as List).map((r) => r['id'] as String).toList();
+
+      if (taskIds.isNotEmpty) {
+        await _supabase
+            .from('proof_submissions')
+            .delete()
+            .inFilter('task_id', taskIds);
+        await _supabase
+            .from('homework_tasks')
+            .delete()
+            .inFilter('id', taskIds);
+      }
+
+      await _supabase.from('break_requests').delete().eq('session_id', sid);
+    }
+
+    if (sessionIds.isNotEmpty) {
+      await _supabase
+          .from('homework_sessions')
+          .delete()
+          .eq('child_id', childId);
+    }
+
+    // 3) Now safe to delete the child — CASCADE handles kid_devices,
+    //    but device_pairings (which also CASCADE-references children)
+    //    is already gone, so no trigger-induced FK violations.
     await _supabase.from('children').delete().eq('id', childId);
   }
 
@@ -173,10 +243,12 @@ class SessionService {
   }
 
   Future<String> getOrCreateFamily() async {
+    final parentId = _userId;
+    if (parentId == null) throw StateError('No authenticated user');
     final parent = await _supabase
         .from('parents')
         .select('family_id')
-        .eq('id', _supabase.auth.currentUser!.id)
+        .eq('id', parentId)
         .single();
     if (parent['family_id'] != null) {
       return parent['family_id'] as String;
@@ -189,7 +261,7 @@ class SessionService {
     await _supabase
         .from('parents')
         .update({'family_id': family['id']})
-        .eq('id', _supabase.auth.currentUser!.id);
+        .eq('id', parentId);
     return family['id'] as String;
   }
 
@@ -232,7 +304,8 @@ class SessionService {
   Future<int> getMonthlySessionCount([String? parentId]) async {
     final now = DateTime.now();
     final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
-    final uid = parentId ?? _supabase.auth.currentUser!.id;
+    final uid = parentId ?? _userId;
+    if (uid == null) return 0;
     final response = await _supabase
         .from('homework_sessions')
         .select('id')
@@ -242,10 +315,12 @@ class SessionService {
   }
 
   Future<Map<String, int>> getFamilyStats() async {
+    final parentId = _userId;
+    if (parentId == null) return {'sessions': 0, 'minutes': 0, 'approved': 0};
     final sessions = await _supabase
         .from('homework_sessions')
         .select('status, min_lock_minutes')
-        .eq('parent_id', _supabase.auth.currentUser!.id);
+        .eq('parent_id', parentId);
     int totalSessions = sessions.length;
     int totalMinutes = 0;
     int approved = 0;

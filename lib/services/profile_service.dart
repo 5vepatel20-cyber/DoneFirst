@@ -4,30 +4,38 @@ import '../models/models.dart';
 class ProfileService {
   final _supabase = Supabase.instance.client;
 
+  String? get _userId => _supabase.auth.currentUser?.id;
+
   Future<ParentUser> getProfile() async {
+    final userId = _userId;
+    if (userId == null) throw StateError('No authenticated user');
     final response = await _supabase
         .from('parents')
         .select()
-        .eq('id', _supabase.auth.currentUser!.id)
+        .eq('id', userId)
         .single();
     return ParentUser.fromMap(response);
   }
 
   Future<ParentUser?> getParentProfile() async {
+    final userId = _userId;
+    if (userId == null) return null;
     final response = await _supabase
         .from('parents')
         .select()
-        .eq('id', _supabase.auth.currentUser!.id)
+        .eq('id', userId)
         .maybeSingle();
     if (response == null) return null;
     return ParentUser.fromMap(response);
   }
 
   Future<String?> getFamilyName() async {
+    final userId = _userId;
+    if (userId == null) return null;
     final parent = await _supabase
         .from('parents')
         .select('family_id')
-        .eq('id', _supabase.auth.currentUser!.id)
+        .eq('id', userId)
         .single();
     if (parent['family_id'] == null) return null;
     final family = await _supabase
@@ -43,10 +51,12 @@ class ProfileService {
   }
 
   Future<void> updateFamilyName(String name) async {
+    final userId = _userId;
+    if (userId == null) throw StateError('No authenticated user');
     final parent = await _supabase
         .from('parents')
         .select('family_id')
-        .eq('id', _supabase.auth.currentUser!.id)
+        .eq('id', userId)
         .single();
     if (parent['family_id'] != null) {
       await _supabase
@@ -57,13 +67,17 @@ class ProfileService {
   }
 
   Future<void> updateDisplayName(String displayName) async {
+    final userId = _userId;
+    if (userId == null) throw StateError('No authenticated user');
     await _supabase
         .from('parents')
         .update({'display_name': displayName})
-        .eq('id', _supabase.auth.currentUser!.id);
+        .eq('id', userId);
   }
 
   Future<void> updateEmail(String newEmail) async {
+    final userId = _userId;
+    if (userId == null) throw StateError('No authenticated user');
     // Two independent writes (Supabase Auth + parents table).
     // Run them in parallel so the email-change flow doesn't pay
     // 2× the round-trip latency for two writes that don't depend
@@ -73,12 +87,13 @@ class ProfileService {
       _supabase
           .from('parents')
           .update({'email': newEmail})
-          .eq('id', _supabase.auth.currentUser!.id),
+          .eq('id', userId),
     ]);
   }
 
   Future<void> deleteAccount() async {
-    final userId = _supabase.auth.currentUser!.id;
+    final userId = _userId;
+    if (userId == null) throw StateError('No authenticated user');
     await _supabase.from('parents').delete().eq('id', userId);
     await _supabase.auth.admin.deleteUser(userId);
   }
