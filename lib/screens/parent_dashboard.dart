@@ -61,12 +61,13 @@ class _ParentDashboardState extends State<ParentDashboard> {
   final Map<String, bool> _activeLocks = {};
   final Map<String, int> _pendingProofs = {};
   final Map<String, int> _pendingBreaks = {};
+
   /// kid-device status per child for the dashboard's per-row dot +
   /// last-seen label. null = no paired device for that child,
   /// otherwise the derived status string ('online' / 'recent' /
   /// 'stale' / 'revoked') plus the raw last_seen_at timestamp.
-  final Map<String, ({String status, DateTime? lastSeenAt})?>
-      _kidDeviceStatus = {};
+  final Map<String, ({String status, DateTime? lastSeenAt})?> _kidDeviceStatus =
+      {};
   bool _loading = true;
   int _monthlySessionCount = 0;
   int _unreadNotifications = 0;
@@ -141,25 +142,25 @@ class _ParentDashboardState extends State<ParentDashboard> {
   void _onKidDeviceChanged(Map<String, dynamic> newRow) {
     final childId = newRow['child_id'] as String?;
     if (childId == null) return;
-    _kidDeviceService.listDevicesForChild(childId).then((devices) {
-      if (!mounted) return;
-      // Prefer a non-revoked device so the dashboard doesn't show
-      // "revoked" for a child who has since re-paired.
-      final best = devices.isEmpty
-          ? null
-          : devices.firstWhere(
-              (d) => !d.isRevoked,
-              orElse: () => devices.first,
-            );
-      setState(() {
-        _kidDeviceStatus[childId] = best == null
-            ? null
-            : (
-                status: best.status,
-                lastSeenAt: best.lastSeenAt,
-              );
-      });
-    }).catchError((_) {});
+    _kidDeviceService
+        .listDevicesForChild(childId)
+        .then((devices) {
+          if (!mounted) return;
+          // Prefer a non-revoked device so the dashboard doesn't show
+          // "revoked" for a child who has since re-paired.
+          final best = devices.isEmpty
+              ? null
+              : devices.firstWhere(
+                  (d) => !d.isRevoked,
+                  orElse: () => devices.first,
+                );
+          setState(() {
+            _kidDeviceStatus[childId] = best == null
+                ? null
+                : (status: best.status, lastSeenAt: best.lastSeenAt);
+          });
+        })
+        .catchError((_) {});
   }
 
   Future<void> _loadAll() async {
@@ -254,28 +255,26 @@ class _ParentDashboardState extends State<ParentDashboard> {
           await Future.wait([
             Future(() async {
               try {
-                session =
-                    await _sessionService.getActiveSession(child.id);
+                session = await _sessionService.getActiveSession(child.id);
               } catch (_) {}
             }),
             Future(() async {
               try {
-                final proofs =
-                    await _proofService.getPendingProofs(child.id);
+                final proofs = await _proofService.getPendingProofs(child.id);
                 pending = proofs.length;
               } catch (_) {}
             }),
             Future(() async {
               try {
-                final breaks =
-                    await _breakService.getPendingRequests(child.id);
+                final breaks = await _breakService.getPendingRequests(child.id);
                 pendingBreaks = breaks.length;
               } catch (_) {}
             }),
             Future(() async {
               try {
-                final devices =
-                    await _kidDeviceService.listDevicesForChild(child.id);
+                final devices = await _kidDeviceService.listDevicesForChild(
+                  child.id,
+                );
                 if (devices.isNotEmpty) {
                   // Prefer a non-revoked device.
                   final best = devices.firstWhere(
@@ -290,10 +289,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
               } catch (_) {}
             }),
           ]);
-          return MapEntry(
-            child.id,
-            (session != null, pending, pendingBreaks, deviceStatus),
-          );
+          return MapEntry(child.id, (
+            session != null,
+            pending,
+            pendingBreaks,
+            deviceStatus,
+          ));
         }),
       );
       for (final entry in perChild) {
@@ -387,8 +388,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       width: 72,
                       height: 72,
                       decoration: BoxDecoration(
-                        color: kidColors[selectedColor]
-                            .withValues(alpha: 0.15),
+                        color: kidColors[selectedColor].withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -431,16 +431,14 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             color: kidColors[i],
                             shape: BoxShape.circle,
                             border: selectedColor == i
-                                ? Border.all(
-                                    color: Colors.white,
-                                    width: 3,
-                                  )
+                                ? Border.all(color: Colors.white, width: 3)
                                 : null,
                             boxShadow: selectedColor == i
                                 ? [
                                     BoxShadow(
-                                      color: kidColors[i]
-                                          .withValues(alpha: 0.5),
+                                      color: kidColors[i].withValues(
+                                        alpha: 0.5,
+                                      ),
                                       blurRadius: 6,
                                     ),
                                   ]
@@ -503,9 +501,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
             FilledButton(
               onPressed: () => Navigator.pop(ctx, {
                 'name': controller.text.trim(),
-                'color': kidColors[selectedColor]
-                    .toARGB32()
-                    .toRadixString(16),
+                'color': kidColors[selectedColor].toARGB32().toRadixString(16),
                 'emoji': kidEmojis[selectedEmoji],
               }),
               child: const Text('Add'),
@@ -534,9 +530,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
       await _loadAll();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to add child: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to add child: $e')));
       }
     }
     // The dialog controller is local-scope; without this the
@@ -548,9 +544,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   }
 
   Future<void> _editChild(Child child) async {
-    final controller = TextEditingController(
-      text: child.name,
-    );
+    final controller = TextEditingController(text: child.name);
     try {
       // Rebuild the dialog's Save button enabled state on every
       // keystroke so the parent gets instant feedback for invalid
@@ -558,42 +552,43 @@ class _ParentDashboardState extends State<ParentDashboard> {
       final name = await showDialog<String>(
         context: context,
         builder: (ctx) {
-          return StatefulBuilder(builder: (ctx, setLocal) {
-            final trimmed = controller.text.trim();
-            final isValid = trimmed.isNotEmpty &&
-                trimmed.length <= _maxChildNameLength;
-            return AlertDialog(
-              title: const Text('Rename Child'),
-              content: TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  labelText: "Child's Name",
-                  counterText:
-                      '${trimmed.length}/$_maxChildNameLength',
-                  errorText: trimmed.isEmpty
-                      ? null
-                      : trimmed.length > _maxChildNameLength
-                          ? 'Name is too long'
-                          : null,
+          return StatefulBuilder(
+            builder: (ctx, setLocal) {
+              final trimmed = controller.text.trim();
+              final isValid =
+                  trimmed.isNotEmpty && trimmed.length <= _maxChildNameLength;
+              return AlertDialog(
+                title: const Text('Rename Child'),
+                content: TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: "Child's Name",
+                    counterText: '${trimmed.length}/$_maxChildNameLength',
+                    errorText: trimmed.isEmpty
+                        ? null
+                        : trimmed.length > _maxChildNameLength
+                        ? 'Name is too long'
+                        : null,
+                  ),
+                  autofocus: true,
+                  maxLength: _maxChildNameLength,
+                  onChanged: (_) => setLocal(() {}),
                 ),
-                autofocus: true,
-                maxLength: _maxChildNameLength,
-                onChanged: (_) => setLocal(() {}),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: isValid
-                      ? () => Navigator.pop(ctx, trimmed)
-                      : null,
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          });
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: isValid
+                        ? () => Navigator.pop(ctx, trimmed)
+                        : null,
+                    child: const Text('Save'),
+                  ),
+                ],
+              );
+            },
+          );
         },
       );
       if (name != null && name.isNotEmpty) {
@@ -633,10 +628,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
     final warningText = pairedDevices == 0
         ? null
         : pairedDevices == 1
-            ? '${child.name}\'s paired device (${firstDeviceName ?? "unlabeled"}) '
-                'will be unpaired. The kid will need to re-pair on their phone.'
-            : '${child.name} has $pairedDevices paired devices. All of them '
-                'will be unpaired — the kid will need to re-pair each device.';
+        ? '${child.name}\'s paired device (${firstDeviceName ?? "unlabeled"}) '
+              'will be unpaired. The kid will need to re-pair on their phone.'
+        : '${child.name} has $pairedDevices paired devices. All of them '
+              'will be unpaired — the kid will need to re-pair each device.';
 
     if (!mounted) return;
     // Capture messenger BEFORE the destructive dialog so the catch
@@ -706,10 +701,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => LockActiveScreen(
-            sessionId: session.id,
-            childName: childName,
-          ),
+          builder: (_) =>
+              LockActiveScreen(sessionId: session.id, childName: childName),
         ),
       ).then((_) => _loadAll());
     } catch (_) {
@@ -721,326 +714,330 @@ class _ParentDashboardState extends State<ParentDashboard> {
   Widget build(BuildContext context) {
     return ConsentGate(
       child: Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: AppColors.sageFill,
-                borderRadius: BorderRadius.circular(AppRadius.iconTile),
-              ),
-              child: const Icon(
-                LucideIcons.sprout,
-                size: 16,
-                color: AppColors.forest,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text('DoneFirst', style: AppText.screenTitle()),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.refreshCw),
-            onPressed: _loadAll,
-            tooltip: 'Refresh',
-          ),
-          Stack(
+        appBar: AppBar(
+          title: Row(
             children: [
-              IconButton(
-                icon: const Icon(LucideIcons.bell),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const NotificationCenterScreen(),
-                  ),
-                ).then((_) => _loadAll()),
-                tooltip: 'Notifications',
-              ),
-              if (_unreadNotifications > 0)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: AppColors.danger,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    child: Text(
-                      '$_unreadNotifications',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: AppColors.sageFill,
+                  borderRadius: BorderRadius.circular(AppRadius.iconTile),
                 ),
+                child: const Icon(
+                  LucideIcons.sprout,
+                  size: 16,
+                  color: AppColors.forest,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('DoneFirst', style: AppText.screenTitle()),
             ],
           ),
-          IconButton(
-            icon: const Icon(LucideIcons.settings),
-            onPressed: () => PinGuard.push(
-              context,
-              destination: const SettingsScreen(),
+          actions: [
+            IconButton(
+              icon: const Icon(LucideIcons.refreshCw),
+              onPressed: _loadAll,
+              tooltip: 'Refresh',
             ),
-            tooltip: 'Settings',
-          ),
-          IconButton(
-            icon: const Icon(LucideIcons.logOut),
-            onPressed: _signOut,
-            tooltip: 'Sign out',
-          ),
-        ],
-      ),
-      body: KidDeviceEventToastListener(
-        child: _loading
-            ? const DashboardShimmer()
-            : _children.isEmpty
-            ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: const BoxDecoration(
-                      color: AppColors.sageFill,
-                      shape: BoxShape.circle,
+            Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(LucideIcons.bell),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationCenterScreen(),
                     ),
-                    child: const Icon(
-                      LucideIcons.userPlus,
-                      size: 44,
-                      color: AppColors.forest,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Add your first child to get started',
-                    style: AppText.cardHeader(size: 17),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'You can always add more later',
-                    style: AppText.bodySecondary(),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton.icon(
-                    onPressed: _addChild,
-                    icon: const Icon(LucideIcons.userPlus, size: 18),
-                    label: const Text('Add Child'),
-                  ),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadAll,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (_todaySchedules.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Card(
-                      color: AppColors.primary.withValues(alpha:0.04),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(
-                                  LucideIcons.calendarDays,
-                                  size: 17,
-                                  color: AppColors.forest,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  "Today's Schedule",
-                                  style: AppText.cardHeader(size: 14),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            ..._todaySchedules.map((s) {
-                              final child = _children.firstWhere(
-                                (c) => c.id == s.childId,
-                                orElse: () => const Child(id: '', name: 'Child'),
-                              );
-                              final childName = child.name;
-                              final childId = s.childId;
-                              final hasActive = _activeLocks[childId] ?? false;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        '$childName · ${s.durationMinutes}m',
-                                        style: AppText.body(size: 13),
-                                      ),
-                                    ),
-                                    if (!hasActive)
-                                      TextButton(
-                                        onPressed: () {
-                                          PinGuard.push(
-                                            context,
-                                            destination: LockConfigScreen(
-                                              childId: childId,
-                                              childName: childName,
-                                              // Pre-fill from the
-                                              // schedule so the parent
-                                              // doesn't re-pick what the
-                                              // schedule already says.
-                                              initialMinLock: s.durationMinutes,
-                                              initialApprovalMode: s.approvalMode,
-                                            ),
-                                          ).then((_) => _loadAll());
-                                        },
-                                        child: const Text('Start Now'),
-                                      )
-                                    else
-                                      Text(
-                                        'Already active',
-                                        style: AppText.bodySecondary(
-                                          size: 12,
-                                          color: AppColors.ok,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ],
+                  ).then((_) => _loadAll()),
+                  tooltip: 'Notifications',
+                ),
+                if (_unreadNotifications > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.danger,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      child: Text(
+                        '$_unreadNotifications',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ),
-                    ),
-                  ],
-                  if (_hasUnpairedChildren) ...[
-                    const SizedBox(height: 12),
-                    KidDeviceSetupHintCard(
-                      firstChildId: _children.isNotEmpty
-                          ? _children.first.id
-                          : null,
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  const RecentKidDeviceActivityCard(),
-                  const SizedBox(height: 12),
-                  ..._children.map((child) => _buildChildCard(child)),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: OutlinedButton.icon(
-                      onPressed: _addChild,
-                      icon: const Icon(LucideIcons.userPlus, size: 18),
-                      label: const Text('Add Another Child'),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 2, bottom: 10),
-                    child: Text('This month', style: AppText.eyebrow()),
-                  ),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            LucideIcons.sparkles,
-                            color: AppColors.warnDot,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '$_monthlySessionCount / ${UpgradeScreen.freeLimit} free sessions this month',
-                              style: AppText.body(size: 13),
-                            ),
-                          ),
-                          if (_monthlySessionCount >= UpgradeScreen.freeLimit)
-                            FilledButton.tonal(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const UpgradeScreen()),
-                              ),
-                              child: const Text('Upgrade'),
-                            ),
-                        ],
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),
-                  // AI usage card — shows how many Mistral verification
-                  // calls the parent has made in the last 24h. Parents
-                  // who hit the daily cap get an explanation of why
-                  // proofs aren't being auto-approved.
-                  const SizedBox(height: 8),
-                  Row(
+              ],
+            ),
+            IconButton(
+              icon: const Icon(LucideIcons.settings),
+              onPressed: () =>
+                  PinGuard.push(context, destination: const SettingsScreen()),
+              tooltip: 'Settings',
+            ),
+            IconButton(
+              icon: const Icon(LucideIcons.logOut),
+              onPressed: _signOut,
+              tooltip: 'Sign out',
+            ),
+          ],
+        ),
+        body: KidDeviceEventToastListener(
+          child: _loading
+              ? const DashboardShimmer()
+              : _children.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        LucideIcons.bot,
-                        size: 15,
-                        color: _mistralCallsToday >= 40
-                            ? AppColors.danger
-                            : AppColors.muted,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '$_mistralCallsToday / 50 AI checks today',
-                        style: AppText.bodySecondary(
-                          size: 12,
-                          color: _mistralCallsToday >= 40
-                              ? AppColors.danger
-                              : AppColors.muted,
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: const BoxDecoration(
+                          color: AppColors.sageFill,
+                          shape: BoxShape.circle,
                         ),
+                        child: const Icon(
+                          LucideIcons.userPlus,
+                          size: 44,
+                          color: AppColors.forest,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Add your first child to get started',
+                        style: AppText.cardHeader(size: 17),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'You can always add more later',
+                        style: AppText.bodySecondary(),
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                        onPressed: _addChild,
+                        icon: const Icon(LucideIcons.userPlus, size: 18),
+                        label: const Text('Add Child'),
                       ),
                     ],
                   ),
-                  if (_totalSessions > 0) ...[
-                    const SizedBox(height: 12),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            _miniStat(
-                              LucideIcons.playCircle,
-                              '$_totalSessions',
-                              'Sessions',
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadAll,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (_todaySchedules.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Card(
+                          color: AppColors.primary.withValues(alpha: 0.04),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      LucideIcons.calendarDays,
+                                      size: 17,
+                                      color: AppColors.forest,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      "Today's Schedule",
+                                      style: AppText.cardHeader(size: 14),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                ..._todaySchedules.map((s) {
+                                  final child = _children.firstWhere(
+                                    (c) => c.id == s.childId,
+                                    orElse: () =>
+                                        const Child(id: '', name: 'Child'),
+                                  );
+                                  final childName = child.name;
+                                  final childId = s.childId;
+                                  final hasActive =
+                                      _activeLocks[childId] ?? false;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            '$childName · ${s.durationMinutes}m',
+                                            style: AppText.body(size: 13),
+                                          ),
+                                        ),
+                                        if (!hasActive)
+                                          TextButton(
+                                            onPressed: () {
+                                              PinGuard.push(
+                                                context,
+                                                destination: LockConfigScreen(
+                                                  childId: childId,
+                                                  childName: childName,
+                                                  // Pre-fill from the
+                                                  // schedule so the parent
+                                                  // doesn't re-pick what the
+                                                  // schedule already says.
+                                                  initialMinLock:
+                                                      s.durationMinutes,
+                                                  initialApprovalMode:
+                                                      s.approvalMode,
+                                                ),
+                                              ).then((_) => _loadAll());
+                                            },
+                                            child: const Text('Start Now'),
+                                          )
+                                        else
+                                          Text(
+                                            'Already active',
+                                            style: AppText.bodySecondary(
+                                              size: 12,
+                                              color: AppColors.ok,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
                             ),
-                            const _StatDivider(),
-                            _miniStat(
-                              LucideIcons.timer,
-                              '${_totalMinutes}m',
-                              'Time',
-                            ),
-                            const _StatDivider(),
-                            _miniStat(
-                              LucideIcons.badgeCheck,
-                              '$_totalApproved',
-                              'Approved',
-                            ),
-                          ],
+                          ),
+                        ),
+                      ],
+                      if (_hasUnpairedChildren) ...[
+                        const SizedBox(height: 12),
+                        KidDeviceSetupHintCard(
+                          firstChildId: _children.isNotEmpty
+                              ? _children.first.id
+                              : null,
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      const RecentKidDeviceActivityCard(),
+                      const SizedBox(height: 12),
+                      ..._children.map((child) => _buildChildCard(child)),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: OutlinedButton.icon(
+                          onPressed: _addChild,
+                          icon: const Icon(LucideIcons.userPlus, size: 18),
+                          label: const Text('Add Another Child'),
                         ),
                       ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+                      const SizedBox(height: 22),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 2, bottom: 10),
+                        child: Text('This month', style: AppText.eyebrow()),
+                      ),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                LucideIcons.sparkles,
+                                color: AppColors.warnDot,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '$_monthlySessionCount / ${UpgradeScreen.freeLimit} free sessions this month',
+                                  style: AppText.body(size: 13),
+                                ),
+                              ),
+                              if (_monthlySessionCount >=
+                                  UpgradeScreen.freeLimit)
+                                FilledButton.tonal(
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const UpgradeScreen(),
+                                    ),
+                                  ),
+                                  child: const Text('Upgrade'),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // AI usage card — shows how many Mistral verification
+                      // calls the parent has made in the last 24h. Parents
+                      // who hit the daily cap get an explanation of why
+                      // proofs aren't being auto-approved.
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            LucideIcons.bot,
+                            size: 15,
+                            color: _mistralCallsToday >= 40
+                                ? AppColors.danger
+                                : AppColors.muted,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$_mistralCallsToday / 50 AI checks today',
+                            style: AppText.bodySecondary(
+                              size: 12,
+                              color: _mistralCallsToday >= 40
+                                  ? AppColors.danger
+                                  : AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_totalSessions > 0) ...[
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                _miniStat(
+                                  LucideIcons.playCircle,
+                                  '$_totalSessions',
+                                  'Sessions',
+                                ),
+                                const _StatDivider(),
+                                _miniStat(
+                                  LucideIcons.timer,
+                                  '${_totalMinutes}m',
+                                  'Time',
+                                ),
+                                const _StatDivider(),
+                                _miniStat(
+                                  LucideIcons.badgeCheck,
+                                  '$_totalApproved',
+                                  'Approved',
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+        ),
       ),
-    ),
     );
   }
 
@@ -1117,43 +1114,42 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        childName,
-                        style: AppText.cardHeader(size: 17),
-                      ),
+                      Text(childName, style: AppText.cardHeader(size: 17)),
                       const SizedBox(height: 3),
                       hasActiveLock
                           ? const StatusDot.locked(label: 'Lock active')
                           : const StatusDot.idle(label: 'No active lock'),
-                      Builder(builder: (context) {
-                        // Map the kid_devices_with_child view's
-                        // status enum to a coloured dot + short label.
-                        // null = no paired device at all. Below the
-                        // label we render a "Last seen X ago" caption
-                        // when we have a heartbeat timestamp, so
-                        // parents can tell whether offline is normal
-                        // (kid's at school) or suspicious (lost phone).
-                        final deviceStatus = _kidDeviceStatus[childId];
-                        final status = deviceStatus?.status;
-                        final lastSeen = deviceStatus?.lastSeenAt;
-                        return KidDeviceStatusCaption(
-                          status: status,
-                          lastSeenAt: lastSeen,
-                          // Only offer the pair CTA on the null
-                          // state. Other statuses are passive —
-                          // parents act on them via the long-press
-                          // on the avatar or by tapping into the
-                          // active lock screen.
-                          onPair: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => KidDevicePairingScreen(
-                                preselectChildId: childId,
+                      Builder(
+                        builder: (context) {
+                          // Map the kid_devices_with_child view's
+                          // status enum to a coloured dot + short label.
+                          // null = no paired device at all. Below the
+                          // label we render a "Last seen X ago" caption
+                          // when we have a heartbeat timestamp, so
+                          // parents can tell whether offline is normal
+                          // (kid's at school) or suspicious (lost phone).
+                          final deviceStatus = _kidDeviceStatus[childId];
+                          final status = deviceStatus?.status;
+                          final lastSeen = deviceStatus?.lastSeenAt;
+                          return KidDeviceStatusCaption(
+                            status: status,
+                            lastSeenAt: lastSeen,
+                            // Only offer the pair CTA on the null
+                            // state. Other statuses are passive —
+                            // parents act on them via the long-press
+                            // on the avatar or by tapping into the
+                            // active lock screen.
+                            onPair: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => KidDevicePairingScreen(
+                                  preselectChildId: childId,
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        },
+                      ),
                       if (child.streakCount > 0) ...[
                         const SizedBox(height: 6),
                         // Streak chip. Hidden when 0 so we never
@@ -1166,8 +1162,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.warnFill,
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.iconTile),
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.iconTile,
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1421,6 +1418,25 @@ class _ParentDashboardState extends State<ParentDashboard> {
             const SizedBox(height: 4),
             Row(
               children: [
+                // Permanent entrance to the proof grader. The pending
+                // banner above only appears when there's something to
+                // review; this keeps the grader reachable at all times
+                // (it has its own inbox-zero empty state) so "did they
+                // actually finish?" is never a dead end.
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PendingProofsScreen(
+                        childId: childId,
+                        childName: childName,
+                      ),
+                    ),
+                  ).then((_) => _loadAll()),
+                  icon: const Icon(LucideIcons.clipboardCheck, size: 18),
+                  label: const Text('Review'),
+                ),
+                const SizedBox(width: 4),
                 TextButton.icon(
                   onPressed: () => Navigator.push(
                     context,
@@ -1482,8 +1498,7 @@ class _ChildAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasCustomization =
-        child.emoji != null || child.color != null;
+    final hasCustomization = child.emoji != null || child.color != null;
     // Kids who never picked a custom emoji/color get the canonical
     // sage-forest monogram (rounded-square, forest initial). Kids who
     // chose an emoji keep it — but rendered in the same rounded-square
@@ -1508,8 +1523,7 @@ class _ChildAvatar extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Text(
-        child.emoji ??
-            (child.name.isEmpty ? '?' : child.name[0].toUpperCase()),
+        child.emoji ?? (child.name.isEmpty ? '?' : child.name[0].toUpperCase()),
         style: const TextStyle(fontSize: 24),
       ),
     );
@@ -1522,9 +1536,6 @@ class _StatDivider extends StatelessWidget {
   const _StatDivider();
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: 1,
-        height: 34,
-        color: AppColors.line,
-      );
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 34, color: AppColors.line);
 }
