@@ -7,6 +7,14 @@ import '../models/models.dart';
 class ProofService {
   final _supabase = Supabase.instance.client;
 
+  /// Minimum AI confidence to auto-reject a submission at submit time
+  /// (kid side). Below this we defer the call to the parent.
+  static const double aiRejectConfidence = 0.6;
+
+  /// Minimum AI confidence for the parent's opt-in auto-approve to fire
+  /// on an "approved" verdict.
+  static const double aiAutoApproveConfidence = 0.8;
+
   Future<ProofSubmission> uploadProof({
     required String taskId,
     required String imageUrl,
@@ -42,8 +50,17 @@ class ProofService {
     );
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body);
-      return AiResult.fromJson(body);
+      final result = AiResult.fromJson(body);
+      debugPrint(
+        'verifyWithMistral: decision=${result.decision} '
+        'confidence=${result.confidence.toStringAsFixed(2)} '
+        'reason=${result.reason}',
+      );
+      return result;
     }
+    debugPrint(
+      'verifyWithMistral: HTTP ${response.statusCode} -> needs_review',
+    );
     return AiResult(
       decision: 'needs_review',
       confidence: 0.0,
@@ -259,15 +276,28 @@ class ProofService {
       'optional_note': note,
       'parent_decision': 'pending',
     }).select().single();
-    await _supabase
-        .from('homework_tasks')
-        .update({'status': 'submitted'})
-        .eq('id', taskId);
+    // Default: the task is awaiting parent review.
+    var taskStatus = 'submitted';
     if (imageUrls.isNotEmpty) {
       final proof = ProofSubmission.fromMap(response);
       final aiResult = await verifyWithMistral(imageUrls.first);
       await storeAiResult(proof.id, aiResult);
+      // Enforcement: a confident AI "rejected" means the photo clearly
+      // isn't homework, so the task does NOT count as submitted — the
+      // kid is sent back to retake it instead of it silently sitting in
+      // the parent's queue looking done. We require a modest confidence
+      // so a hesitant model can't wrongly block a real submission. The
+      // kid may set their own task status (migration_19) but NOT
+      // parent_decision — final grading stays with the parent.
+      if (aiResult.decision == 'rejected' &&
+          aiResult.confidence >= aiRejectConfidence) {
+        taskStatus = 'rejected';
+      }
     }
+    await _supabase
+        .from('homework_tasks')
+        .update({'status': taskStatus})
+        .eq('id', taskId);
   }
 
   Future<List<HomeworkTask>> getTasks(String sessionId) async {

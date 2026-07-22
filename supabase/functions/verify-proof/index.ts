@@ -7,6 +7,15 @@
 //   - Daily call limit per user (MISTRAL_DAILY_LIMIT env var, default 50)
 //     protects against quota theft and runaway client bugs.
 //
+// Verdict quality (see issue "AI approves random pictures"):
+//   - The prompt is strict: it enumerates what does and does NOT count as
+//     homework and forces a low confidence when the image is ambiguous.
+//   - A server-side confidence floor (MISTRAL_CONFIDENCE_FLOOR, default
+//     0.7) downgrades a low-confidence "approved" to "needs_review" so a
+//     hesitant model can never silently green-light a random photo. The
+//     floor lives here (not the client) so every caller gets the same
+//     policy and it can be tuned without shipping an app build.
+//
 // Storage:
 //   - Each successful call inserts one row into mistral_verification_log
 //     so parents can see their usage in-app and so the daily cap is
@@ -26,6 +35,42 @@ const MISTRAL_API_KEY = Deno.env.get('MISTRAL_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const DAILY_LIMIT = Number(Deno.env.get('MISTRAL_DAILY_LIMIT') ?? '50')
+// Below this confidence, an "approved" verdict is downgraded to
+// "needs_review" so a hesitant model can't silently pass a random photo.
+// Clamped to [0,1]; a malformed env value falls back to 0.7.
+const CONFIDENCE_FLOOR = (() => {
+  const raw = Number(Deno.env.get('MISTRAL_CONFIDENCE_FLOOR') ?? '0.7')
+  if (!Number.isFinite(raw)) return 0.7
+  return Math.min(1, Math.max(0, raw))
+})()
+
+// Strict verification prompt. The old prompt ("if it looks like valid
+// homework, approve") skewed the model toward approving anything; this
+// one enumerates accept/reject cases and demands a high bar + honest
+// confidence, which the server-side floor below then enforces.
+const SYSTEM_PROMPT = [
+  'You are a strict homework-proof verifier for a parental-control app.',
+  'A parent will only trust you if you REJECT photos that are not real homework.',
+  '',
+  'APPROVE (decision "approved") only when the image clearly shows schoolwork:',
+  'a worksheet, workbook, textbook page, handwritten notes/answers, a math',
+  'problem set, an essay, or a computer/tablet screen showing schoolwork.',
+  'There must be legible academic content, not just "a book exists".',
+  '',
+  'REJECT (decision "rejected") when the image is clearly NOT homework:',
+  'selfies or people, pets, toys, games, TV/video, food, random rooms or',
+  'objects, memes, screenshots of apps/chats, blank/black photos, or a',
+  'finger over the lens.',
+  '',
+  'Use "needs_review" ONLY when you genuinely cannot tell (too blurry,',
+  'too dark, cropped, or partially schoolwork).',
+  '',
+  'Be honest about "confidence" (0.0-1.0): it is how sure you are of the',
+  'decision. If you are guessing, confidence MUST be below 0.5.',
+  '',
+  'Respond in this JSON format ONLY:',
+  '{"decision": "approved|needs_review|rejected", "confidence": 0.0-1.0, "reason": "brief explanation"}',
+].join('\n')
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -76,6 +121,27 @@ async function logCall(parentId: string) {
     .from('mistral_verification_log')
     .insert({ parent_id: parentId })
   if (error) console.error('logCall error:', error)
+}
+
+// Normalize + enforce the confidence floor. A low-confidence "approved"
+// becomes "needs_review" (never a silent pass); the reason records why so
+// it shows up in the parent UI and the app/edge logs.
+function applyPolicy(
+  raw: { decision?: string; confidence?: number; reason?: string },
+): { decision: string; confidence: number; reason: string } {
+  let decision = raw.decision ?? 'needs_review'
+  const confidence =
+    typeof raw.confidence === 'number' && Number.isFinite(raw.confidence)
+      ? Math.min(1, Math.max(0, raw.confidence))
+      : 0
+  let reason = raw.reason ?? ''
+  if (decision === 'approved' && confidence < CONFIDENCE_FLOOR) {
+    decision = 'needs_review'
+    reason =
+      `Low confidence (${confidence.toFixed(2)} < ${CONFIDENCE_FLOOR}); ` +
+      `needs a human look. ${reason}`.trim()
+  }
+  return { decision, confidence, reason }
 }
 
 serve(async (req) => {
@@ -160,7 +226,7 @@ serve(async (req) => {
             content: [
               {
                 type: 'text',
-                text: 'You are verifying homework proof photos. Analyze the image and decide if it shows legitimate homework (worksheet, written answers, textbook, notes, computer screen with schoolwork). If it looks like valid homework, respond with decision "approved". If unclear or suspicious, respond with "needs_review". If clearly not homework, respond with "rejected". Respond in this JSON format ONLY: {"decision": "approved|needs_review|rejected", "confidence": 0.0-1.0, "reason": "brief explanation"}',
+                text: SYSTEM_PROMPT,
               },
               {
                 type: 'image_url',
@@ -170,6 +236,9 @@ serve(async (req) => {
           },
         ],
         response_format: { type: 'json_object' },
+        // Low temperature — we want a consistent, calibrated verdict,
+        // not a creative one.
+        temperature: 0.1,
         max_tokens: 256,
       }),
     })
@@ -209,5 +278,19 @@ serve(async (req) => {
       reason: 'Could not parse verifier response',
     })
   }
-  return json(resultJson)
+
+  const result = applyPolicy(resultJson)
+  // Observability: log the raw model verdict and the enforced result so
+  // we can see, per call, exactly what the model said vs. what we
+  // returned (surfaces "why did this random photo pass?" instantly).
+  console.log(
+    'verify-proof verdict',
+    JSON.stringify({
+      user: userId,
+      raw: resultJson,
+      enforced: result,
+      floor: CONFIDENCE_FLOOR,
+    }),
+  )
+  return json(result)
 })

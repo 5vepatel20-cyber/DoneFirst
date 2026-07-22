@@ -885,9 +885,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 SwitchListTile(
-                  title: const Text('Auto-approve math proofs'),
+                  title: const Text('Auto-approve confident AI proofs'),
                   subtitle: const Text(
-                    'Skip approval when Mistral AI detects math homework',
+                    'Skip manual review when the AI is highly confident '
+                    '(≥80%) the photo is real homework. Anything unsure or '
+                    'flagged still waits for you.',
                   ),
                   value: _autoApproveMath,
                   onChanged: (v) async {

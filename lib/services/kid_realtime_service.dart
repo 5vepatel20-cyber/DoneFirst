@@ -232,6 +232,26 @@ class KidRealtimeService extends ChangeNotifier {
   StreamSubscription? _sub;
   String? _childId;
   Timer? _retryTimer;
+
+  /// Periodic reconcile poll — a safety net *under* the realtime
+  /// subscription. Every [_pollInterval] it re-reads the active
+  /// session (and break) via the authenticated REST client and
+  /// applies it, so the lock engages within a few seconds even when
+  /// postgres_changes events never arrive. That is the exact web
+  /// failure mode: the realtime socket silently falls back to anon,
+  /// RLS filters every change row out, so the channel reports
+  /// `subscribed` (healthy) but delivers nothing. Before this, only
+  /// an app relaunch / page refresh (which re-runs the same REST
+  /// read) would surface a live lock.
+  Timer? _pollTimer;
+  static const Duration _pollInterval = Duration(seconds: 5);
+  bool _pollInFlight = false;
+
+  /// Delivered-event counters, bumped in [_onChange] / [_onBreakChange]
+  /// so a silent channel (subscribed but receiving zero rows) is
+  /// visible in the console instead of invisible.
+  int _sessionEventCount = 0;
+  int _breakEventCount = 0;
   /// session.id for which we've attached the break_requests
   /// listener. Used to avoid re-subscribing on every session row
   /// update.
@@ -276,6 +296,7 @@ class KidRealtimeService extends ChangeNotifier {
     await _loadInitial(childId);
 
     _subscribe();
+    _startPolling();
   }
 
   /// Push the current kid access token onto the realtime socket so
@@ -289,6 +310,12 @@ class KidRealtimeService extends ChangeNotifier {
       final token = await provider();
       if (token != null && token.isNotEmpty) {
         await _supabase.realtime.setAuth(token);
+        debugPrint('KidRealtimeService: realtime socket auth attached');
+      } else {
+        debugPrint(
+          'KidRealtimeService: no kid token available; realtime socket '
+          'falls back to anon and RLS filters out all rows',
+        );
       }
     } catch (e) {
       debugPrint('KidRealtimeService setAuth failed: $e');
@@ -314,6 +341,33 @@ class KidRealtimeService extends ChangeNotifier {
         ),
         callback: _onChange,
       ).subscribe(_onSubscribe);
+  }
+
+  /// Start the reconcile poll. Idempotent — cancels any existing
+  /// timer first. See [_pollTimer] for why this exists.
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollReconcile());
+  }
+
+  /// One reconcile tick: re-read the active session + break via the
+  /// authenticated REST client and apply them. Guards against
+  /// overlapping runs. When the channel is unhealthy we also
+  /// re-attach the socket auth token first, since a rotated/expired
+  /// token is the usual reason live events stopped arriving.
+  Future<void> _pollReconcile() async {
+    if (_pollInFlight) return;
+    final childId = _childId;
+    if (childId == null) return;
+    _pollInFlight = true;
+    try {
+      if (!_isHealthy) {
+        await _ensureRealtimeAuth();
+      }
+      await _loadInitial(childId);
+    } finally {
+      _pollInFlight = false;
+    }
   }
 
   /// Subscribe to break_requests for the currently active session.
@@ -351,6 +405,8 @@ class KidRealtimeService extends ChangeNotifier {
   Future<void> stop() async {
     _retryTimer?.cancel();
     _retryTimer = null;
+    _pollTimer?.cancel();
+    _pollTimer = null;
     _breakExpireTimer?.cancel();
     _breakExpireTimer = null;
     await _sub?.cancel();
@@ -516,6 +572,11 @@ class KidRealtimeService extends ChangeNotifier {
   }
 
   void _onChange(PostgresChangePayload payload) {
+    _sessionEventCount++;
+    debugPrint(
+      'KidRealtimeService: session event #$_sessionEventCount '
+      '(${payload.eventType})',
+    );
     final newRow = payload.newRecord;
     if (newRow.isEmpty) {
       // DELETE — no longer any active session for this child.
@@ -527,6 +588,11 @@ class KidRealtimeService extends ChangeNotifier {
   }
 
   void _onBreakChange(PostgresChangePayload payload) {
+    _breakEventCount++;
+    debugPrint(
+      'KidRealtimeService: break event #$_breakEventCount '
+      '(${payload.eventType})',
+    );
     final newRow = payload.newRecord;
     if (newRow.isEmpty) {
       // DELETE — the break row is gone. Treat as no active break.

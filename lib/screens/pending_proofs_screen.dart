@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/models.dart';
 import '../services/proof_service.dart';
+import '../services/parent_preferences_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/proof_thumbnail.dart';
 import '../widgets/shimmer_loading.dart';
@@ -26,6 +27,7 @@ class PendingProofsScreen extends StatefulWidget {
 
 class _PendingProofsScreenState extends State<PendingProofsScreen> {
   final _proofService = ProofService();
+  final _parentPrefs = ParentPreferencesService();
   List<ProofSubmission> _proofs = [];
   bool _loading = true;
   bool _selectionMode = false;
@@ -41,6 +43,7 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
     setState(() => _loading = true);
     try {
       _proofs = await _proofService.getPendingProofs(widget.childId);
+      await _maybeAutoApprove();
     } catch (e) {
       // Mirror the schedules_screen fix: always flip _loading off
       // (the older code only did that inside the try, so a Supabase
@@ -57,6 +60,44 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Opt-in enforcement: when the parent has auto-approve enabled,
+  /// clear high-confidence AI "approved" proofs automatically so the
+  /// parent only reviews the ambiguous / flagged ones. Runs under the
+  /// parent JWT, so it can legitimately set parent_decision (which the
+  /// kid app cannot). No-op when the pref is off or nothing qualifies.
+  Future<void> _maybeAutoApprove() async {
+    final enabled = await _parentPrefs.getAutoApproveMath();
+    if (!enabled) return;
+    final eligible = _proofs
+        .where(
+          (p) =>
+              p.parentDecision == 'pending' &&
+              p.aiDecision == 'approved' &&
+              (p.aiConfidence ?? 0) >= ProofService.aiAutoApproveConfidence,
+        )
+        .toList();
+    if (eligible.isEmpty) return;
+    for (final p in eligible) {
+      await _proofService.parentApprove(
+        p.id,
+        parentNote: 'Auto-approved (AI confident it was homework)',
+      );
+    }
+    // Re-fetch so the auto-approved rows drop out of the pending list.
+    _proofs = await _proofService.getPendingProofs(widget.childId);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Auto-approved ${eligible.length} '
+            '${eligible.length == 1 ? 'proof' : 'proofs'} the AI was '
+            'confident about.',
+          ),
+        ),
+      );
     }
   }
 
@@ -384,7 +425,10 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
                                       children: [
                                         if (p.aiDecision != null)
                                           _badge(
-                                            'AI: ${p.aiDecision}',
+                                            p.aiConfidence != null
+                                                ? 'AI: ${p.aiDecision} '
+                                                    '(${(p.aiConfidence! * 100).round()}%)'
+                                                : 'AI: ${p.aiDecision}',
                                             p.aiDecision == 'approved'
                                                 ? AppColors.success
                                                 : p.aiDecision == 'rejected'
