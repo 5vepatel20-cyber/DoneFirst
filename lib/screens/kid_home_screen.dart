@@ -117,7 +117,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
         // Snapshot the values we need before clearing _activeSession
         // below — the new full-screen route captures them at push
         // time and the screen never re-reads from the kid home.
-        final completedTasks = _tasks.where((t) => !t.isPending).length;
+        final completedTasks = _tasks.where((t) => t.isSubmitted || t.isApproved).length;
         final completedStreak = newStreak;
         // The session row's minLockMinutes is the minimum the parent
         // committed to; the kid's actual elapsed time would be more
@@ -231,8 +231,8 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
     }
   }
 
-  int get _tasksRemaining => _tasks.where((t) => t.isPending).length;
-  int get _tasksSubmitted => _tasks.where((t) => t.isSubmitted).length;
+  int get _tasksRemaining => _tasks.where((t) => t.isPending || t.isRejected).length;
+  int get _tasksSubmitted => _tasks.where((t) => t.isSubmitted || t.isApproved).length;
   bool get _allDone => _tasks.isNotEmpty && _tasksRemaining == 0;
 
   @override
@@ -589,7 +589,8 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   }
 
   Widget _buildTaskRow(HomeworkTask t) {
-    final submitted = t.status != 'pending';
+    final approved = t.status == 'submitted' || t.status == 'approved';
+    final rejected = t.isRejected;
     return Dismissible(
       key: Key(t.id),
       direction: DismissDirection.endToStart,
@@ -608,27 +609,39 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 24px rounded checkbox: filled grass+check when done,
-            // #E0C88A outline when pending.
             Container(
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: submitted ? AppColors.grass : Colors.transparent,
+                color: approved
+                    ? AppColors.grass
+                    : rejected
+                        ? AppColors.danger
+                        : Colors.transparent,
                 border: Border.all(
-                  color: submitted ? AppColors.grass : const Color(0xFFE0C88A),
+                  color: approved
+                      ? AppColors.grass
+                      : rejected
+                          ? AppColors.danger
+                          : const Color(0xFFE0C88A),
                   width: 1.5,
                 ),
                 borderRadius: BorderRadius.circular(7),
               ),
               alignment: Alignment.center,
-              child: submitted
+              child: approved
                   ? const Icon(
                       LucideIcons.check,
                       size: 14,
                       color: Colors.white,
                     )
-                  : null,
+                  : rejected
+                      ? const Icon(
+                          LucideIcons.x,
+                          size: 14,
+                          color: Colors.white,
+                        )
+                      : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -640,7 +653,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                     style: AppText.body(
                       color: AppColors.kidInk,
                     ).copyWith(
-                      decoration: submitted
+                      decoration: approved
                           ? TextDecoration.lineThrough
                           : TextDecoration.none,
                       decorationColor: AppColors.muted,
@@ -648,13 +661,20 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    submitted ? 'Submitted' : 'Ready to submit',
-                    style: AppText.bodySecondary(size: 11),
+                    approved
+                        ? 'Submitted'
+                        : rejected
+                            ? 'AI rejected — retake proof'
+                            : 'Ready to submit',
+                    style: AppText.bodySecondary(
+                      size: 11,
+                      color: rejected ? AppColors.danger : null,
+                    ),
                   ),
                 ],
               ),
             ),
-            if (!submitted)
+            if (!approved)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,

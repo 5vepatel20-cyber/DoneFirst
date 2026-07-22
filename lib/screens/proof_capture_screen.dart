@@ -12,10 +12,12 @@ import '../theme/app_theme.dart';
 class ProofCaptureScreen extends StatefulWidget {
   final String taskId;
   final String taskDescription;
+  final String taskSubject;
   const ProofCaptureScreen({
     super.key,
     required this.taskId,
     required this.taskDescription,
+    this.taskSubject = 'General',
   });
 
   @override
@@ -107,6 +109,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
         taskId: widget.taskId,
         imageUrls: urls,
         taskDescription: widget.taskDescription,
+        subject: widget.taskSubject,
         note: _noteController.text.trim().isEmpty
             ? null
             : _noteController.text.trim(),

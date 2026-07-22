@@ -36,7 +36,11 @@ class ProofService {
     return ProofSubmission.fromMap(response);
   }
 
-  Future<AiResult> verifyWithMistral(String imageUrl) async {
+  Future<AiResult> verifyWithMistral(
+    String imageUrl, {
+    String taskDescription = '',
+    String subject = '',
+  }) async {
     final response = await http.post(
       Uri.parse(
           'https://wxjtksxugsirpowptpmz.supabase.co/functions/v1/verify-proof'),
@@ -46,6 +50,8 @@ class ProofService {
       },
       body: jsonEncode({
         'imageUrl': imageUrl,
+        'taskDescription': taskDescription,
+        'subject': subject,
       }),
     );
     if (response.statusCode == 200) {
@@ -267,6 +273,7 @@ class ProofService {
     required String taskId,
     required List<String> imageUrls,
     required String taskDescription,
+    String subject = 'General',
     String? note,
   }) async {
     final response = await _supabase.from('proof_submissions').insert({
@@ -280,7 +287,11 @@ class ProofService {
     var taskStatus = 'submitted';
     if (imageUrls.isNotEmpty) {
       final proof = ProofSubmission.fromMap(response);
-      final aiResult = await verifyWithMistral(imageUrls.first);
+      final aiResult = await verifyWithMistral(
+        imageUrls.first,
+        taskDescription: taskDescription,
+        subject: subject,
+      );
       await storeAiResult(proof.id, aiResult);
       // Enforcement: a confident AI "rejected" means the photo clearly
       // isn't homework, so the task does NOT count as submitted — the

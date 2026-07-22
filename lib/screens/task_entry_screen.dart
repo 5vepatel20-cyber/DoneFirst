@@ -216,7 +216,8 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                       final taskId = task.id;
                       final description = task.description;
                       final subject = task.subject;
-                      final isDone = task.status != 'pending';
+                      final isDone = task.status == 'submitted' || task.status == 'approved';
+                      final isRejected = task.isRejected;
                       final taskStatus = task.status;
 
                       return Dismissible(
@@ -238,10 +239,14 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                             leading: Icon(
                               isDone
                                   ? LucideIcons.checkCircle2
-                                  : LucideIcons.circle,
+                                  : isRejected
+                                      ? LucideIcons.xCircle
+                                      : LucideIcons.circle,
                               color: isDone
                                   ? AppColors.success
-                                  : AppColors.accent,
+                                  : isRejected
+                                      ? AppColors.danger
+                                      : AppColors.accent,
                             ),
                             title: Text(
                               description,
@@ -250,7 +255,9 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                               ),
                             ),
                             subtitle: Text(
-                              '$subject · Status: $taskStatus',
+                              isRejected
+                                  ? '$subject · AI rejected — retake proof'
+                                  : '$subject · Status: $taskStatus',
                               style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,
@@ -275,6 +282,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
                                           builder: (_) => ProofCaptureScreen(
                                             taskId: taskId,
                                             taskDescription: description,
+                                            taskSubject: subject,
                                           ),
                                         ),
                                       ).then((_) => _loadTasks());

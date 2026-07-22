@@ -39,38 +39,47 @@ const DAILY_LIMIT = Number(Deno.env.get('MISTRAL_DAILY_LIMIT') ?? '50')
 // "needs_review" so a hesitant model can't silently pass a random photo.
 // Clamped to [0,1]; a malformed env value falls back to 0.7.
 const CONFIDENCE_FLOOR = (() => {
-  const raw = Number(Deno.env.get('MISTRAL_CONFIDENCE_FLOOR') ?? '0.7')
+  const raw = Number(Deno.env.get('MISTRAL_CONFIDENCE_FLOOR') ?? '0.8')
   if (!Number.isFinite(raw)) return 0.7
   return Math.min(1, Math.max(0, raw))
 })()
 
-// Strict verification prompt. The old prompt ("if it looks like valid
-// homework, approve") skewed the model toward approving anything; this
-// one enumerates accept/reject cases and demands a high bar + honest
-// confidence, which the server-side floor below then enforces.
-const SYSTEM_PROMPT = [
+// Brutal verification prompt. Every edge case is called out explicitly.
+// The model must match the image to the SPECIFIC assigned task.
+const SYSTEM_PROMPT_BASE = [
   'You are a strict homework-proof verifier for a parental-control app.',
-  'A parent will only trust you if you REJECT photos that are not real homework.',
+  'Your ONLY job is to confirm the student did the ASSIGNED HOMEWORK.',
   '',
-  'APPROVE (decision "approved") only when the image clearly shows schoolwork:',
-  'a worksheet, workbook, textbook page, handwritten notes/answers, a math',
-  'problem set, an essay, or a computer/tablet screen showing schoolwork.',
-  'There must be legible academic content, not just "a book exists".',
+  'RULES:',
+  '1. You MUST compare the image against the ASSIGNED TASK below.',
+  '2. The image must show COMPLETED WORK for that specific task.',
+  '3. If the task is "do math homework" and the image shows ANYTHING',
+  '   other than math work (browser, Google, YouTube, social media,',
+  '   games, chat, apps, desktop, home screen, random text, articles,',
+  '   news, entertainment, shopping) → REJECT immediately.',
+  '4. A screenshot of a web browser is NEVER homework, even if the',
+  '   page happens to be vaguely educational. Homework = worksheets,',
+  '   textbook problems, handwritten answers, typed essays, solved',
+  '   equations, lab reports — NOT browsing the web.',
+  '5. If the image is blurry, too dark, or you cannot read the',
+  '   content → needs_review.',
   '',
-  'REJECT (decision "rejected") when the image is clearly NOT homework:',
-  'selfies or people, pets, toys, games, TV/video, food, random rooms or',
-  'objects, memes, screenshots of apps/chats, blank/black photos, or a',
-  'finger over the lens.',
+  'APPROVE only when ALL of these are true:',
+  '  - The image shows legible academic work (handwritten or digital)',
+  '  - The work directly relates to the assigned task/subject',
+  '  - You can read enough to verify it is actual schoolwork',
   '',
-  'Use "needs_review" ONLY when you genuinely cannot tell (too blurry,',
-  'too dark, cropped, or partially schoolwork).',
+  'REJECT when:',
+  '  - Browser tabs, Google searches, websites, or apps',
+  '  - Social media, chat, video, games, or entertainment',
+  '  - Photos of people, pets, food, rooms, objects',
+  '  - Blank/black/corrupted images',
+  '  - Work that does NOT match the assigned subject/task',
+  '  - Generic "educational-looking" content not matching the task',
   '',
-  'Be honest about "confidence" (0.0-1.0): it is how sure you are of the',
-  'decision. If you are guessing, confidence MUST be below 0.5.',
-  '',
-  'Respond in this JSON format ONLY:',
+  'Respond ONLY in this JSON:',
   '{"decision": "approved|needs_review|rejected", "confidence": 0.0-1.0, "reason": "brief explanation"}',
-].join('\n')
+]
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -174,16 +183,37 @@ serve(async (req) => {
     }, 429)
   }
 
-  let body: { imageUrl?: string }
+  let body: { imageUrl?: string; taskDescription?: string; subject?: string }
   try {
     body = await req.json()
   } catch {
     return json({ decision: 'needs_review', reason: 'Invalid JSON body' }, 400)
   }
   const imageUrl = body.imageUrl
+  const taskDescription = (body.taskDescription ?? '').trim()
+  const subject = (body.subject ?? '').trim()
   if (!imageUrl || typeof imageUrl !== 'string') {
     return json({ decision: 'needs_review', reason: 'Missing imageUrl' }, 400)
   }
+
+  // Build task-context prompt. If the caller provided the homework
+  // description and subject, the AI can judge whether the image actually
+  // matches the assignment (e.g. "math homework" ≠ browser screenshot).
+  const taskContext = taskDescription
+    ? [
+        '',
+        'ASSIGNED HOMEWORK:',
+        subject ? `Subject: ${subject}` : '',
+        `Task: ${taskDescription}`,
+        '',
+        'Does the image show proof that THIS SPECIFIC task was completed?',
+        'The image MUST be directly related to the assigned task above.',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : ''
+
+  const fullPrompt = SYSTEM_PROMPT_BASE.join('\n') + taskContext
 
   // Only accept image URLs that point at our own Supabase Storage.
   // Without this check, a client could pass any public URL (e.g. a
@@ -226,7 +256,7 @@ serve(async (req) => {
             content: [
               {
                 type: 'text',
-                text: SYSTEM_PROMPT,
+                text: fullPrompt,
               },
               {
                 type: 'image_url',

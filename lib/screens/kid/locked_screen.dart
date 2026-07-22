@@ -142,8 +142,8 @@ class _LockedScreenState extends State<LockedScreen> {
     return '${two(m)}:${two(s)}';
   }
 
-  int get _tasksRemaining => _tasks.where((t) => t.isPending).length;
-  int get _tasksSubmitted => _tasks.where((t) => !t.isPending).length;
+  int get _tasksRemaining => _tasks.where((t) => t.isPending || t.isRejected).length;
+  int get _tasksSubmitted => _tasks.where((t) => !t.isPending && !t.isRejected).length;
   bool get _allDone => _tasks.isNotEmpty && _tasksRemaining == 0;
 
   void _showAddTaskDialog() {
@@ -432,7 +432,8 @@ class _LockedScreenState extends State<LockedScreen> {
   }
 
   Widget _buildTaskRow(HomeworkTask t) {
-    final submitted = t.status != 'pending';
+    final approved = t.status == 'submitted' || t.status == 'approved';
+    final rejected = t.isRejected;
     return Dismissible(
       key: Key(t.id),
       direction: DismissDirection.endToStart,
@@ -455,21 +456,35 @@ class _LockedScreenState extends State<LockedScreen> {
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: submitted ? AppColors.grass : Colors.transparent,
+                color: approved
+                    ? AppColors.grass
+                    : rejected
+                        ? AppColors.danger
+                        : Colors.transparent,
                 border: Border.all(
-                  color: submitted ? AppColors.grass : const Color(0xFFE0C88A),
+                  color: approved
+                      ? AppColors.grass
+                      : rejected
+                          ? AppColors.danger
+                          : const Color(0xFFE0C88A),
                   width: 1.5,
                 ),
                 borderRadius: BorderRadius.circular(7),
               ),
               alignment: Alignment.center,
-              child: submitted
+              child: approved
                   ? const Icon(
                       LucideIcons.check,
                       size: 14,
                       color: Colors.white,
                     )
-                  : null,
+                  : rejected
+                      ? const Icon(
+                          LucideIcons.x,
+                          size: 14,
+                          color: Colors.white,
+                        )
+                      : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -481,7 +496,7 @@ class _LockedScreenState extends State<LockedScreen> {
                     style: AppText.body(
                       color: AppColors.kidInk,
                     ).copyWith(
-                      decoration: submitted
+                      decoration: approved
                           ? TextDecoration.lineThrough
                           : TextDecoration.none,
                       decorationColor: AppColors.muted,
@@ -489,13 +504,20 @@ class _LockedScreenState extends State<LockedScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    submitted ? 'Submitted' : t.subject,
-                    style: AppText.bodySecondary(size: 11),
+                    approved
+                        ? 'Submitted'
+                        : rejected
+                            ? 'AI rejected — retake proof'
+                            : t.subject,
+                    style: AppText.bodySecondary(
+                      size: 11,
+                      color: rejected ? AppColors.danger : null,
+                    ),
                   ),
                 ],
               ),
             ),
-            if (!submitted)
+            if (!approved)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -512,6 +534,7 @@ class _LockedScreenState extends State<LockedScreen> {
                       builder: (_) => ProofCaptureScreen(
                         taskId: t.id,
                         taskDescription: t.description,
+                        taskSubject: t.subject,
                       ),
                     ),
                   ).then((_) => _loadTasks()),

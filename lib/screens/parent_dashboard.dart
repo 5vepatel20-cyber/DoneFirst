@@ -31,6 +31,7 @@ import 'kid_profile_screen.dart';
 import 'notification_center_screen.dart';
 import 'pending_proofs_screen.dart';
 import 'kid_device_pairing_screen.dart';
+import 'child_homework_screen.dart';
 import '../widgets/kid_device_event_toast_listener.dart';
 import '../widgets/kid_device_setup_hint_card.dart';
 import '../widgets/kid_device_status_caption.dart';
@@ -656,19 +657,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
     if (!confirmed) return;
     try {
       await _sessionService.deleteChild(child.id);
-      await _loadAll();
     } catch (e) {
-      // Without this catch, a Supabase hiccup on deleteChild closes
-      // the dialog cleanly but leaves the kid row in the DB and the
-      // parent's next refresh shows them still listed. Surface the
-      // error so they can retry.
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Couldn’t delete ${child.name}: $e'),
+          content: Text("Couldn't delete ${child.name}: $e"),
           backgroundColor: AppColors.danger,
         ),
       );
     }
+    if (mounted) await _loadAll();
   }
 
   Future<void> _signOut() async {
@@ -1373,6 +1370,20 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   ),
                   icon: const Icon(LucideIcons.history, size: 18),
                   label: const Text('History'),
+                ),
+                const SizedBox(width: 4),
+                TextButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChildHomeworkScreen(
+                        childId: childId,
+                        childName: childName,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(LucideIcons.bookOpen, size: 18),
+                  label: const Text('Homework'),
                 ),
                 const SizedBox(width: 4),
                 TextButton.icon(
