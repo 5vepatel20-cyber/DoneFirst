@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
+import '../widgets/brand_logo.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -16,31 +17,44 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final _pages = [
     _OnboardingPage(
+      icon: LucideIcons.sparkles,
+      title: 'Welcome to DoneFirst',
+      description:
+          'The calm way to get homework done first. Focus for kids, '
+          'peace of mind for parents.',
+      color: AppColors.primary,
+      isWelcome: true,
+    ),
+    _OnboardingPage(
       icon: LucideIcons.shieldCheck,
       title: 'Block Distractions',
       description:
-          'Lock distracting apps on your child\'s device until homework is done. They focus, you relax.',
+          'Distracting apps stay locked until homework is done. '
+          'Focus first, play later.',
       color: AppColors.primary,
     ),
     _OnboardingPage(
       icon: LucideIcons.camera,
-      title: 'Photo Proof Required',
+      title: 'Photo Proof',
       description:
-          'Kids submit a photo of their completed work. Mistral AI verifies it\'s real homework — no shortcuts.',
+          'Snap a photo of the finished work. AI checks it\'s real '
+          'homework — no shortcuts.',
       color: AppColors.accent,
     ),
     _OnboardingPage(
       icon: LucideIcons.checkCircle2,
-      title: 'You Stay In Control',
+      title: 'Parents Stay In Control',
       description:
-          'Approve or reject proof submissions. Set study sessions, break times, and auto-unlock rules.',
+          'Parents set study sessions and breaks, then approve the '
+          'proof. Kids earn their screen time back.',
       color: AppColors.success,
     ),
     _OnboardingPage(
       icon: LucideIcons.rocket,
-      title: 'Ready to Start?',
+      title: 'Let\'s Get Set Up',
       description:
-          'Create your family account and add your first child in under 2 minutes.',
+          'Next, tell us who\'s using this device — a parent or a kid — '
+          'and we\'ll take it from there.',
       color: AppColors.primary,
     ),
   ];
@@ -85,14 +99,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: page.color.withValues(alpha:0.1),
-              shape: BoxShape.circle,
+          if (page.isWelcome)
+            const BrandLogo(
+              size: 96,
+              tileColor: AppColors.forest,
+              glyphColor: AppColors.kidBg,
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: page.color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(page.icon, size: 80, color: page.color),
             ),
-            child: Icon(page.icon, size: 80, color: page.color),
-          ),
           const SizedBox(height: 48),
           Text(
             page.title,
@@ -169,7 +190,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_done', true);
     if (context.mounted) {
-      Navigator.of(context).pushReplacementNamed('/auth');
+      // Onboarding is role-neutral, so it hands off to the
+      // "Who's using this device?" chooser rather than dumping
+      // everyone into the parent signup form.
+      Navigator.of(context).pushReplacementNamed('/role-select');
     }
   }
 }
@@ -179,10 +203,15 @@ class _OnboardingPage {
   final String title;
   final String description;
   final Color color;
+
+  /// When true the page shows the DoneFirst brand mark instead of a
+  /// feature icon — used for the leading "Welcome" page.
+  final bool isWelcome;
   const _OnboardingPage({
     required this.icon,
     required this.title,
     required this.description,
     required this.color,
+    this.isWelcome = false,
   });
 }

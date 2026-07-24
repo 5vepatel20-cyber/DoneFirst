@@ -213,6 +213,15 @@ class KidRealtimeService extends ChangeNotifier {
   HomeworkSessionPayload? _session;
   BreakRequestPayload? _activeBreak;
   bool _isHealthy = false;
+
+  /// True once a REST read (bootstrap or the 5s poll) has succeeded
+  /// recently. This — not the realtime *socket* health — is what makes
+  /// the lock state authoritative: the poll knows whether a session is
+  /// active even when the postgres_changes socket is silent or errored
+  /// (the web failure mode), so we lock/unlock from it and only fall to
+  /// `waiting` when we're truly blind (no healthy socket AND no
+  /// successful read).
+  bool _restReachable = false;
   /// Local auto-expire timer armed from a break's
   /// `break_ends_at`. Fires once at the wall-clock expiry and
   /// re-engages the lock without waiting for the parent's
@@ -422,6 +431,7 @@ class KidRealtimeService extends ChangeNotifier {
       _channel = null;
     }
     _isHealthy = false;
+    _restReachable = false;
     _childId = null;
     _activeBreak = null;
     _subscribedBreakSessionId = null;
@@ -458,6 +468,7 @@ class KidRealtimeService extends ChangeNotifier {
           .eq('status', 'active')
           .order('started_at', ascending: false)
           .limit(1);
+      _restReachable = true;
       if (response.isNotEmpty) {
         final payload = HomeworkSessionPayload.fromMap(response.first);
         _applySession(payload);
@@ -475,6 +486,7 @@ class KidRealtimeService extends ChangeNotifier {
       // stale "Locked" state from before the load failed.
       _state = KidLockState.waiting;
       _isHealthy = false;
+      _restReachable = false;
       await releaseLockIfAny();
       notifyListeners();
     }
@@ -740,7 +752,13 @@ class KidRealtimeService extends ChangeNotifier {
   }
 
   void _recomputeState() {
-    if (!_isHealthy) {
+    // Only truly blind — no healthy realtime socket AND no recent
+    // successful REST read — is `waiting`. With the 5s poll keeping
+    // [_restReachable] fresh, an unhealthy/silent socket (the web
+    // failure mode) no longer pins the kid to `waiting`/unlocked: we
+    // compute the lock from the last read instead. This is the fix for
+    // "the lock only engages after a manual refresh".
+    if (!_isHealthy && !_restReachable) {
       _state = KidLockState.waiting;
       return;
     }
