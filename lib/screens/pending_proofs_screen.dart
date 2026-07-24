@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../services/proof_service.dart';
 import '../services/parent_preferences_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 import '../widgets/proof_thumbnail.dart';
 import '../widgets/shimmer_loading.dart';
 import 'proof_image_viewer.dart';
@@ -32,6 +33,10 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
   bool _loading = true;
   bool _selectionMode = false;
   final Set<String> _selected = <String>{};
+  // Inline error banner state — set on load failure so the screen can
+  // show a retry card instead of leaving the list empty with no
+  // explanation.
+  String? _error;
 
   @override
   void initState() {
@@ -40,7 +45,10 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       _proofs = await _proofService.getPendingProofs(widget.childId);
       await _maybeAutoApprove();
@@ -50,14 +58,7 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
       // hiccup left the spinner running forever) and surface the
       // real exception so the parent can retry from the dashboard.
       _proofs = [];
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Couldn’t load pending proofs: $e'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
-      }
+      _error = e.toString();
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -124,6 +125,30 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
       _selected.clear();
       _selectionMode = false;
     });
+  }
+
+  /// One-tap approve/reject on a single row — the quick path next to
+  /// the AI verdict, separate from the note-taking bulk flow below.
+  Future<void> _quickDecide(ProofSubmission p, String decision) async {
+    try {
+      if (decision == 'approved') {
+        await _proofService.parentApprove(p.id);
+      } else {
+        await _proofService.parentReject(p.id);
+      }
+      if (mounted) {
+        setState(() {
+          _proofs.removeWhere((x) => x.id == p.id);
+          _selected.remove(p.id);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
   }
 
   Future<void> _bulkDecide(String decision) async {
@@ -195,8 +220,9 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
-              backgroundColor:
-                  decision == 'approved' ? AppColors.success : AppColors.danger,
+              backgroundColor: decision == 'approved'
+                  ? AppColors.success
+                  : AppColors.danger,
             ),
             child: Text(label),
           ),
@@ -228,26 +254,53 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$label successful on $count ${count == 1 ? 'proof' : 'proofs'}.'),
+            content: Text(
+              '$label successful on $count ${count == 1 ? 'proof' : 'proofs'}.',
+            ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
+    }
+  }
+
+  DfPillTone _aiTone(String? decision) {
+    switch (decision) {
+      case 'approved':
+        return DfPillTone.success;
+      case 'rejected':
+        return DfPillTone.danger;
+      default:
+        return DfPillTone.attention;
+    }
+  }
+
+  IconData _aiIcon(String? decision) {
+    switch (decision) {
+      case 'approved':
+        return LucideIcons.checkCircle2;
+      case 'rejected':
+        return LucideIcons.xCircle;
+      default:
+        return LucideIcons.eye;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.paper,
       appBar: AppBar(
-        title: Text(_selectionMode
-            ? '${_selected.length} selected'
-            : 'Review ${widget.childName}\'s proofs'),
+        title: Text(
+          _selectionMode
+              ? '${_selected.length} selected'
+              : 'Review ${widget.childName}\'s proofs',
+        ),
         leading: _selectionMode
             ? IconButton(
                 icon: const Icon(LucideIcons.x),
@@ -279,188 +332,7 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
               ]
             : null,
       ),
-      body: _loading
-          ? ListView(
-              padding: const EdgeInsets.all(8),
-              children: List.generate(
-                6,
-                (_) => const Padding(
-                  padding: EdgeInsets.only(bottom: 8),
-                  child: ShimmerLoading(
-                    height: 96,
-                    borderRadius: 8,
-                  ),
-                ),
-              ),
-            )
-          : _proofs.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          LucideIcons.checkCheck,
-                          size: 48,
-                          color: AppColors.success,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Inbox zero',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'No proofs waiting for review.',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 96),
-                  itemCount: _proofs.length,
-                  itemBuilder: (ctx, i) {
-                    final p = _proofs[i];
-                    final selected = _selected.contains(p.id);
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(
-                          color: selected
-                              ? AppColors.primary
-                              : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                      child: InkWell(
-                        onTap: _selectionMode
-                            ? () => _toggleSelect(p.id)
-                            : () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ProofImageViewer(
-                                      imageUrl: p.imageUrl,
-                                      taskDescription:
-                                          p.taskDescription ?? '',
-                                      aiResult: p,
-                                    ),
-                                  ),
-                                ).then((_) => _load()),
-                        onLongPress: () => _enterSelection(p.id),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (_selectionMode)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    right: 8,
-                                    top: 4,
-                                  ),
-                                  child: Icon(
-                                    selected
-                                        ? LucideIcons.checkCircle2
-                                        : LucideIcons.circle,
-                                    color: selected
-                                        ? AppColors.primary
-                                        : AppColors.textSecondary,
-                                    size: 22,
-                                  ),
-                                ),
-                              SizedBox(
-                                width: 80,
-                                height: 80,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: p.imageUrl.isEmpty
-                                      ? Container(
-                                          color: AppColors.border,
-                                          child: const Icon(
-                                            LucideIcons.imageOff,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                        )
-                                      : ProofThumbnail(
-                                          url: p.imageUrl,
-                                          height: 80,
-                                          width: 80,
-                                          fit: BoxFit.cover,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      p.taskDescription ?? '(no description)',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        if (p.aiDecision != null)
-                                          _badge(
-                                            p.aiConfidence != null
-                                                ? 'AI: ${p.aiDecision} '
-                                                    '(${(p.aiConfidence! * 100).round()}%)'
-                                                : 'AI: ${p.aiDecision}',
-                                            p.aiDecision == 'approved'
-                                                ? AppColors.success
-                                                : p.aiDecision == 'rejected'
-                                                    ? AppColors.danger
-                                                    : AppColors.accent,
-                                          ),
-                                      ],
-                                    ),
-                                    if (p.aiReason != null &&
-                                        p.aiReason!.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          p.aiReason!,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+      body: _buildBody(),
       bottomNavigationBar: _selectionMode && _selected.isNotEmpty
           ? SafeArea(
               child: Padding(
@@ -468,27 +340,18 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton.icon(
+                      child: DfButton.danger(
+                        'Reject (${_selected.length})',
+                        icon: LucideIcons.x,
                         onPressed: () => _bulkDecide('rejected'),
-                        icon: const Icon(LucideIcons.x, color: AppColors.danger),
-                        label: Text(
-                          'Reject (${_selected.length})',
-                          style: const TextStyle(color: AppColors.danger),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.danger),
-                        ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: FilledButton.icon(
+                      child: DfButton(
+                        'Approve (${_selected.length})',
+                        icon: LucideIcons.check,
                         onPressed: () => _bulkDecide('approved'),
-                        icon: const Icon(LucideIcons.check),
-                        label: Text('Approve (${_selected.length})'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                        ),
                       ),
                     ),
                   ],
@@ -499,14 +362,214 @@ class _PendingProofsScreenState extends State<PendingProofsScreen> {
     );
   }
 
-  Widget _badge(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
+  Widget _buildBody() {
+    if (_loading) {
+      return ListView(
+        padding: const EdgeInsets.all(AppSpacing.screenPadding),
+        children: List.generate(
+          6,
+          (_) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: DfCard(
+              child: Row(
+                children: [
+                  ShimmerLoading(
+                    width: 64,
+                    height: 64,
+                    borderRadius: AppRadius.tile,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const ShimmerLoading(height: 14, width: 160),
+                        const SizedBox(height: 10),
+                        ShimmerLoading(height: 12, width: 90, borderRadius: 6),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: DfCard(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  LucideIcons.alertCircle,
+                  color: AppColors.dangerFg,
+                  size: 32,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Couldn’t load pending proofs.',
+                  style: AppText.cardHeader(size: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _error!,
+                  style: AppText.bodySecondary(),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                DfButton.outline('Try again', onPressed: _load, expand: false),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_proofs.isEmpty) {
+      return DfEmptyState(
+        icon: LucideIcons.checkCheck,
+        title: 'No proof photos yet',
+        hint: '${widget.childName}’s next submission will show up here.',
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenPadding,
+        AppSpacing.screenPadding,
+        AppSpacing.screenPadding,
+        96,
       ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 11)),
+      itemCount: _proofs.length,
+      itemBuilder: (ctx, i) {
+        final p = _proofs[i];
+        final selected = _selected.contains(p.id);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.blockGap),
+          child: GestureDetector(
+            onLongPress: () => _enterSelection(p.id),
+            child: DfCard(
+              color: selected ? AppColors.greenTint : null,
+              borderColor: selected ? AppColors.green : null,
+              onTap: _selectionMode
+                  ? () => _toggleSelect(p.id)
+                  : () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProofImageViewer(
+                          imageUrl: p.imageUrl,
+                          taskDescription: p.taskDescription ?? '',
+                          aiResult: p,
+                        ),
+                      ),
+                    ).then((_) => _load()),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_selectionMode)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 10, top: 4),
+                      child: Icon(
+                        selected
+                            ? LucideIcons.checkCircle2
+                            : LucideIcons.circle,
+                        color: selected ? AppColors.green : AppColors.inkFaint,
+                        size: 22,
+                      ),
+                    ),
+                  SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.tile),
+                      child: p.imageUrl.isEmpty
+                          ? Container(
+                              color: AppColors.border2,
+                              child: const Icon(
+                                LucideIcons.imageOff,
+                                color: AppColors.ink45,
+                              ),
+                            )
+                          : ProofThumbnail(
+                              url: p.imageUrl,
+                              height: 64,
+                              width: 64,
+                              fit: BoxFit.cover,
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.tile,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.taskDescription ?? '(no description)',
+                          style: AppText.listTitle(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        if (p.aiDecision != null)
+                          DfStatusPill(
+                            p.aiConfidence != null
+                                ? 'AI: ${p.aiDecision} '
+                                      '(${(p.aiConfidence! * 100).round()}%)'
+                                : 'AI: ${p.aiDecision}',
+                            tone: _aiTone(p.aiDecision),
+                            icon: _aiIcon(p.aiDecision),
+                          ),
+                        if (p.aiReason != null && p.aiReason!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              p.aiReason!,
+                              style: AppText.caption(),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (!_selectionMode) ...[
+                    const SizedBox(width: 4),
+                    Column(
+                      children: [
+                        IconButton(
+                          tooltip: 'Approve',
+                          icon: const Icon(
+                            LucideIcons.circleCheck,
+                            color: AppColors.green,
+                          ),
+                          onPressed: () => _quickDecide(p, 'approved'),
+                        ),
+                        IconButton(
+                          tooltip: 'Reject',
+                          icon: const Icon(
+                            LucideIcons.circleX,
+                            color: AppColors.dangerFg,
+                          ),
+                          onPressed: () => _quickDecide(p, 'rejected'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

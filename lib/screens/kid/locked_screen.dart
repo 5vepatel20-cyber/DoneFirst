@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../models/models.dart';
@@ -10,7 +9,7 @@ import '../../services/proof_service.dart';
 import '../../services/kid_realtime_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/subjects.dart';
-import '../task_entry_screen.dart';
+import '../../widgets/df_kit.dart';
 import '../proof_capture_screen.dart';
 
 /// Shown when there's an active homework_sessions row with
@@ -133,18 +132,18 @@ class _LockedScreenState extends State<LockedScreen> {
     return diff.isNegative ? Duration.zero : diff;
   }
 
-  String _format(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    String two(int n) => n.toString().padLeft(2, '0');
-    if (h > 0) return '${two(h)}:${two(m)}:${two(s)}';
-    return '${two(m)}:${two(s)}';
-  }
-
-  int get _tasksRemaining => _tasks.where((t) => t.isPending || t.isRejected).length;
-  int get _tasksSubmitted => _tasks.where((t) => !t.isPending && !t.isRejected).length;
+  int get _tasksRemaining =>
+      _tasks.where((t) => t.isPending || t.isRejected).length;
+  int get _tasksSubmitted =>
+      _tasks.where((t) => !t.isPending && !t.isRejected).length;
   bool get _allDone => _tasks.isNotEmpty && _tasksRemaining == 0;
+
+  /// True when a proof has been submitted for this task but no
+  /// approval has landed yet — the "Checking your photo…" state.
+  bool _isChecking(HomeworkTask t) {
+    if (t.isApproved || t.isSubmitted) return false;
+    return _proofs.any((p) => p.taskId == t.id && !p.isApproved);
+  }
 
   void _showAddTaskDialog() {
     final controller = TextEditingController();
@@ -236,62 +235,73 @@ class _LockedScreenState extends State<LockedScreen> {
     final progress = total.inSeconds > 0
         ? (elapsed.inSeconds / total.inSeconds).clamp(0.0, 1.0)
         : 0.0;
-    final clampedRemaining = remaining.isNegative
-        ? Duration.zero
-        : remaining;
+    final clampedRemaining = remaining.isNegative ? Duration.zero : remaining;
     final remainingStr = clampedRemaining.inHours > 0
         ? '${clampedRemaining.inHours}h ${clampedRemaining.inMinutes.remainder(60)}m'
         : '${clampedRemaining.inMinutes.remainder(60)}:${clampedRemaining.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 
     return Scaffold(
-      backgroundColor: AppColors.kidBg,
+      backgroundColor: AppColors.paper,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenPadding,
-            vertical: 8,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenPadding,
+            12,
+            AppSpacing.screenPadding,
+            28,
           ),
           children: [
+            // ── Greeting header ───────────────────────────────────
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'FOCUS TIME',
-                      style: AppText.eyebrow(color: AppColors.kidInk),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Hey, ${widget.childName}',
-                      style: GoogleFonts.bricolageGrotesque(
-                        fontSize: 27,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.5,
-                        color: AppColors.kidInk,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.greenTint,
+                    borderRadius: BorderRadius.circular(AppRadius.iconTile),
+                  ),
+                  child: const Icon(
+                    LucideIcons.sprout,
+                    size: 22,
+                    color: AppColors.green,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'FOCUS TIME',
+                        style: AppText.eyebrow(color: AppColors.green),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 3),
+                      Text(
+                        'Hey ${widget.childName}',
+                        style: AppText.title(size: 24),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            // Timer ring
+            const SizedBox(height: 26),
+            // ── Countdown ring ────────────────────────────────────
             Center(
               child: Stack(
                 alignment: Alignment.center,
                 children: [
                   SizedBox(
-                    width: 180,
-                    height: 180,
+                    width: 186,
+                    height: 186,
                     child: CircularProgressIndicator(
                       value: progress,
-                      strokeWidth: 10,
-                      backgroundColor: AppColors.kidLine,
+                      strokeWidth: 12,
+                      strokeCap: StrokeCap.round,
+                      backgroundColor: AppColors.greenTint,
                       valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppColors.grass,
+                        AppColors.green,
                       ),
                     ),
                   ),
@@ -300,83 +310,59 @@ class _LockedScreenState extends State<LockedScreen> {
                     children: [
                       Text(
                         remainingStr,
-                        style: GoogleFonts.bricolageGrotesque(
-                          fontSize: 42,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.8,
-                          height: 1.0,
-                          color: AppColors.kidInk,
-                        ),
+                        style: AppText.bigTimer(size: 46, color: AppColors.ink),
                       ),
+                      const SizedBox(height: 4),
+                      Text('until apps unlock', style: AppText.bodySecondary()),
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 22),
             Center(
               child: Text(
-                'until apps unlock',
-                style: AppText.bodySecondary(),
+                'Apps unlock the moment your work\'s approved.',
+                textAlign: TextAlign.center,
+                style: AppText.body(size: 14),
               ),
             ),
             const SizedBox(height: 24),
-            // Tasks card
+            // ── Tasks ─────────────────────────────────────────────
             _buildTasksCard(),
-            if (_allDone) ...[
-              const SizedBox(height: 12),
-              _buildAllDoneCard(),
-            ],
-            if (_proofs.any((p) =>
-                p.parentNote != null && p.parentNote!.isNotEmpty)) ...[
+            if (_allDone) ...[const SizedBox(height: 12), _buildAllDoneCard()],
+            if (_proofs.any(
+              (p) => p.parentNote != null && p.parentNote!.isNotEmpty,
+            )) ...[
               const SizedBox(height: 12),
               _buildFeedbackCard(),
             ],
-            const SizedBox(height: 16),
-            // Footer actions
+            const SizedBox(height: 20),
+            // ── Footer actions ────────────────────────────────────
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: DfButton(
+                    'Add task',
+                    icon: LucideIcons.plus,
+                    variant: DfButtonVariant.outline,
                     onPressed: _showAddTaskDialog,
-                    icon: const Icon(LucideIcons.plus, size: 16),
-                    label: const Text('Add task'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.kidInk,
-                      side: const BorderSide(color: AppColors.kidLine),
-                      backgroundColor: AppColors.card,
-                      minimumSize: const Size.fromHeight(44),
-                    ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _breakSent ? null : (_sendingBreak ? null : _askForBreak),
-                    icon: _sendingBreak
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.kidInk,
-                            ),
-                          )
-                        : const Icon(LucideIcons.coffee, size: 16),
-                    label: Text(
-                      _breakSent ? 'Sent' : 'Ask for a Break',
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.kidInk,
-                      backgroundColor: AppColors.sageFill,
-                      side: BorderSide.none,
-                      minimumSize: const Size.fromHeight(44),
-                    ),
+                  child: DfButton(
+                    _breakSent ? 'Break sent' : 'Ask for a break',
+                    icon: LucideIcons.coffee,
+                    variant: DfButtonVariant.amber,
+                    loading: _sendingBreak,
+                    onPressed: (_breakSent || _sendingBreak)
+                        ? null
+                        : _askForBreak,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -384,45 +370,44 @@ class _LockedScreenState extends State<LockedScreen> {
   }
 
   Widget _buildTasksCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadius.kidCard),
-        border: Border.all(color: AppColors.kidLine),
-      ),
+    return DfCard(
       padding: const EdgeInsets.all(AppSpacing.cardPaddingKid),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(
-                'Today\'s tasks',
-                style: AppText.cardHeader(color: AppColors.kidInk),
-              ),
+              Text("Today's work", style: AppText.cardHeader(size: 17)),
               const Spacer(),
-              Text(
-                '$_tasksSubmitted of ${_tasks.length} done',
-                style: AppText.bodySecondary(),
+              DfStatusPill(
+                '$_tasksSubmitted / ${_tasks.length}',
+                tone: _allDone ? DfPillTone.success : DfPillTone.neutral,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           if (_loadingTasks)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(
                 child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: AppColors.green,
+                  ),
                 ),
               ),
             )
           else if (_tasks.isEmpty)
-            Text(
-              'Add what you need to finish today.',
-              style: AppText.bodySecondary(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                'Add what you need to finish today, then snap a photo '
+                'to prove it.',
+                style: AppText.bodySecondary(),
+              ),
             )
           else
             ...(_tasks.map(_buildTaskRow)),
@@ -432,59 +417,76 @@ class _LockedScreenState extends State<LockedScreen> {
   }
 
   Widget _buildTaskRow(HomeworkTask t) {
-    final approved = t.status == 'submitted' || t.status == 'approved';
+    final approved = t.isApproved || t.isSubmitted;
     final rejected = t.isRejected;
+    final checking = _isChecking(t);
+
+    final Color boxFill;
+    final Color boxBorder;
+    final Widget? boxIcon;
+    if (approved) {
+      boxFill = AppColors.green;
+      boxBorder = AppColors.green;
+      boxIcon = const Icon(LucideIcons.check, size: 15, color: Colors.white);
+    } else if (rejected) {
+      boxFill = AppColors.dangerFg;
+      boxBorder = AppColors.dangerFg;
+      boxIcon = const Icon(LucideIcons.x, size: 15, color: Colors.white);
+    } else if (checking) {
+      boxFill = AppColors.amberTint;
+      boxBorder = AppColors.amber;
+      boxIcon = null;
+    } else {
+      boxFill = Colors.transparent;
+      boxBorder = AppColors.borderCol;
+      boxIcon = null;
+    }
+
+    final String statusLine;
+    Color? statusColor;
+    if (approved) {
+      statusLine = 'Done';
+      statusColor = AppColors.green;
+    } else if (rejected) {
+      statusLine = 'Have another go — snap it again';
+      statusColor = AppColors.dangerFg;
+    } else if (checking) {
+      statusLine = 'Checking your photo…';
+      statusColor = AppColors.amberDeep;
+    } else {
+      statusLine = t.subject;
+      statusColor = null;
+    }
+
     return Dismissible(
       key: Key(t.id),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 16),
+        margin: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.danger,
-          borderRadius: BorderRadius.circular(AppRadius.iconTile),
+          color: AppColors.dangerFg,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
         ),
         child: const Icon(LucideIcons.trash2, color: Colors.white, size: 18),
       ),
       onDismissed: (_) => _deleteTask(t.id),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 9),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 24,
-              height: 24,
+              width: 26,
+              height: 26,
               decoration: BoxDecoration(
-                color: approved
-                    ? AppColors.grass
-                    : rejected
-                        ? AppColors.danger
-                        : Colors.transparent,
-                border: Border.all(
-                  color: approved
-                      ? AppColors.grass
-                      : rejected
-                          ? AppColors.danger
-                          : const Color(0xFFE0C88A),
-                  width: 1.5,
-                ),
-                borderRadius: BorderRadius.circular(7),
+                color: boxFill,
+                border: Border.all(color: boxBorder, width: 1.6),
+                borderRadius: BorderRadius.circular(8),
               ),
               alignment: Alignment.center,
-              child: approved
-                  ? const Icon(
-                      LucideIcons.check,
-                      size: 14,
-                      color: Colors.white,
-                    )
-                  : rejected
-                      ? const Icon(
-                          LucideIcons.x,
-                          size: 14,
-                          color: Colors.white,
-                        )
-                      : null,
+              child: boxIcon,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -493,56 +495,57 @@ class _LockedScreenState extends State<LockedScreen> {
                 children: [
                   Text(
                     t.description,
-                    style: AppText.body(
-                      color: AppColors.kidInk,
-                    ).copyWith(
+                    style: AppText.listTitle(size: 15).copyWith(
                       decoration: approved
                           ? TextDecoration.lineThrough
                           : TextDecoration.none,
-                      decorationColor: AppColors.muted,
+                      decorationColor: AppColors.ink45,
+                      color: approved ? AppColors.ink45 : AppColors.ink,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    approved
-                        ? 'Submitted'
-                        : rejected
-                            ? 'AI rejected — retake proof'
-                            : t.subject,
-                    style: AppText.bodySecondary(
-                      size: 11,
-                      color: rejected ? AppColors.danger : null,
-                    ),
+                    statusLine,
+                    style: AppText.bodySecondary(size: 12, color: statusColor),
                   ),
                 ],
               ),
             ),
-            if (!approved)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.grass,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProofCaptureScreen(
-                        taskId: t.id,
-                        taskDescription: t.description,
-                        taskSubject: t.subject,
+            if (!approved && !checking)
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProofCaptureScreen(
+                      taskId: t.id,
+                      taskDescription: t.description,
+                      taskSubject: t.subject,
+                    ),
+                  ),
+                ).then((_) => _loadTasks()),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.green,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        LucideIcons.camera,
+                        size: 14,
+                        color: Colors.white,
                       ),
-                    ),
-                  ).then((_) => _loadTasks()),
-                  child: Text(
-                    'Proof',
-                    style: AppText.button(color: Colors.white).copyWith(
-                      fontSize: 12,
-                    ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Add proof',
+                        style: AppText.button(color: Colors.white, size: 13),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -553,24 +556,21 @@ class _LockedScreenState extends State<LockedScreen> {
   }
 
   Widget _buildAllDoneCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.okFill,
-        borderRadius: BorderRadius.circular(AppRadius.kidCard),
-        border: Border.all(color: const Color(0xFFB6D7BE)),
-      ),
+    return DfCard(
+      color: AppColors.greenTint,
+      borderColor: AppColors.green.withValues(alpha: 0.25),
       padding: const EdgeInsets.all(AppSpacing.cardPaddingKid),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: AppColors.grass,
+              color: AppColors.green,
               borderRadius: BorderRadius.circular(AppRadius.iconTile),
             ),
             child: const Icon(
-              LucideIcons.checkCircle2,
+              LucideIcons.partyPopper,
               color: Colors.white,
               size: 20,
             ),
@@ -578,8 +578,9 @@ class _LockedScreenState extends State<LockedScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'All tasks submitted! Waiting for a parent to review.',
-              style: AppText.body(color: AppColors.ok),
+              'All done — nice work! Waiting on a parent to give the '
+              'final nod.',
+              style: AppText.body(size: 14, color: AppColors.greenDeep),
             ),
           ),
         ],
@@ -591,12 +592,9 @@ class _LockedScreenState extends State<LockedScreen> {
     final items = _proofs.where(
       (p) => p.parentNote != null && p.parentNote!.isNotEmpty,
     );
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.infoFill,
-        borderRadius: BorderRadius.circular(AppRadius.kidCard),
-        border: Border.all(color: const Color(0xFFC8D8E0)),
-      ),
+    return DfCard(
+      color: AppColors.infoBg,
+      borderColor: AppColors.infoFg.withValues(alpha: 0.22),
       padding: const EdgeInsets.all(AppSpacing.cardPaddingKid),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -606,43 +604,37 @@ class _LockedScreenState extends State<LockedScreen> {
               const Icon(
                 LucideIcons.messageSquare,
                 size: 16,
-                color: AppColors.info,
+                color: AppColors.infoFg,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Text(
                 'Parent feedback',
-                style: AppText.cardHeader(
-                  color: AppColors.info,
-                  size: 14,
-                ),
+                style: AppText.cardHeader(color: AppColors.infoFg, size: 15),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          ...items.map((p) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      p.isApproved
-                          ? LucideIcons.checkCircle2
-                          : LucideIcons.info,
-                      size: 14,
-                      color: p.isApproved
-                          ? AppColors.ok
-                          : AppColors.warnDot,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        p.parentNote!,
-                        style: AppText.body(size: 12.5),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
+          const SizedBox(height: 10),
+          ...items.map(
+            (p) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    p.isApproved
+                        ? LucideIcons.circleCheckBig
+                        : LucideIcons.info,
+                    size: 15,
+                    color: p.isApproved ? AppColors.green : AppColors.amber,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(p.parentNote!, style: AppText.body(size: 13)),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -9,18 +9,10 @@ import '../theme/app_theme.dart';
 /// ends (parent unlocks early, the lock timer runs out, or the
 /// kid-side app reconnects after a long offline gap).
 ///
-/// Promoted from the legacy `SessionCompleteCelebration` widget
-/// (which was a Card overlay inside kid_home_screen) so the kid
-/// gets a focused moment — no tasks list, no streak chip, no
-/// distractions. The CTA pops the route back to the home screen.
-///
-/// Visual spec from the sage-forest handoff (README §17):
-///   • 150px grass ring with a solid grass check disc in the center
-///   • "All done!" 30px Bricolage
-///   • "Your apps are unlocked"
-///   • Two stat pills: studied minutes + flame streak
-///   • Full-width grass "Back to home" CTA
-///   • Subtle confetti + scale-in animation
+/// Styled as the "Kid · Unlocked ✦" payoff: a warm green celebration
+/// on the kid gradient — a white check ring lands, then "Approved.
+/// You're free." with the session's stats and a single CTA. The CTA
+/// pops the route back to the kid's home.
 class SessionCompleteKidScreen extends StatefulWidget {
   final String childName;
   final int tasksCompleted;
@@ -83,10 +75,10 @@ class _SessionCompleteKidScreenState extends State<SessionCompleteKidScreen>
   }
 
   void _backToHome() {
-    // The screen was pushed on top of kid_home_screen — popping
-    // returns the kid to their unlocked home view. pushAndRemoveUntil
-    // isn't needed here because kid_root.dart wraps the entire flow
-    // and the kid can still navigate within it.
+    // The screen was pushed on top of the kid home — popping returns
+    // the kid to their unlocked home view. pushAndRemoveUntil isn't
+    // needed because kid_root.dart wraps the entire flow and the kid
+    // can still navigate within it.
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
@@ -95,83 +87,117 @@ class _SessionCompleteKidScreenState extends State<SessionCompleteKidScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // kidBg — slightly warmer green than paper, matches the
-      // kid-side chrome in kid_home_screen / kid_history_screen.
-      backgroundColor: AppColors.kidBg,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Confetti layer behind the content. Lightweight CustomPainter
-            // (no third-party deps) so the screen works without adding
-            // a particle engine just for this celebratory moment.
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (_, _) => CustomPaint(
-                  painter: _ConfettiPainter(progress: _controller.value),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [AppColors.kidGradTop, AppColors.kidGradBottom],
+          ),
+        ),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              // Confetti layer behind the content.
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (_, _) => CustomPaint(
+                    painter: _ConfettiPainter(progress: _controller.value),
+                  ),
                 ),
               ),
-            ),
-            Center(
-              child: FadeTransition(
-                opacity: _fadeAnim,
-                child: ScaleTransition(
-                  scale: _scaleAnim,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenPadding,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _CompletionRing(
-                          ringProgress: _ringAnim,
-                          checkProgress: _checkAnim,
-                        ),
-                        const SizedBox(height: 28),
-                        Text(
-                          'All done!',
-                          style: AppText.title(size: 30),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Your apps are unlocked',
-                          style: AppText.body(size: 15),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        _StatPills(
-                          minutesStudied: widget.minutesStudied,
-                          streakDays: widget.streakDays,
-                        ),
-                        const SizedBox(height: 36),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: _backToHome,
-                            icon: const Icon(
-                              LucideIcons.arrowLeft,
-                              size: 18,
-                            ),
-                            label: const Text('Back to home'),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.grass,
-                              foregroundColor: AppColors.card,
-                              minimumSize: const Size.fromHeight(50),
-                              shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.button),
-                              ),
-                              textStyle: AppText.button(),
+              Center(
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: ScaleTransition(
+                    scale: _scaleAnim,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenPadding,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _CompletionRing(
+                            ringProgress: _ringAnim,
+                            checkProgress: _checkAnim,
+                          ),
+                          const SizedBox(height: 30),
+                          Text(
+                            'Approved.',
+                            textAlign: TextAlign.center,
+                            style: AppText.display(
+                              size: 38,
+                              color: Colors.white,
                             ),
                           ),
-                        ),
-                      ],
+                          Text(
+                            "You're free.",
+                            textAlign: TextAlign.center,
+                            style: AppText.display(
+                              size: 38,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Apps are unlocked. Nice work today.',
+                            style: AppText.body(
+                              size: 15,
+                              color: Colors.white.withValues(alpha: 0.92),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 28),
+                          _StatsRow(
+                            minutesStudied: widget.minutesStudied,
+                            streakDays: widget.streakDays,
+                            tasksCompleted: widget.tasksCompleted,
+                          ),
+                          const SizedBox(height: 34),
+                          _DoneButton(onTap: _backToHome),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dark "Done — open my apps" button — reads clearly on the green
+/// gradient with the signature `0 4px 0` bottom edge.
+class _DoneButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _DoneButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: 52,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.ink,
+          borderRadius: BorderRadius.circular(AppRadius.button),
+          boxShadow: const [
+            BoxShadow(color: Color(0xFF0E0C09), offset: Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Done — open my apps', style: AppText.button()),
+            const SizedBox(width: 8),
+            const Icon(LucideIcons.arrowRight, size: 18, color: Colors.white),
           ],
         ),
       ),
@@ -179,10 +205,9 @@ class _SessionCompleteKidScreenState extends State<SessionCompleteKidScreen>
   }
 }
 
-/// 150px grass-toned ring with a solid grass check disc that
-/// scales in on top. Built as a CustomPainter so the ring's
-/// start angle is animatable from 0 → 2π without rebuilding
-/// the whole tree.
+/// 150px white ring with a solid white check disc (green tick) that
+/// scales in on top. Built as a CustomPainter so the ring's start
+/// angle is animatable from 0 → 2π without rebuilding the tree.
 class _CompletionRing extends StatelessWidget {
   final Animation<double> ringProgress;
   final Animation<double> checkProgress;
@@ -224,48 +249,42 @@ class _RingPainter extends CustomPainter {
     final radius = size.shortestSide / 2 - 8;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
-    // Track — pale sage ring underneath the animated arc.
+    // Track — faint white ring underneath the animated arc.
     final track = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 12
-      ..color = AppColors.kidLine;
+      ..color = Colors.white.withValues(alpha: 0.28);
     canvas.drawCircle(center, radius, track);
 
-    // Animated grass arc, sweeping clockwise from 12 o'clock.
+    // Animated white arc, sweeping clockwise from 12 o'clock.
     final arc = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 12
       ..strokeCap = StrokeCap.round
-      ..color = AppColors.grass;
-    canvas.drawArc(
-      rect,
-      -pi / 2,
-      progress * 2 * pi,
-      false,
-      arc,
-    );
+      ..color = Colors.white;
+    canvas.drawArc(rect, -pi / 2, progress * 2 * pi, false, arc);
 
-    // Solid check disc that pops in once the ring lands.
+    // Solid white disc that pops in once the ring lands.
     if (checkProgress > 0) {
       final discRadius = radius - 18;
-      final discPaint = Paint()..color = AppColors.grass;
-      canvas.drawCircle(center, discRadius * checkProgress.clamp(0.0, 1.0),
-          discPaint);
+      final discPaint = Paint()..color = Colors.white;
+      canvas.drawCircle(
+        center,
+        discRadius * checkProgress.clamp(0.0, 1.0),
+        discPaint,
+      );
 
       if (checkProgress > 0.5) {
-        // White check mark — drawn over the disc using two line
-        // segments. Eases in with the disc so the whole shape
-        // settles together.
+        // Green check mark — drawn over the disc using two line
+        // segments so it reads as the "approved" tick.
         final checkPaint = Paint()
-          ..color = AppColors.card
+          ..color = AppColors.green
           ..style = PaintingStyle.stroke
           ..strokeWidth = 6
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round;
         final s = discRadius * 0.55;
         final alpha = ((checkProgress - 0.5) / 0.5).clamp(0.0, 1.0);
-        // Translate the two check segments relative to the disc
-        // center so they form a tick.
         final p1 = center + Offset(-s * 0.55, s * 0.05);
         final p2 = center + Offset(-s * 0.15, s * 0.55);
         final p3 = center + Offset(s * 0.7, -s * 0.45);
@@ -275,10 +294,6 @@ class _RingPainter extends CustomPainter {
     }
   }
 
-  /// Draws one segment of the check mark, fading in as `alpha`
-  /// moves from 0 → 1. Splits the segment into a sub-segment so
-  /// the visible portion grows from the start point rather than
-  /// appearing all at once.
   void _drawCheckSegment(
     Canvas canvas,
     Paint paint,
@@ -297,91 +312,95 @@ class _RingPainter extends CustomPainter {
       old.progress != progress || old.checkProgress != checkProgress;
 }
 
-/// Two side-by-side stat pills: "X min" and "🔥 N days" (with a
-/// flame icon instead of an emoji, per the handoff).
-class _StatPills extends StatelessWidget {
+/// Three glassy stat tiles: focused minutes, streak, tasks done.
+class _StatsRow extends StatelessWidget {
   final int minutesStudied;
   final int streakDays;
+  final int tasksCompleted;
 
-  const _StatPills({
+  const _StatsRow({
     required this.minutesStudied,
     required this.streakDays,
+    required this.tasksCompleted,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _Pill(
-          icon: LucideIcons.timer,
-          label: 'Studied',
-          value: _formatMinutes(minutesStudied),
-          tint: AppColors.grass,
+        Expanded(
+          child: _GlassStat(
+            value: _formatMinutes(minutesStudied),
+            caption: 'focused',
+          ),
         ),
         const SizedBox(width: 12),
-        _Pill(
-          icon: LucideIcons.flame,
-          label: 'Streak',
-          value: streakDays == 1
-              ? '1 day'
-              : '$streakDays days',
-          tint: AppColors.warnDot,
+        Expanded(
+          child: _GlassStat(
+            value: '$streakDays',
+            caption: 'day streak',
+            leadingIcon: LucideIcons.flame,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _GlassStat(
+            value: '$tasksCompleted',
+            caption: tasksCompleted == 1 ? 'task done' : 'tasks done',
+          ),
         ),
       ],
     );
   }
 
   static String _formatMinutes(int minutes) {
-    if (minutes < 60) return '$minutes min';
+    if (minutes < 60) return '${minutes}m';
     final h = minutes ~/ 60;
     final m = minutes % 60;
-    if (m == 0) return '${h}h';
-    return '${h}h ${m}m';
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
   }
 }
 
-class _Pill extends StatelessWidget {
-  final IconData icon;
-  final String label;
+class _GlassStat extends StatelessWidget {
   final String value;
-  final Color tint;
+  final String caption;
+  final IconData? leadingIcon;
 
-  const _Pill({
-    required this.icon,
-    required this.label,
+  const _GlassStat({
     required this.value,
-    required this.tint,
+    required this.caption,
+    this.leadingIcon,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadius.kidCard),
-        border: Border.all(color: AppColors.kidLine),
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
         children: [
-          Icon(icon, size: 18, color: tint),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                label,
-                style: AppText.bodySecondary(size: 11),
-              ),
-              const SizedBox(height: 2),
+              if (leadingIcon != null) ...[
+                Icon(leadingIcon, size: 18, color: Colors.white),
+                const SizedBox(width: 4),
+              ],
               Text(
                 value,
-                style: AppText.cardHeader(size: 15),
+                style: AppText.statValue(size: 24, color: Colors.white),
               ),
             ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            caption,
+            textAlign: TextAlign.center,
+            style: AppText.caption(color: Colors.white.withValues(alpha: 0.85)),
           ),
         ],
       ),
@@ -389,11 +408,9 @@ class _Pill extends StatelessWidget {
   }
 }
 
-/// Cheap procedural confetti: 18 paper-thin colored shards that
-/// drift down from the top with random rotation. Uses a fixed
-/// seed so the kid sees the same pattern every launch (the seed
-/// is mixed with the animation progress, not a re-roll each
-/// frame).
+/// Cheap procedural confetti: 18 paper-thin shards drifting down from
+/// the top with random rotation. Uses a fixed seed so the pattern is
+/// stable (the seed is mixed with animation progress, not re-rolled).
 class _ConfettiPainter extends CustomPainter {
   final double progress;
 
@@ -401,11 +418,11 @@ class _ConfettiPainter extends CustomPainter {
 
   static const _count = 18;
   static const _palette = <Color>[
-    AppColors.grass,
-    AppColors.warnDot,
+    Colors.white,
+    AppColors.amber,
     AppColors.gold,
-    AppColors.forest,
-    AppColors.sage,
+    AppColors.greenTint,
+    AppColors.amberTint,
   ];
 
   @override
@@ -413,13 +430,11 @@ class _ConfettiPainter extends CustomPainter {
     if (progress <= 0) return;
     final rng = Random(7);
     for (var i = 0; i < _count; i++) {
-      // Each shard starts at a slightly different x with its own
-      // fall speed + rotation rate so the shower feels organic
-      // rather than lockstep.
       final startX = rng.nextDouble() * size.width;
       final speed = 0.6 + rng.nextDouble() * 0.8;
       final wobble = (rng.nextDouble() - 0.5) * 40;
-      final y = (progress * speed * size.height) -
+      final y =
+          (progress * speed * size.height) -
           20 +
           sin(progress * pi * 2 + i) * 12;
       final x = startX + wobble * progress;

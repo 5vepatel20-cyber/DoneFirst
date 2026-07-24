@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/empty_state.dart';
+import '../widgets/df_kit.dart';
 import '../models/models.dart';
 
 class NotificationCenterScreen extends StatefulWidget {
@@ -17,6 +17,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   final _notificationService = NotificationService();
   List<AppNotification> _notifications = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -25,12 +26,28 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   }
 
   Future<void> _load() async {
-    final notifications = await _notificationService.getNotifications();
-    if (mounted) {
-      setState(() {
-        _notifications = notifications;
-        _loading = false;
-      });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final notifications = await _notificationService.getNotifications();
+      if (mounted) {
+        setState(() {
+          _notifications = notifications;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      // Without this catch a transient Supabase hiccup would leave the
+      // spinner running forever — same shape as the other rebuilt
+      // screens' _load guards.
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = '$e';
+        });
+      }
     }
   }
 
@@ -102,15 +119,48 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       // honest about what actually persisted.
       if (original != null) {
         setState(() {
-          _notifications.insert(
-            i.clamp(0, _notifications.length),
-            original,
-          );
+          _notifications.insert(i.clamp(0, _notifications.length), original);
         });
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Couldn’t delete notification: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
+  }
+
+  Future<void> _clearAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear all notifications?'),
+        content: const Text(
+          'This removes every notification in this list. It can\'t be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _notificationService.clearAll();
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Couldn’t clear notifications: $e'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -135,121 +185,274 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   Color _colorForType(String type) {
     switch (type) {
       case 'proof_submitted':
-        return AppColors.info;
+        return AppColors.infoFg;
       case 'break_requested':
-        return AppColors.accent;
+        return AppColors.amber;
       case 'break_granted':
-        return AppColors.success;
+        return AppColors.green;
       case 'session_complete':
-        return AppColors.success;
+        return AppColors.green;
       default:
-        return AppColors.primary;
+        return AppColors.green;
     }
+  }
+
+  /// "Today" / "Earlier" grouping — mirrors the Activity mock's
+  /// day-based sectioning so the list doesn't read as one flat wall.
+  String _groupLabel(DateTime d) {
+    final now = DateTime.now();
+    final isToday =
+        d.year == now.year && d.month == now.month && d.day == now.day;
+    return isToday ? 'Today' : 'Earlier';
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasUnread = _notifications.any((n) => !n.read);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
-          if (_notifications.any((n) => !n.read))
+          if (_notifications.isNotEmpty)
+            IconButton(
+              icon: const Icon(LucideIcons.trash2, size: 20),
+              tooltip: 'Clear all',
+              onPressed: _clearAll,
+            ),
+          if (hasUnread)
             TextButton(
               onPressed: _markAllRead,
               child: const Text('Mark all read'),
             ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _notifications.isEmpty
-          ? RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 120),
-                  EmptyState(
-                    icon: LucideIcons.bellOff,
-                    title: 'No notifications',
-                    subtitle: 'Activity appears here',
+      body: RefreshIndicator(onRefresh: _load, child: _buildBody()),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) return _buildLoading();
+    if (_error != null) return _buildError(_error!);
+    if (_notifications.isEmpty) return _buildEmpty();
+    return _buildList();
+  }
+
+  Widget _buildLoading() {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.screenPadding),
+      children: List.generate(
+        5,
+        (i) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: DfCard(
+            color: AppColors.border2,
+            borderColor: AppColors.border2,
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.borderCol,
+                    borderRadius: BorderRadius.circular(AppRadius.iconTile),
                   ),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _notifications.length,
-                itemBuilder: (ctx, i) {
-                  final n = _notifications[i];
-                  final type = n.type;
-                  final isRead = n.read;
-                  return Dismissible(
-                    key: Key(n.id),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.danger,
-                        borderRadius: BorderRadius.circular(12),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 12,
+                        width: 140,
+                        color: AppColors.borderCol,
                       ),
-                      child: const Icon(LucideIcons.trash2, color: Colors.white),
-                    ),
-                    onDismissed: (_) => _delete(n.id),
-                    child: Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    color: isRead ? null : AppColors.primary.withValues(alpha:0.03),
-                    child: ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: _colorForType(type).withValues(alpha:0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          _iconForType(type),
-                          color: _colorForType(type),
-                          size: 20,
-                        ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 10,
+                        width: 90,
+                        color: AppColors.borderCol,
                       ),
-                      title: Text(
-                        n.title,
-                        style: TextStyle(
-                          fontWeight: isRead
-                              ? FontWeight.normal
-                              : FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      subtitle: n.body != null
-                          ? Text(
-                              n.body!,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                              ),
-                            )
-                          : null,
-                      trailing: isRead
-                          ? null
-                          : Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                      onTap: () => _markRead(n.id),
-                    ),
+                    ],
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildError(String message) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.screenPadding),
+      children: [
+        const SizedBox(height: 60),
+        DfCard(
+          child: Column(
+            children: [
+              const Icon(
+                LucideIcons.wifiOff,
+                color: AppColors.dangerFg,
+                size: 28,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Couldn\'t load notifications',
+                style: AppText.cardHeader(size: 16),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: AppText.body(size: 13),
+              ),
+              const SizedBox(height: 16),
+              DfButton.outline(
+                'Try again',
+                icon: LucideIcons.refreshCw,
+                onPressed: _load,
+                expand: false,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmpty() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 100),
+        DfEmptyState(
+          icon: LucideIcons.bellOff,
+          title: 'No notifications yet',
+          hint: 'Proofs, breaks and session updates will show up here.',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildList() {
+    // Group by day while preserving the service's most-recent-first
+    // order within each group.
+    final groups = <String, List<AppNotification>>{};
+    for (final n in _notifications) {
+      groups.putIfAbsent(_groupLabel(n.createdAt), () => []).add(n);
+    }
+    final order = ['Today', 'Earlier']..retainWhere(groups.containsKey);
+
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.screenPadding),
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        for (final label in order) ...[
+          DfSectionLabel(label),
+          ...groups[label]!.map(
+            (n) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _NotificationRow(
+                notification: n,
+                icon: _iconForType(n.type),
+                color: _colorForType(n.type),
+                onTap: () => _markRead(n.id),
+                onDismiss: () => _delete(n.id),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
+      ],
+    );
+  }
+}
+
+class _NotificationRow extends StatelessWidget {
+  final AppNotification notification;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final VoidCallback onDismiss;
+
+  const _NotificationRow({
+    required this.notification,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isRead = notification.read;
+    return Dismissible(
+      key: Key(notification.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        decoration: BoxDecoration(
+          color: AppColors.dangerFg,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
+        child: const Icon(LucideIcons.trash2, color: Colors.white),
+      ),
+      onDismissed: (_) => onDismiss(),
+      child: DfCard(
+        onTap: onTap,
+        color: isRead ? AppColors.card : AppColors.greenTint,
+        borderColor: isRead
+            ? AppColors.borderCol
+            : AppColors.green.withValues(alpha: 0.35),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(AppRadius.iconTile),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    notification.title,
+                    style: AppText.listTitle(size: 14).copyWith(
+                      fontWeight: isRead ? FontWeight.w500 : FontWeight.w800,
+                    ),
+                  ),
+                  if (notification.body != null) ...[
+                    const SizedBox(height: 3),
+                    Text(notification.body!, style: AppText.caption()),
+                  ],
+                ],
+              ),
+            ),
+            if (!isRead) ...[
+              const SizedBox(width: 8),
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(top: 4),
+                decoration: const BoxDecoration(
+                  color: AppColors.green,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

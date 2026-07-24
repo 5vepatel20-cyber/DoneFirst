@@ -9,6 +9,7 @@ import '../services/notification_service.dart';
 import '../services/kid_device_service.dart';
 import '../services/streak_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 import '../widgets/session_timer.dart';
 import '../widgets/break_timer.dart';
 import '../widgets/proof_thumbnail.dart';
@@ -77,6 +78,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   bool _paused = false;
   bool _activeBreakTimer = false;
   String? _activeBreakId;
+
   /// Guards the auto-lift path so a slow refresh tick (every 10s)
   /// can't call [_unlock] twice. Without this, a kid device that
   /// takes a couple of ticks to register the session-end would see
@@ -159,46 +161,51 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
 
   Widget _buildBlockingStatusBanner() {
     final status = _blockingService.status;
-    final Color background;
+    final DfPillTone tone;
     final IconData icon;
     final String text;
     switch (status) {
       case BlockingStatus.permissionDenied:
-        background = AppColors.danger.withValues(alpha: 0.1);
+        tone = DfPillTone.danger;
         icon = LucideIcons.ban;
         text =
-            'App blocking is off. Grant the permission in Settings to enforce the lock.';
+            'App pausing is off. Grant the permission in Settings to enforce the lock.';
         break;
       case BlockingStatus.permissionGranted:
-        background = AppColors.success.withValues(alpha: 0.08);
+        tone = DfPillTone.success;
         icon = LucideIcons.shieldCheck;
-        text = 'App blocking ready. Tap Start Lock to begin.';
+        text = 'App pausing ready.';
         break;
       case BlockingStatus.blockingActive:
-        background = AppColors.success.withValues(alpha: 0.12);
+        tone = DfPillTone.success;
         icon = LucideIcons.lock;
-        text = 'Apps are being blocked. Homework time.';
+        text = 'Apps are paused. Homework time.';
         break;
       case BlockingStatus.blockingFailed:
       case BlockingStatus.blockingError:
-        background = AppColors.danger.withValues(alpha: 0.1);
+        tone = DfPillTone.danger;
         icon = LucideIcons.alertCircle;
         text =
-            'Blocking failed: ${_blockingService.lastError ?? 'unknown error'}';
+            'Pausing failed: ${_blockingService.lastError ?? 'unknown error'}';
         break;
       default:
         return const SizedBox.shrink();
     }
-    return Card(
-      color: background,
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
+    final c = switch (tone) {
+      DfPillTone.danger => (AppColors.dangerFg, AppColors.dangerBg),
+      _ => (AppColors.green, AppColors.greenTint),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DfCard(
+        color: c.$2,
+        borderColor: c.$1.withValues(alpha: 0.3),
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Icon(icon, size: 20),
-            const SizedBox(width: 8),
-            Expanded(child: Text(text)),
+            Icon(icon, size: 18, color: c.$1),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text, style: AppText.bodySecondary(size: 13))),
           ],
         ),
       ),
@@ -212,37 +219,37 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   /// "Revoked" or "Never" = red — the lock won't be enforced on
   /// the kid's device until they re-pair.
   Widget _buildKidDeviceChip(KidDevice device) {
-    final (dotColor, label) = switch (device.status) {
-      'online' => (AppColors.ok, 'Kid device online'),
-      'recent' => (AppColors.warn, 'Kid device idle'),
-      'stale' => (AppColors.muted, 'Kid device offline'),
-      'revoked' => (AppColors.danger, 'Kid device revoked'),
-      _ => (AppColors.danger, 'Kid device not connected'),
+    final (tone, label) = switch (device.status) {
+      'online' => (DfPillTone.success, 'Online'),
+      'recent' => (DfPillTone.attention, 'Idle'),
+      'stale' => (DfPillTone.neutral, 'Offline'),
+      'revoked' => (DfPillTone.danger, 'Revoked'),
+      _ => (DfPillTone.danger, 'Not connected'),
     };
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DfCard(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: dotColor,
-              ),
+            const Icon(
+              LucideIcons.smartphone,
+              size: 18,
+              color: AppColors.ink45,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '$label • ${device.deviceName ?? device.childDisplayName ?? 'Device'}',
-                style: AppText.body(size: 13),
+                device.deviceName ?? device.childDisplayName ?? 'Kid device',
+                style: AppText.listTitle(size: 14),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            DfStatusPill(label, tone: tone, dot: true),
+            const SizedBox(width: 8),
             Text(
               device.lastSeenLabel(DateTime.now()),
-              style: AppText.bodySecondary(size: 12),
+              style: AppText.caption(),
             ),
           ],
         ),
@@ -259,48 +266,32 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
   /// when they didn't realise a kid device was needed until the
   /// lock was already running.
   Widget _buildNoKidDeviceBanner() {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      color: AppColors.warnFill,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        side: const BorderSide(color: AppColors.warnBd, width: 0.5),
-      ),
-      child: Padding(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DfCard(
+        color: AppColors.amberTint,
+        borderColor: AppColors.amberTint2,
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.warn,
-              ),
+            const Icon(
+              LucideIcons.triangleAlert,
+              size: 18,
+              color: AppColors.amberDeep,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'No kid device paired — the lock won\'t be '
                 'enforced on the kid\'s phone.',
-                style: AppText.body(size: 13, color: AppColors.ink),
+                style: AppText.bodySecondary(size: 13),
               ),
             ),
-            TextButton(
+            const SizedBox(width: 8),
+            DfButton.outline(
+              'Pair now',
+              expand: false,
               onPressed: _openPairing,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.ink,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text(
-                'Pair now',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
             ),
           ],
         ),
@@ -516,9 +507,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _paused
-                ? 'Couldn’t resume lock: $e'
-                : 'Couldn’t pause lock: $e',
+            _paused ? 'Couldn’t resume lock: $e' : 'Couldn’t pause lock: $e',
           ),
           backgroundColor: AppColors.danger,
         ),
@@ -540,10 +529,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
           'Lock auto-lifted',
           '${widget.childName}\'s lock auto-lifted at the safety limit',
         ),
-        _ => (
-          'Session complete',
-          '${widget.childName} finished homework',
-        ),
+        _ => ('Session complete', '${widget.childName} finished homework'),
       };
       await _notificationService.insertNotification(
         parentId: _session!.parentId,
@@ -939,13 +925,13 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
         final remainingLabel = remaining == null
             ? null
             : pastEnd
-                ? 'past the planned end'
-                : '${_formatMinutes(remaining.inMinutes)} left';
+            ? 'past the planned end'
+            : '${_formatMinutes(remaining.inMinutes)} left';
         final warningText = remainingLabel == null
             ? null
             : 'The lock has ${pastEnd ? "already ended" : remainingLabel} — '
-                'wrapping up now still credits the kid with the time they spent. '
-                'Use “Cancel session” instead if you want to discard it.';
+                  'wrapping up now still credits the kid with the time they spent. '
+                  'Use “Cancel session” instead if you want to discard it.';
 
         final confirmed = await DestructiveConfirmDialog.show(
           context,
@@ -978,9 +964,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
               onPressed: _unlock,
               icon: const Icon(LucideIcons.unlock, size: 16),
               label: const Text('Unlock'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.danger,
-              ),
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             ),
           ],
         ),
@@ -988,226 +972,198 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
-                onRefresh: _loadAll,
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    _buildBlockingStatusBanner(),
-                    if (_kidDevice != null) _buildKidDeviceChip(_kidDevice!),
-                    if (_kidDevice == null) _buildNoKidDeviceBanner(),
-                    if (_session != null)
-                      SessionTimer(
-                        sessionStart: _session!.startedAt,
-                        durationMinutes: _session!.minLockMinutes,
-                        minUnlockMinutes: _session!.minLockMinutes,
-                        autoLiftMinutes: _session!.maxLiftMinutes,
-                        paused: _paused,
-                      ),
-                    const SizedBox(height: 8),
-                    if (_kidDeviceChecked)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _togglePause,
-                              icon: Icon(
-                                _paused
+                  onRefresh: _loadAll,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      _buildBlockingStatusBanner(),
+                      if (_kidDevice != null) _buildKidDeviceChip(_kidDevice!),
+                      if (_kidDevice == null) _buildNoKidDeviceBanner(),
+                      if (_session != null) ...[
+                        Row(
+                          children: [
+                            DfStatusPill(
+                              _paused ? 'Paused' : 'Live',
+                              tone: _paused
+                                  ? DfPillTone.attention
+                                  : DfPillTone.success,
+                              dot: true,
+                            ),
+                            const Spacer(),
+                            Text(
+                              '${_tasks.where((t) => !t.isPending).length} of '
+                              '${_tasks.length} tasks done',
+                              style: AppText.bodySecondary(size: 13),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        SessionTimer(
+                          sessionStart: _session!.startedAt,
+                          durationMinutes: _session!.minLockMinutes,
+                          minUnlockMinutes: _session!.minLockMinutes,
+                          autoLiftMinutes: _session!.maxLiftMinutes,
+                          paused: _paused,
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      if (_kidDeviceChecked)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DfButton.outline(
+                                _paused ? 'Resume' : 'Pause',
+                                icon: _paused
                                     ? LucideIcons.play
                                     : LucideIcons.pause,
+                                onPressed: _togglePause,
                               ),
-                              label: Text(_paused ? 'Resume' : 'Pause'),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _extendSession,
-                              icon: const Icon(LucideIcons.timer, size: 16),
-                              label: const Text('Extend'),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: DfButton.outline(
+                                '+15 min',
+                                icon: LucideIcons.timer,
+                                onPressed: _extendSession,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    if (_activeBreakTimer) ...[
-                      const SizedBox(height: 12),
-                      BreakTimer(
-                        onComplete: () async {
-                          // Capture the id BEFORE clearing it; we need
-                          // it for the end-of-break write below.
-                          final id = _activeBreakId;
-                          // Capture the messenger now so the catch
-                          // block below can show a snackbar without
-                          // tripping use_build_context_synchronously
-                          // (we'd otherwise be using `context` after
-                          // three awaits inside the try).
-                          final messenger =
-                              ScaffoldMessenger.of(context);
-                          setState(() {
-                            _activeBreakTimer = false;
-                            _activeBreakId = null;
-                          });
-                          try {
-                            // Persist the end-of-break so the kid app's
-                            // realtime listener flips out of onBreak
-                            // and re-engages the lock.
-                            if (id != null) {
-                              await _breakService.endBreak(id);
-                            }
-                            await _applyLockState(active: true);
-                            await _loadAll();
-                          } catch (e) {
-                            // Without this catch, a network blip on
-                            // endBreak would leave the BreakTimer UI
-                            // cleared but the kid-side lock still
-                            // paused — the parent would think the
-                            // break ended cleanly. Surface it so
-                            // they know to retry from the dashboard.
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Break ended but didn’t sync: $e. '
-                                  'Tap Refresh on the dashboard.',
+                          ],
+                        ),
+                      if (_activeBreakTimer) ...[
+                        const SizedBox(height: 12),
+                        BreakTimer(
+                          onComplete: () async {
+                            // Capture the id BEFORE clearing it; we need
+                            // it for the end-of-break write below.
+                            final id = _activeBreakId;
+                            // Capture the messenger now so the catch
+                            // block below can show a snackbar without
+                            // tripping use_build_context_synchronously
+                            // (we'd otherwise be using `context` after
+                            // three awaits inside the try).
+                            final messenger = ScaffoldMessenger.of(context);
+                            setState(() {
+                              _activeBreakTimer = false;
+                              _activeBreakId = null;
+                            });
+                            try {
+                              // Persist the end-of-break so the kid app's
+                              // realtime listener flips out of onBreak
+                              // and re-engages the lock.
+                              if (id != null) {
+                                await _breakService.endBreak(id);
+                              }
+                              await _applyLockState(active: true);
+                              await _loadAll();
+                            } catch (e) {
+                              // Without this catch, a network blip on
+                              // endBreak would leave the BreakTimer UI
+                              // cleared but the kid-side lock still
+                              // paused — the parent would think the
+                              // break ended cleanly. Surface it so
+                              // they know to retry from the dashboard.
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Break ended but didn’t sync: $e. '
+                                    'Tap Refresh on the dashboard.',
+                                  ),
+                                  backgroundColor: AppColors.danger,
                                 ),
-                                backgroundColor: AppColors.danger,
-                              ),
-                            );
-                          }
-                        },
-                        onCancel: () async {
-                          final id = _activeBreakId;
-                          final messenger =
-                              ScaffoldMessenger.of(context);
-                          setState(() {
-                            _activeBreakTimer = false;
-                            _activeBreakId = null;
-                          });
-                          try {
-                            // Distinguish parent-cancelled from timer-
-                            // completed in the data-export report.
-                            if (id != null) {
-                              await _breakService.cancelBreak(id);
+                              );
                             }
-                            await _applyLockState(active: true);
-                            await _loadAll();
-                          } catch (e) {
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Break cancelled but didn’t sync: $e. '
-                                  'Tap Refresh on the dashboard.',
+                          },
+                          onCancel: () async {
+                            final id = _activeBreakId;
+                            final messenger = ScaffoldMessenger.of(context);
+                            setState(() {
+                              _activeBreakTimer = false;
+                              _activeBreakId = null;
+                            });
+                            try {
+                              // Distinguish parent-cancelled from timer-
+                              // completed in the data-export report.
+                              if (id != null) {
+                                await _breakService.cancelBreak(id);
+                              }
+                              await _applyLockState(active: true);
+                              await _loadAll();
+                            } catch (e) {
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Break cancelled but didn’t sync: $e. '
+                                    'Tap Refresh on the dashboard.',
+                                  ),
+                                  backgroundColor: AppColors.danger,
                                 ),
-                                backgroundColor: AppColors.danger,
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ],
-                    // ── Homework Tasks ──────────────────────────────
-                    if (_tasks.isNotEmpty || true) ...[
-                      const SizedBox(height: 12),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                      // ── Homework Tasks ──────────────────────────────
+                      ...[
+                        const SizedBox(height: 12),
+                        DfCard(
+                          padding: const EdgeInsets.all(16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  const Icon(
-                                    LucideIcons.listChecks,
-                                    size: 16,
-                                    color: AppColors.forest,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Homework tasks',
-                                    style: AppText.cardHeader(
-                                      color: AppColors.forest,
-                                      size: 14,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    '${_tasks.where((t) => !t.isPending).length}/${_tasks.length}',
-                                    style: AppText.bodySecondary(size: 12),
-                                  ),
-                                ],
-                              ),
-                              if (_tasks.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                ...(_tasks.map(
+                              const DfSectionLabel('Tasks'),
+                              if (_tasks.isNotEmpty)
+                                ..._tasks.map(
                                   (t) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 6),
+                                    padding: const EdgeInsets.only(bottom: 10),
                                     child: Row(
                                       children: [
-                                        Icon(
-                                          t.isPending
-                                              ? LucideIcons.circle
-                                              : LucideIcons.checkCircle2,
-                                          size: 16,
-                                          color: t.isPending
-                                              ? AppColors.muted
-                                              : AppColors.success,
-                                        ),
-                                        const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
                                             t.description,
-                                            style: AppText.body(size: 13),
+                                            style: AppText.listTitle(size: 14),
                                           ),
                                         ),
-                                        if (t.isPending)
+                                        const SizedBox(width: 8),
+                                        _taskPill(t),
+                                        if (t.isPending) ...[
+                                          const SizedBox(width: 8),
                                           GestureDetector(
                                             onTap: () => _deleteTask(t.id),
                                             child: const Icon(
                                               LucideIcons.trash2,
-                                              size: 14,
-                                              color: AppColors.muted,
+                                              size: 15,
+                                              color: AppColors.ink45,
                                             ),
                                           ),
+                                        ],
                                       ],
                                     ),
                                   ),
-                                )),
-                              ] else
+                                )
+                              else
                                 Padding(
-                                  padding: const EdgeInsets.only(top: 8),
+                                  padding: const EdgeInsets.only(bottom: 4),
                                   child: Text(
                                     'No tasks yet. Add tasks for your kid.',
-                                    style: AppText.bodySecondary(size: 12),
+                                    style: AppText.bodySecondary(size: 13),
                                   ),
                                 ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: _showAddTaskDialog,
-                                  icon: const Icon(LucideIcons.plus, size: 16),
-                                  label: const Text('Add task'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.forest,
-                                    side: const BorderSide(
-                                      color: AppColors.hair2,
-                                    ),
-                                  ),
-                                ),
+                              const SizedBox(height: 4),
+                              DfButton.outline(
+                                'Add task',
+                                icon: LucideIcons.plus,
+                                onPressed: _showAddTaskDialog,
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ],
-                    if (_breakRequests.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Card(
-                        color: AppColors.warnFill,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.card),
-                          side: const BorderSide(color: AppColors.warnBd),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
+                      ],
+                      if (_breakRequests.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        DfCard(
+                          color: AppColors.amberTint,
+                          borderColor: AppColors.amberTint2,
+                          padding: const EdgeInsets.all(16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1216,163 +1172,160 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                                   const Icon(
                                     LucideIcons.coffee,
                                     size: 16,
-                                    color: AppColors.warn,
+                                    color: AppColors.amberDeep,
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 8),
                                   Text(
                                     'Break request',
                                     style: AppText.cardHeader(
-                                      color: AppColors.warn,
-                                      size: 14,
+                                      color: AppColors.amberDeep,
+                                      size: 15,
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              ...(_breakRequests.map(
-                                (br) => Row(
-                                  children: [
-                                    const Expanded(
-                                      child: Text(
-                                        'Child wants a 5 minute break',
+                              const SizedBox(height: 10),
+                              ..._breakRequests.map(
+                                (br) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Wants a 5 minute break',
+                                          style: AppText.body(size: 14),
+                                        ),
                                       ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          _handleBreak(br.id, 'approved'),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: AppColors.ok,
+                                      const SizedBox(width: 8),
+                                      DfButton(
+                                        'Allow',
+                                        expand: false,
+                                        onPressed: () =>
+                                            _handleBreak(br.id, 'approved'),
                                       ),
-                                      child: const Text('Allow'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          _handleBreak(br.id, 'rejected'),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: AppColors.danger,
+                                      const SizedBox(width: 8),
+                                      DfButton.outline(
+                                        'Deny',
+                                        expand: false,
+                                        onPressed: () =>
+                                            _handleBreak(br.id, 'rejected'),
                                       ),
-                                      child: const Text('Deny'),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              )),
+                              ),
                             ],
                           ),
                         ),
-                      ),
-                    ],
-                    if (_proofs.any((p) => p.isPending)) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
+                      ],
+                      if (_proofs.any((p) => p.isPending)) ...[
+                        const SizedBox(height: 12),
+                        DfButton(
                           // Goes through the with-note dialog so the
                           // parent can attach an optional
                           // encouragement ("Great work!", "Nice
                           // handwriting") to every approved proof.
                           // Skip-the-note is one tap — just hit
                           // "Approve All" in the dialog.
+                          'Approve all (${_proofs.where((p) => p.isPending).length})',
+                          icon: LucideIcons.checkCheck,
                           onPressed: _batchApproveAllWithNote,
-                          icon: const Icon(LucideIcons.checkCheck, size: 18),
-                          label: const Text('Approve all'),
                         ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    if (_proofs.isEmpty)
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
+                      ],
+                      const SizedBox(height: 12),
+                      if (_proofs.isEmpty)
+                        DfCard(
+                          padding: const EdgeInsets.symmetric(vertical: 28),
                           child: Column(
                             children: [
-                              const Icon(
-                                LucideIcons.hourglass,
-                                size: 48,
-                                color: AppColors.muted,
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: AppColors.greenTint,
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.tile,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  LucideIcons.hourglass,
+                                  size: 26,
+                                  color: AppColors.green,
+                                ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 14),
                               Text(
-                                'Waiting for proof submissions…',
-                                style: AppText.listTitle(),
+                                'Waiting for proof…',
+                                style: AppText.cardHeader(size: 17),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'Auto-refreshes every 10s',
-                                style: AppText.bodySecondary(size: 12),
+                                style: AppText.bodySecondary(size: 13),
                               ),
                             ],
                           ),
-                        ),
-                      )
-                    else
-                      ...(_proofs.map((proof) => _buildProofCard(proof))),
-                  ],
+                        )
+                      else
+                        ...(_proofs.map((proof) => _buildProofCard(proof))),
+                    ],
+                  ),
                 ),
-              ),
+        ),
       ),
-    ),
     );
+  }
+
+  /// Status pill for a task row: To do / Checking… / Approved / Rejected.
+  Widget _taskPill(HomeworkTask t) {
+    final (label, tone) = switch (t.status) {
+      'approved' => ('Approved', DfPillTone.success),
+      'submitted' => ('Checking…', DfPillTone.info),
+      'rejected' => ('Try again', DfPillTone.danger),
+      _ => ('To do', DfPillTone.neutral),
+    };
+    return DfStatusPill(label, tone: tone);
   }
 
   Widget _buildProofCard(ProofSubmission proof) {
     final taskDesc = proof.taskDescription ?? 'Task';
     final aiDecision = proof.aiDecision ?? 'pending';
-    final parentDecision = proof.parentDecision;
+    final confidence = proof.aiConfidence;
 
-    final aiColor = aiDecision == 'approved'
-        ? AppColors.success
-        : aiDecision == 'rejected'
-        ? AppColors.danger
-        : AppColors.accent;
-    final parentColor = proof.isApproved
-        ? AppColors.success
+    // AI verdict line, mock: "Looks like real homework · AI confidence · 96%".
+    final (verdict, _) = switch (aiDecision) {
+      'approved' => ('Looks like real homework', DfPillTone.success),
+      'rejected' => ('Needs another look', DfPillTone.danger),
+      'needs_review' => ('Worth a closer look', DfPillTone.attention),
+      _ => ('Checking the photo…', DfPillTone.info),
+    };
+    final parentTone = proof.isApproved
+        ? DfPillTone.success
         : proof.isRejected
-        ? AppColors.danger
-        : AppColors.textSecondary;
+        ? DfPillTone.danger
+        : DfPillTone.neutral;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DfCard(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    taskDesc,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-                if (!proof.isPending)
-                  Icon(
-                    proof.isApproved
-                        ? LucideIcons.checkCircle2
-                        : LucideIcons.xCircle,
-                    color: parentColor,
-                  )
+                if (proof.isPending)
+                  DfStatusPill('Just submitted', tone: DfPillTone.info)
                 else
-                  const Icon(
-                    LucideIcons.hourglass,
-                    size: 18,
-                    color: AppColors.muted,
+                  DfStatusPill(
+                    proof.isApproved ? 'Approved' : 'Rejected',
+                    tone: parentTone,
                   ),
               ],
             ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              children: [
-                _badge('AI: $aiDecision', aiColor),
-                _badge('Parent: $parentDecision', parentColor),
-              ],
-            ),
+            const SizedBox(height: 10),
             if (proof.imageUrl.isNotEmpty) ...[
-              const SizedBox(height: 8),
               GestureDetector(
                 onTap: () => Navigator.push(
                   context,
@@ -1384,21 +1337,62 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                     ),
                   ),
                 ),
-                child: ProofThumbnail(
-                  url: proof.imageUrl,
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.tile),
+                  child: ProofThumbnail(
+                    url: proof.imageUrl,
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    borderRadius: BorderRadius.circular(AppRadius.tile),
+                  ),
                 ),
               ),
+              const SizedBox(height: 12),
+            ],
+            Text(taskDesc, style: AppText.cardHeader(size: 17)),
+            const SizedBox(height: 8),
+            // AI verdict + confidence panel (info tone).
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.infoBg,
+                borderRadius: BorderRadius.circular(AppRadius.tile),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    LucideIcons.sparkles,
+                    size: 16,
+                    color: AppColors.infoFg,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      confidence != null
+                          ? '$verdict · AI confidence · '
+                                '${(confidence * 100).round()}%'
+                          : verdict,
+                      style: AppText.bodySecondary(
+                        size: 13,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (proof.aiReason != null && proof.aiReason!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(proof.aiReason!, style: AppText.bodySecondary(size: 12.5)),
             ],
             if (proof.parentNote != null && proof.parentNote!.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.greenTint,
+                  borderRadius: BorderRadius.circular(AppRadius.tile),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1406,16 +1400,13 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                     const Icon(
                       LucideIcons.messageSquare,
                       size: 14,
-                      color: AppColors.primary,
+                      color: AppColors.green,
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         proof.parentNote!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textPrimary,
-                        ),
+                        style: AppText.bodySecondary(size: 12.5),
                       ),
                     ),
                   ],
@@ -1423,27 +1414,22 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
               ),
             ],
             if (proof.isPending) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 14),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: () => _promptDecision(proof.id, 'rejected'),
-                    icon: const Icon(
-                      LucideIcons.x,
-                      size: 18,
-                      color: AppColors.danger,
-                    ),
-                    label: const Text(
-                      'Reject',
-                      style: TextStyle(color: AppColors.danger),
+                  Expanded(
+                    child: DfButton(
+                      'Approve',
+                      icon: LucideIcons.check,
+                      onPressed: () => _promptDecision(proof.id, 'approved'),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: () => _promptDecision(proof.id, 'approved'),
-                    icon: const Icon(LucideIcons.check, size: 18),
-                    label: const Text('Approve'),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DfButton.outline(
+                      'Ask again',
+                      onPressed: () => _promptDecision(proof.id, 'rejected'),
+                    ),
                   ),
                 ],
               ),
@@ -1451,17 +1437,6 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _badge(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12)),
     );
   }
 }

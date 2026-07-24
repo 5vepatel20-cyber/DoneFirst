@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand_logo.dart';
 
-/// Splash + entry-point. Full-bleed forest background, centered logo
-/// tile, wordmark, tagline, three-dot loader near the bottom. The
-/// loader is a light pulse against the dark scaffold so it reads
-/// clearly without competing with the logo.
+/// Splash + entry-point. Full-bleed celebratory green gradient (the same
+/// radial used on the kid "unlocked" moment), centered brand mark,
+/// wordmark, tagline, and a small pulsing loader near the bottom.
 ///
 /// Used by `EntryPoint` in `main.dart` while auth state is being
 /// resolved. The auth check itself still runs in `EntryPoint` —
@@ -17,51 +15,54 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Hardcoded scaffold so we don't depend on the AppTheme paper
-    // background — the splash is always the dark forest color
-    // regardless of light/dark mode.
+    // Hardcoded scaffold + gradient so the splash always reads as the
+    // green celebratory brand moment regardless of light/dark mode.
     return Scaffold(
-      backgroundColor: AppColors.forestHover,
-      body: Stack(
-        children: [
-          // Center column: logo, wordmark, tagline
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const BrandLogo.splash(),
-                const SizedBox(height: 22),
-                Text(
-                  'DoneFirst',
-                  style: GoogleFonts.bricolageGrotesque(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.7,
-                    color: const Color(0xFFF4F7F2),
+      backgroundColor: AppColors.kidGradBottom,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -0.2),
+            radius: 1.1,
+            colors: [AppColors.kidGradTop, AppColors.kidGradBottom],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Center column: logo, wordmark, tagline
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const BrandLogo.splash(),
+                  const SizedBox(height: 22),
+                  Text(
+                    'DoneFirst',
+                    style: AppText.display(size: 34, color: Colors.white),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Homework first. Apps after.',
-                  style: GoogleFonts.hankenGrotesk(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF9FC3AC),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Do the work. Earn the rest.',
+                    style: AppText.body(
+                      size: 14,
+                      w: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.82),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          // Bottom-pinned 3-dot loader. Each dot pulses on its own
-          // 1.2s cycle, offset by 200ms, so the motion feels
-          // orchestrated rather than random.
-          const Positioned(
-            left: 0,
-            right: 0,
-            bottom: 56,
-            child: Center(child: _ThreeDotLoader()),
-          ),
-        ],
+            // Bottom-pinned 3-dot loader. Each dot pulses on its own
+            // 1.2s cycle, offset by 200ms, so the motion feels
+            // orchestrated rather than random.
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 56,
+              child: Center(child: _ThreeDotLoader()),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -123,7 +124,7 @@ class _ThreeDotLoaderState extends State<_ThreeDotLoader>
                 width: 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFC9E4D5).withValues(alpha: opacity),
+                  color: Colors.white.withValues(alpha: opacity),
                   shape: BoxShape.circle,
                 ),
               ),

@@ -4,7 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../app_globals.dart' as app;
 import '../services/kid_device_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/empty_state.dart';
+import '../widgets/df_kit.dart';
 
 /// Full-screen activity log for kid-device events: pairings,
 /// claims, cancellations, revokes. Reachable from the dashboard's
@@ -81,50 +81,55 @@ class _KidDeviceActivityScreenState extends State<KidDeviceActivityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Activity'),
-      ),
+      backgroundColor: AppColors.paper,
+      appBar: AppBar(title: const Text('Activity')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const _LoadingList()
             : _error
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 120),
-                      EmptyState(
-                        icon: LucideIcons.alertCircle,
-                        title: 'Could not load activity',
-                        subtitle: 'Pull down to try again',
-                      ),
-                    ],
-                  )
-                : _events.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: const [
-                          SizedBox(height: 120),
-                          EmptyState(
-                            icon: LucideIcons.history,
-                            title: 'No activity yet',
-                            subtitle:
-                                'Pairings, claims, and revokes show up '
-                                'here once you start using kid devices.',
-                          ),
-                        ],
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        itemCount: _events.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, i) {
-                          return _ActivityRow(event: _events[i]);
-                        },
-                      ),
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 80),
+                  DfEmptyState(
+                    icon: LucideIcons.alertCircle,
+                    title: 'Couldn’t load activity',
+                    hint:
+                        'Something went wrong. Pull down or tap '
+                        'to try again.',
+                    ctaLabel: 'Try again',
+                    onCta: _load,
+                  ),
+                ],
+              )
+            : _events.isEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  SizedBox(height: 80),
+                  DfEmptyState(
+                    icon: LucideIcons.history,
+                    title: 'No activity yet',
+                    hint:
+                        'Pairings, claims, and revokes show up '
+                        'here once you start using kid devices.',
+                  ),
+                ],
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenPadding,
+                  14,
+                  AppSpacing.screenPadding,
+                  32,
+                ),
+                itemCount: _events.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (ctx, i) {
+                  return _ActivityRow(event: _events[i]);
+                },
+              ),
       ),
     );
   }
@@ -143,50 +148,66 @@ class _ActivityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final (icon, color) = switch (event.eventType) {
       KidDeviceEvent.typeCodeGenerated => (
-          LucideIcons.plusCircle,
-          AppColors.warn
-        ),
-      KidDeviceEvent.typeCodeClaimed => (LucideIcons.link, AppColors.ok),
-      KidDeviceEvent.typeCodeCancelled => (
-          LucideIcons.xCircle,
-          AppColors.muted
-        ),
-      KidDeviceEvent.typeDeviceRevoked => (
-          LucideIcons.shieldOff,
-          AppColors.danger
-        ),
-      _ => (LucideIcons.circle, AppColors.faint),
-    };
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.hair2),
+        LucideIcons.keyRound,
+        AppColors.green,
       ),
+      KidDeviceEvent.typeCodeClaimed => (LucideIcons.link, AppColors.green),
+      KidDeviceEvent.typeCodeCancelled => (LucideIcons.x, AppColors.ink45),
+      KidDeviceEvent.typeDeviceRevoked => (
+        LucideIcons.shieldOff,
+        AppColors.dangerFg,
+      ),
+      _ => (LucideIcons.circle, AppColors.ink45),
+    };
+    return DfCard(
+      padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppRadius.iconTile),
+              borderRadius: BorderRadius.circular(AppRadius.small),
             ),
-            child: Icon(icon, size: 14, color: color),
+            child: Icon(icon, size: 16, color: color),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               event.label(),
-              style: AppText.body(size: 13),
+              style: AppText.body(size: 14, color: AppColors.ink),
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            event.ageLabel(DateTime.now()),
-            style: AppText.bodySecondary(size: 12),
-          ),
+          const SizedBox(width: 10),
+          Text(event.ageLabel(DateTime.now()), style: AppText.label(size: 11)),
         ],
+      ),
+    );
+  }
+}
+
+/// Skeleton placeholder rows shown during the first load.
+class _LoadingList extends StatelessWidget {
+  const _LoadingList();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenPadding,
+        14,
+        AppSpacing.screenPadding,
+        32,
+      ),
+      itemCount: 6,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (_, _) => Container(
+        height: 58,
+        decoration: BoxDecoration(
+          color: AppColors.border2,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
       ),
     );
   }

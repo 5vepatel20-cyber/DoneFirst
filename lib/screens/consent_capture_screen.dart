@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/consent_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 import 'parent_dashboard.dart';
 
 /// Captures the COPPA / GDPR-K parental-consent disclosures for a
@@ -139,75 +140,94 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.paper,
       appBar: AppBar(title: const Text('One last step')),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AppSpacing.screenPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Welcome, ${widget.displayName}',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppColors.greenTint,
+                      borderRadius: BorderRadius.circular(AppRadius.iconTile),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      LucideIcons.shieldCheck,
+                      color: AppColors.green,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'Welcome, ${widget.displayName}',
+                      style: AppText.title(size: 21),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              const Text(
+              const SizedBox(height: 14),
+              Text(
                 'Before we add your kids, we need your consent to '
                 'collect their homework data and run AI proof '
                 'verification. This is required by COPPA / GDPR-K.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                  height: 1.4,
-                ),
+                style: AppText.body(),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
               _buildConsentCard(),
               const SizedBox(height: 16),
               if (_error != null)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.danger.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppColors.dangerBg,
+                    borderRadius: BorderRadius.circular(AppRadius.small),
                     border: Border.all(
-                      color: AppColors.danger.withValues(alpha: 0.3),
+                      color: AppColors.dangerFg.withValues(alpha: 0.3),
                     ),
                   ),
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: AppColors.danger),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        LucideIcons.alertCircle,
+                        color: AppColors.dangerFg,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: AppText.body(color: AppColors.dangerFg),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: !_ready || _submitting ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(_ready
-                          ? 'I consent — continue'
-                          : (_readinessError() ?? 'Continue')),
-                ),
+              if (_error != null) const SizedBox(height: 16),
+              DfButton(
+                _ready
+                    ? 'I consent — continue'
+                    : (_readinessError() ?? 'Continue'),
+                onPressed: !_ready || _submitting ? null : _submit,
+                loading: _submitting,
+                icon: _ready ? LucideIcons.check : null,
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
+              const SizedBox(height: 10),
+              Center(
                 child: TextButton(
                   onPressed: _submitting ? null : _decline,
-                  child: const Text(
+                  child: Text(
                     'Decline — sign out',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: AppText.body(color: AppColors.ink45),
                   ),
                 ),
               ),
@@ -220,36 +240,25 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
 
   Widget _buildConsentCard() {
     final allChecked = _allRequiredAcks;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: allChecked
-              ? AppColors.success.withValues(alpha: 0.5)
-              : AppColors.textSecondary.withValues(alpha: 0.2),
-        ),
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return DfCard(
+      padding: EdgeInsets.zero,
+      borderColor: allChecked ? AppColors.green.withValues(alpha: 0.5) : null,
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
             child: Row(
               children: [
                 Icon(
                   allChecked ? LucideIcons.badgeCheck : LucideIcons.scale,
-                  color: allChecked
-                      ? AppColors.success
-                      : AppColors.textSecondary,
+                  color: allChecked ? AppColors.green : AppColors.ink45,
                   size: 20,
                 ),
-                const SizedBox(width: 8),
-                const Expanded(
+                const SizedBox(width: 10),
+                Expanded(
                   child: Text(
                     'Parental Consent (required)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                    style: AppText.cardHeader(size: 15),
                   ),
                 ),
               ],
@@ -257,7 +266,10 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
           ),
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.cardPadding,
+              vertical: 6,
+            ),
             child: Column(
               children: [
                 _ackTile(
@@ -285,15 +297,13 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
                       : (v) => setState(() => _ackChildData = v ?? false),
                   title:
                       'I consent to DoneFirst storing photos of my child\'s homework and basic profile info.',
-                  subtitle:
-                      'Photos are stored privately and never shared.',
+                  subtitle: 'Photos are stored privately and never shared.',
                 ),
                 _ackTile(
                   value: _ackAiVerification,
                   onChanged: _submitting
                       ? null
-                      : (v) =>
-                          setState(() => _ackAiVerification = v ?? false),
+                      : (v) => setState(() => _ackAiVerification = v ?? false),
                   title:
                       'I consent to AI proof verification (Mistral) reviewing my child\'s submitted photos.',
                   subtitle:
@@ -303,9 +313,8 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
                   value: _ackOptionalAnalytics,
                   onChanged: _submitting
                       ? null
-                      : (v) => setState(
-                            () => _ackOptionalAnalytics = v ?? false,
-                          ),
+                      : (v) =>
+                            setState(() => _ackOptionalAnalytics = v ?? false),
                   title:
                       '(Optional) Share anonymous usage stats so we can improve DoneFirst.',
                   subtitle:
@@ -316,43 +325,41 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
           ),
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.cardPadding,
+              10,
+              AppSpacing.cardPadding,
+              14,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Type your full legal name as your signature:',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: AppText.body(size: 13, w: FontWeight.w700),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 TextField(
                   controller: _signatureController,
                   decoration: InputDecoration(
                     isDense: true,
                     hintText: 'e.g. Jane Patel',
-                    border: const OutlineInputBorder(),
                     suffixIcon: _signatureValid
                         ? const Icon(
                             LucideIcons.check,
-                            color: AppColors.success,
+                            color: AppColors.green,
                             size: 18,
                           )
                         : null,
                   ),
-                  style: const TextStyle(fontSize: 13),
+                  style: AppText.body(size: 14),
                   onChanged: (_) => setState(() {}),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
                   'Policy ${ConsentService.currentPolicyVersion}. '
                   'You can view the full policy in Settings after signing up.',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
-                  ),
+                  style: AppText.caption(),
                 ),
               ],
             ),
@@ -368,17 +375,36 @@ class _ConsentCaptureScreenState extends State<ConsentCaptureScreen> {
     required String title,
     required String subtitle,
   }) {
-    return CheckboxListTile(
-      value: value,
-      onChanged: onChanged,
-      title: Text(title, style: const TextStyle(fontSize: 12)),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(fontSize: 10),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Checkbox(
+            value: value,
+            onChanged: onChanged,
+            activeColor: AppColors.green,
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppText.body(size: 13, w: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: AppText.caption()),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-      controlAffinity: ListTileControlAffinity.leading,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      dense: true,
     );
   }
 }

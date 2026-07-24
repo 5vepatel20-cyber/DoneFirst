@@ -35,9 +35,9 @@ void main() {
 
   group('KidDeviceActivityScreen', () {
     testWidgets('renders the Activity appbar title', (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: KidDeviceActivityScreen(),
-      ));
+      await tester.pumpWidget(
+        const MaterialApp(home: KidDeviceActivityScreen()),
+      );
       // Pump once for the initial frame, then settle for the
       // async load to complete (it'll fail and the empty-state
       // body will mount).
@@ -46,29 +46,31 @@ void main() {
       expect(find.text('Activity'), findsOneWidget);
     });
 
-    testWidgets('shows the error empty state when the fetch fails',
-        (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: KidDeviceActivityScreen(),
-      ));
+    testWidgets('shows the error empty state when the fetch fails', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: KidDeviceActivityScreen()),
+      );
       await tester.pumpAndSettle();
 
       // The error empty state has a distinct title so the parent
       // can tell "we tried" from "no events yet".
-      expect(find.text('Could not load activity'), findsOneWidget);
-      expect(find.textContaining('Pull down to try again'), findsOneWidget);
+      expect(find.text('Couldn’t load activity'), findsOneWidget);
+      expect(find.textContaining('Pull down'), findsOneWidget);
     });
 
-    testWidgets('wires onNewKidDeviceEvent on mount, restores on dispose',
-        (tester) async {
+    testWidgets('wires onNewKidDeviceEvent on mount, restores on dispose', (
+      tester,
+    ) async {
       void prior(Map<String, dynamic> _) {}
       app.realtimeService.onNewKidDeviceEvent = prior;
       final priorRef = app.realtimeService.onNewKidDeviceEvent;
       expect(priorRef, isNotNull);
 
-      await tester.pumpWidget(const MaterialApp(
-        home: KidDeviceActivityScreen(),
-      ));
+      await tester.pumpWidget(
+        const MaterialApp(home: KidDeviceActivityScreen()),
+      );
 
       // The screen installed its own handler; the prior one is
       // chained inside the screen, not on the service.

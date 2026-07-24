@@ -1,20 +1,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/pin_attempt_tracker.dart';
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 import '../widgets/forgot_pin_flow.dart';
 
 /// Gates a screen behind a 4-digit parent PIN. After 5 wrong
-/// attempts the gate locks for 30 seconds (see PinAttemptTracker).
+/// attempts the gate pauses for 30 seconds (see PinAttemptTracker).
 ///
 /// Layout follows the handoff:
-///   - Back arrow + centered key icon tile (sageFill)
-///   - "Enter parent PIN" 27px Bricolage
-///   - 4 dot indicators (filled forest as the parent types)
+///   - Back arrow + centered key icon tile (greenTint)
+///   - "Enter parent PIN" Bricolage display line
+///   - 4 dot indicators (filled green as the parent types)
 ///   - Custom numeric keypad (1–9, blank, 0, backspace) — each key
-///     is a white rounded tile with a Bricolage digit + tiny letter
+///     is a warm rounded tile with a Bricolage digit + tiny letter
 ///     subtitle (abc, def, …) matching the iOS numeric pad
 ///   - Forgot PIN? link below the keypad
 ///
@@ -176,48 +176,36 @@ class _PinScreenState extends State<PinScreen> {
           child: Column(
             children: [
               const Spacer(flex: 1),
-              // Key icon tile — sageFill background per handoff.
+              // Key icon tile — greenTint fill per handoff.
               Container(
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: AppColors.sageFill,
+                  color: AppColors.greenTint,
                   borderRadius: BorderRadius.circular(AppRadius.iconTile),
                 ),
                 alignment: Alignment.center,
                 child: const Icon(
                   LucideIcons.key,
                   size: 28,
-                  color: AppColors.forest,
+                  color: AppColors.green,
                 ),
               ),
               const SizedBox(height: 20),
-              Text(
-                'Enter parent PIN',
-                style: GoogleFonts.bricolageGrotesque(
-                  fontSize: 27,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
-                  color: AppColors.ink,
-                ),
-              ),
+              Text('Enter parent PIN', style: AppText.title(size: 27)),
               const SizedBox(height: 6),
               Text(
                 'Required to manage parent settings',
                 style: AppText.bodySecondary(),
               ),
               const SizedBox(height: 28),
-              // 4 dot indicators. Filled = entered; current = sage;
-              // empty = faint.
+              // 4 dot indicators. Filled = entered; empty = faint.
               _PinDots(entered: _entered.length, error: _error),
               const SizedBox(height: 12),
-              // Inline error message — appears below the dots, not
+              // Inline status line — appears below the dots, not
               // blocking the keypad so the parent can keep typing.
-              SizedBox(
-                height: 18,
-                child: _buildStatusLine(),
-              ),
-              const SizedBox(height: 16),
+              SizedBox(height: 30, child: Center(child: _buildStatusLine())),
+              const SizedBox(height: 12),
               _NumPad(
                 onDigit: _onDigit,
                 onBackspace: _onBackspace,
@@ -228,7 +216,7 @@ class _PinScreenState extends State<PinScreen> {
                 onPressed: _lockedOut ? null : _forgotPin,
                 child: Text(
                   'Forgot PIN?',
-                  style: AppText.body(color: AppColors.forest),
+                  style: AppText.body(color: AppColors.green),
                 ),
               ),
               const Spacer(flex: 1),
@@ -240,24 +228,28 @@ class _PinScreenState extends State<PinScreen> {
   }
 
   Widget _buildStatusLine() {
+    // Voice: "earned, not punished" — the lockout reads as a brief
+    // pause, never as being blocked or denied.
     if (_lockedOut) {
-      return Text(
-        'Locked — try again in ${_lockoutSeconds}s',
-        style: AppText.bodySecondary(color: AppColors.danger, size: 12),
+      return DfStatusPill(
+        'Paused — try again in ${_lockoutSeconds}s',
+        tone: DfPillTone.attention,
+        icon: LucideIcons.clock,
       );
     }
     if (_error) {
-      return Text(
+      return DfStatusPill(
         'Incorrect PIN. Try again.',
-        style: AppText.bodySecondary(color: AppColors.danger, size: 12),
+        tone: DfPillTone.danger,
+        icon: LucideIcons.alertCircle,
       );
     }
     return const SizedBox.shrink();
   }
 }
 
-/// 4 dot indicators. Filled forest when typed; current dot shows
-/// sage to suggest the next tap. Error state shakes the row briefly.
+/// 4 dot indicators. Filled green when typed; error state shakes the
+/// row briefly.
 class _PinDots extends StatefulWidget {
   final int entered;
   final bool error;
@@ -299,9 +291,10 @@ class _PinDotsState extends State<_PinDots>
         // Three quick back-and-forths in 320ms.
         final dx = _shake.value == 0
             ? 0.0
-            : (4 * (1 - _shake.value) *
-                    (((_shake.value * 12).floor() % 2) == 0 ? 1 : -1))
-                .toDouble();
+            : (4 *
+                      (1 - _shake.value) *
+                      (((_shake.value * 12).floor() % 2) == 0 ? 1 : -1))
+                  .toDouble();
         return Transform.translate(offset: Offset(dx, 0), child: child);
       },
       child: Row(
@@ -313,9 +306,9 @@ class _PinDotsState extends State<_PinDots>
             height: 14,
             margin: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color: filled ? AppColors.forest : Colors.transparent,
+              color: filled ? AppColors.green : Colors.transparent,
               border: Border.all(
-                color: filled ? AppColors.forest : AppColors.faint,
+                color: filled ? AppColors.green : AppColors.inkFaint,
                 width: 1.5,
               ),
               shape: BoxShape.circle,
@@ -333,10 +326,10 @@ class _PinDotsState extends State<_PinDots>
 ///   7  8  9
 ///   _  0  ⌫
 ///
-/// Each digit key shows the number in Bricolage w700 with a tiny
-/// letter subtitle (abc, def, …) under it — matches the iOS-style
-/// phone keypad and gives the parent muscle-memory cues for
-/// typing without looking.
+/// Each digit key is a soft warm tile (DfCard-style border + shadow)
+/// showing the number in Bricolage w700 with a tiny letter subtitle
+/// (abc, def, …) — matches the iOS-style phone keypad and gives the
+/// parent muscle-memory cues for typing without looking.
 class _NumPad extends StatelessWidget {
   final ValueChanged<String> onDigit;
   final VoidCallback onBackspace;
@@ -398,22 +391,11 @@ class _NumPad extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      d,
-                      style: GoogleFonts.bricolageGrotesque(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        height: 1.0,
-                        color: AppColors.ink,
-                      ),
-                    ),
+                    Text(d, style: AppText.cardHeader(size: 26)),
                     if (_subtitles[d]!.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          _subtitles[d]!,
-                          style: AppText.eyebrow(),
-                        ),
+                        child: Text(_subtitles[d]!, style: AppText.eyebrow()),
                       ),
                   ],
                 ),
@@ -438,15 +420,21 @@ class _PadButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(4),
       child: Material(
-        color: disabled ? AppColors.disabled : AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadius.button),
+        color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadius.button),
-          child: SizedBox(
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+          child: Container(
             width: 72,
             height: 72,
-            child: Center(child: child),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: disabled ? AppColors.disabled : AppColors.card,
+              borderRadius: BorderRadius.circular(AppRadius.tile),
+              border: Border.all(color: AppColors.borderCol, width: 1),
+              boxShadow: disabled ? null : AppShadows.raised,
+            ),
+            child: child,
           ),
         ),
       ),

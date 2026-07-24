@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/models.dart';
 import '../services/session_service.dart';
@@ -9,6 +8,7 @@ import '../services/break_service.dart';
 import '../services/notification_service.dart';
 import '../services/streak_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 import '../widgets/ring_timer.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/milestone_celebration.dart';
@@ -108,7 +108,8 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
             _proofs = sessionResults[1] as List<ProofSubmission>;
             // True only if there's a pending request. Approved/denied
             // /no request → re-enable the button.
-            _breakRequested = sessionResults[2] != null &&
+            _breakRequested =
+                sessionResults[2] != null &&
                 (sessionResults[2] as BreakRequest).status == 'pending';
           });
         }
@@ -117,7 +118,9 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
         // Snapshot the values we need before clearing _activeSession
         // below — the new full-screen route captures them at push
         // time and the screen never re-reads from the kid home.
-        final completedTasks = _tasks.where((t) => t.isSubmitted || t.isApproved).length;
+        final completedTasks = _tasks
+            .where((t) => t.isSubmitted || t.isApproved)
+            .length;
         final completedStreak = newStreak;
         // The session row's minLockMinutes is the minimum the parent
         // committed to; the kid's actual elapsed time would be more
@@ -231,32 +234,46 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
     }
   }
 
-  int get _tasksRemaining => _tasks.where((t) => t.isPending || t.isRejected).length;
-  int get _tasksSubmitted => _tasks.where((t) => t.isSubmitted || t.isApproved).length;
+  int get _tasksRemaining =>
+      _tasks.where((t) => t.isPending || t.isRejected).length;
+  int get _tasksSubmitted =>
+      _tasks.where((t) => t.isSubmitted || t.isApproved).length;
   bool get _allDone => _tasks.isNotEmpty && _tasksRemaining == 0;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.kidBg,
-      appBar: AppBar(
-        backgroundColor: AppColors.kidBg,
-        foregroundColor: AppColors.kidInk,
-        title: const SizedBox.shrink(),
-      ),
+      backgroundColor: AppColors.paper,
       body: Stack(
         children: [
-          _loading
-              ? const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: ShimmerCard(lines: 4),
-                )
-              : _activeSession == null
-              ? _buildIdleState()
-              : RefreshIndicator(
-                  onRefresh: _checkActive,
-                  child: _buildActiveState(context),
-                ),
+          SafeArea(
+            bottom: false,
+            child: _loading
+                ? const Padding(
+                    padding: EdgeInsets.all(AppSpacing.screenPadding),
+                    child: Column(
+                      children: [
+                        SizedBox(height: 8),
+                        ShimmerCard(lines: 2),
+                        SizedBox(height: 14),
+                        ShimmerCard(lines: 3),
+                        SizedBox(height: 14),
+                        ShimmerCard(lines: 4),
+                      ],
+                    ),
+                  )
+                : _activeSession == null
+                ? RefreshIndicator(
+                    onRefresh: _checkActive,
+                    color: AppColors.green,
+                    child: _buildIdleState(),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _checkActive,
+                    color: AppColors.green,
+                    child: _buildActiveState(context),
+                  ),
+          ),
           if (_currentMilestone != null)
             MilestoneCelebration(
               milestone: _currentMilestone!,
@@ -268,60 +285,131 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
           // subscription reports an ended session. See _checkActive.
         ],
       ),
+      bottomNavigationBar: _buildTabBar(),
     );
   }
 
-  /// "No homework lock right now" empty state. Big grass-toned
-  /// check disc + two-line greeting. Kid-flavored, low-pressure.
+  // ── Kid "Today" free-time state ──────────────────────────────────
+  // Warm world, not a lockscreen jail. Apps are open; the greeting
+  // celebrates the free time and the streak keeps momentum visible.
   Widget _buildIdleState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: AppColors.grass.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              LucideIcons.checkCircle2,
-              size: 60,
-              color: AppColors.grass,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'No homework lock right now',
-            style: AppText.screenTitle(color: AppColors.kidInk),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Enjoy your apps!',
-            style: AppText.bodySecondary(),
-          ),
-          const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: _checkActive,
-            icon: const Icon(LucideIcons.refreshCw, size: 16),
-            label: const Text('Refresh'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.kidInk,
-              side: const BorderSide(color: AppColors.kidLine),
-            ),
-          ),
-        ],
+    return ListView(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screenPadding,
+        vertical: 12,
       ),
+      children: [
+        _buildGreeting(
+          eyebrow: 'KID · TODAY',
+          greeting: 'Hi, ${widget.childName}',
+        ),
+        const SizedBox(height: 20),
+        // "No session running / Apps open" hero — celebratory green.
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: AppColors.greenTint,
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            border: Border.all(color: const Color(0xFFB6D7BE)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.green,
+                      borderRadius: BorderRadius.circular(AppRadius.iconTile),
+                    ),
+                    child: const Icon(
+                      LucideIcons.checkCircle2,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'No session running',
+                          style: AppText.cardHeader(color: AppColors.greenDeep),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Apps open',
+                          style: AppText.bodySecondary(color: AppColors.green),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Enjoy your free time',
+                style: AppText.title(size: 20, color: AppColors.ink),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Your homework’s done for now. We’ll let you know when the '
+                'next focus session starts.',
+                style: AppText.body(size: 14),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Streak keeps momentum visible even in free time.
+        if (_streak > 0)
+          DfCard(
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.amberTint,
+                    borderRadius: BorderRadius.circular(AppRadius.iconTile),
+                  ),
+                  child: const Icon(
+                    LucideIcons.flame,
+                    color: AppColors.amber,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('$_streak-day streak', style: AppText.cardHeader()),
+                      Text(
+                        _streakGraceUsed
+                            ? 'A grace day is keeping it alive — nice save!'
+                            : 'Keep it going. Finish today’s work to add a day.',
+                        style: AppText.bodySecondary(),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
-  /// Active-session layout: greeting block, big ring timer, task
-  /// cards, footer actions. Mirrors the handoff's kid home where
-  /// the ring dominates the screen and tasks live in a single
-  /// card underneath.
+  /// Active-session "Focus time" layout: greeting, streak, big
+  /// countdown, reassurance, and today's work list. Warm palette —
+  /// this is earning freedom, never a punishment screen.
   Widget _buildActiveState(BuildContext context) {
-    // Compute progress inline so the kid-side ring ticks every
-    // second without a full data refresh.
+    // Compute progress inline so the countdown ticks every second
+    // without a full data refresh.
     final session = _activeSession!;
     final total = Duration(minutes: session.minLockMinutes);
     final elapsed = _now.difference(session.startedAt);
@@ -329,9 +417,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
         ? (elapsed.inSeconds / total.inSeconds).clamp(0.0, 1.0)
         : 0.0;
     final remaining = total - elapsed;
-    final clampedRemaining = remaining.isNegative
-        ? Duration.zero
-        : remaining;
+    final clampedRemaining = remaining.isNegative ? Duration.zero : remaining;
     final remainingStr = clampedRemaining.inHours > 0
         ? '${clampedRemaining.inHours}h ${clampedRemaining.inMinutes.remainder(60)}m'
         : '${clampedRemaining.inMinutes.remainder(60)}:${clampedRemaining.inSeconds.remainder(60).toString().padLeft(2, '0')}';
@@ -339,187 +425,140 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.screenPadding,
-        vertical: 8,
+        vertical: 12,
       ),
       children: [
-        // Greeting + streak chip
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'FOCUS TIME',
-                  style: AppText.eyebrow(color: AppColors.kidInk),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Hey, ${widget.childName}',
-                  style: GoogleFonts.bricolageGrotesque(
-                    fontSize: 27,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.5,
-                    color: AppColors.kidInk,
-                  ),
-                ),
-              ],
-            ),
-            if (_streak > 0) _buildStreakChip(),
-          ],
+        _buildGreeting(
+          eyebrow: 'FOCUS TIME',
+          greeting: 'Hey ${widget.childName}',
         ),
-        const SizedBox(height: 24),
-        // Big ring timer — kid variant (196px, grass progress, kid
-        // track). Center digits are the remaining time; below the
-        // ring is a small "until apps unlock" caption.
-        Center(
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              RingTimer.kid(
-                progress: progress,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      remainingStr,
-                      style: GoogleFonts.bricolageGrotesque(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.8,
-                        height: 1.0,
-                        color: AppColors.kidInk,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (session.isPaused)
-                      Text(
-                        'PAUSED',
-                        style: AppText.eyebrow(color: AppColors.warn),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Center(
-          child: Text(
-            'until apps unlock',
-            style: AppText.bodySecondary(),
-          ),
-        ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
+        // Countdown hero.
+        _buildTimerHero(progress, remainingStr, session.isPaused),
+        const SizedBox(height: 20),
         // Tasks card
         _buildTasksCard(context),
-        if (_allDone) ...[
-          const SizedBox(height: 12),
-          _buildAllDoneCard(),
-        ],
-        if (_proofs.any((p) =>
-            p.parentNote != null && p.parentNote!.isNotEmpty)) ...[
+        if (_allDone) ...[const SizedBox(height: 12), _buildAllDoneCard()],
+        if (_proofs.any(
+          (p) => p.parentNote != null && p.parentNote!.isNotEmpty,
+        )) ...[
           const SizedBox(height: 12),
           _buildFeedbackCard(),
         ],
         const SizedBox(height: 16),
-        // Footer actions: Add task (outline) + Break (ghost).
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TaskEntryScreen(
-                      sessionId: session.id,
-                      childName: widget.childName,
-                    ),
-                  ),
-                ).then((_) => _checkActive()),
-                icon: const Icon(LucideIcons.plus, size: 16),
-                label: const Text('Add task'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.kidInk,
-                  side: const BorderSide(color: AppColors.kidLine),
-                  backgroundColor: AppColors.card,
-                  minimumSize: const Size.fromHeight(44),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _breakRequested ? null : _requestBreak,
-                icon: const Icon(LucideIcons.coffee, size: 16),
-                label: Text(
-                  _breakRequested ? 'Requested' : 'Ask for a Break',
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.kidInk,
-                  backgroundColor: AppColors.sageFill,
-                  side: BorderSide.none,
-                  minimumSize: const Size.fromHeight(44),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
+        // Ask-for-a-break stays available but understated.
         Center(
           child: TextButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => KidHistoryScreen(
-                  childId: widget.childId,
-                  childName: widget.childName,
-                ),
-              ),
+            onPressed: _breakRequested ? null : _requestBreak,
+            icon: const Icon(LucideIcons.coffee, size: 16),
+            label: Text(
+              _breakRequested ? 'Break requested' : 'Ask for a break',
             ),
-            icon: const Icon(LucideIcons.history, size: 16),
-            label: const Text('My history'),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.kidInk,
-            ),
+            style: TextButton.styleFrom(foregroundColor: AppColors.ink70),
           ),
         ),
       ],
     );
   }
 
-  /// Streak chip — grass pill with flame icon. Shows the running
-  /// streak; grace flag is surfaced as a small shield next to it
-  /// so the kid (and parent) knows grace is helping.
+  /// Greeting block — mono eyebrow, big Bricolage hello, streak chip.
+  Widget _buildGreeting({required String eyebrow, required String greeting}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(eyebrow, style: AppText.eyebrow(color: AppColors.ink45)),
+              const SizedBox(height: 6),
+              Text(greeting, style: AppText.display(size: 30)),
+            ],
+          ),
+        ),
+        if (_streak > 0) ...[const SizedBox(width: 12), _buildStreakChip()],
+      ],
+    );
+  }
+
+  /// The big "until apps unlock" countdown. A grass ring frames the
+  /// remaining time; the reassurance sits directly beneath.
+  Widget _buildTimerHero(double progress, String remainingStr, bool paused) {
+    return DfCard(
+      padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 20),
+      child: Column(
+        children: [
+          RingTimer.kid(
+            progress: progress,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  remainingStr,
+                  style: AppText.bigTimer(size: 44, color: AppColors.ink),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  paused ? 'PAUSED' : 'UNTIL APPS UNLOCK',
+                  style: AppText.eyebrow(
+                    color: paused ? AppColors.amber : AppColors.ink45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                LucideIcons.sparkles,
+                size: 15,
+                color: AppColors.green,
+              ),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  'Apps unlock the moment your work’s approved.',
+                  textAlign: TextAlign.center,
+                  style: AppText.body(size: 13.5, color: AppColors.ink70),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Streak chip — amber pill with flame icon. Grace flag surfaces as
+  /// a small shield so the kid knows grace is helping.
   Widget _buildStreakChip() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.warnFill,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.warnBd),
+        color: AppColors.amberTint,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: AppColors.amberTint2),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            LucideIcons.flame,
-            size: 16,
-            color: AppColors.warnDot,
-          ),
+          const Icon(LucideIcons.flame, size: 15, color: AppColors.amber),
           const SizedBox(width: 6),
           Text(
-            '$_streak day streak',
-            style: AppText.listTitle(color: AppColors.warn),
+            '$_streak-day streak',
+            style: AppText.caption(
+              color: AppColors.amberDeep,
+            ).copyWith(fontWeight: FontWeight.w700, fontSize: 12.5),
           ),
           if (_streakGraceUsed) ...[
             const SizedBox(width: 6),
             const Icon(
               LucideIcons.shield,
               size: 12,
-              color: AppColors.warn,
+              color: AppColors.amberDeep,
             ),
           ],
         ],
@@ -527,44 +566,40 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
     );
   }
 
-  /// Tasks card with kid-style rounded checkboxes. Pending = warm
-  /// amber outline (#E0C88A); submitted = grass fill with check.
-  /// Title strikes through when submitted.
+  /// "Today's work" card (`done`/`total`) with kid-style status rows
+  /// and an "Add proof" button.
   Widget _buildTasksCard(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadius.kidCard),
-        border: Border.all(color: AppColors.kidLine),
-      ),
+    return DfCard(
       padding: const EdgeInsets.all(AppSpacing.cardPaddingKid),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(
-                'Today\'s tasks',
-                style: AppText.cardHeader(color: AppColors.kidInk),
-              ),
+              Text('Today’s work', style: AppText.cardHeader()),
               const Spacer(),
-              Text(
-                '$_tasksSubmitted of ${_tasks.length} done',
-                style: AppText.bodySecondary(),
+              DfStatusPill(
+                '$_tasksSubmitted/${_tasks.length}',
+                tone: _allDone ? DfPillTone.success : DfPillTone.neutral,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           if (_tasks.isEmpty)
-            Text(
-              'Add what you need to finish today.',
-              style: AppText.bodySecondary(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                'Add what you need to finish today.',
+                style: AppText.bodySecondary(),
+              ),
             )
           else
             ...(_tasks.map(_buildTaskRow)),
           if (_tasks.isNotEmpty && !_allDone) ...[
             const SizedBox(height: 14),
-            FilledButton.icon(
+            DfButton(
+              'Add proof',
+              icon: LucideIcons.camera,
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -574,13 +609,6 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
                   ),
                 ),
               ).then((_) => _checkActive()),
-              icon: const Icon(LucideIcons.camera, size: 16),
-              label: const Text('Submit proof'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.grass,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(44),
-              ),
             ),
           ],
         ],
@@ -589,8 +617,41 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   }
 
   Widget _buildTaskRow(HomeworkTask t) {
-    final approved = t.status == 'submitted' || t.status == 'approved';
+    final approved = t.isApproved;
+    final submitted = t.isSubmitted;
     final rejected = t.isRejected;
+    final done = approved || submitted;
+
+    final String statusLabel = approved
+        ? 'Approved'
+        : submitted
+        ? 'Checking…'
+        : rejected
+        ? 'Try again'
+        : 'To do';
+
+    final Color boxFill = approved
+        ? AppColors.green
+        : submitted
+        ? AppColors.amber
+        : rejected
+        ? AppColors.dangerFg
+        : Colors.transparent;
+    final Color boxBorder = approved
+        ? AppColors.green
+        : submitted
+        ? AppColors.amber
+        : rejected
+        ? AppColors.dangerFg
+        : const Color(0xFFE0C88A);
+    final Widget? boxIcon = approved
+        ? const Icon(LucideIcons.check, size: 14, color: Colors.white)
+        : submitted
+        ? const Icon(LucideIcons.clock, size: 13, color: Colors.white)
+        : rejected
+        ? const Icon(LucideIcons.rotateCcw, size: 13, color: Colors.white)
+        : null;
+
     return Dismissible(
       key: Key(t.id),
       direction: DismissDirection.endToStart,
@@ -598,112 +659,74 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 16),
         decoration: BoxDecoration(
-          color: AppColors.danger,
-          borderRadius: BorderRadius.circular(AppRadius.iconTile),
+          color: AppColors.dangerBg,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
         ),
-        child: const Icon(LucideIcons.trash2, color: Colors.white, size: 18),
+        child: const Icon(
+          LucideIcons.trash2,
+          color: AppColors.dangerFg,
+          size: 18,
+        ),
       ),
       onDismissed: (_) => _deleteTask(t.id),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: approved
-                    ? AppColors.grass
-                    : rejected
-                        ? AppColors.danger
-                        : Colors.transparent,
-                border: Border.all(
-                  color: approved
-                      ? AppColors.grass
-                      : rejected
-                          ? AppColors.danger
-                          : const Color(0xFFE0C88A),
-                  width: 1.5,
-                ),
-                borderRadius: BorderRadius.circular(7),
+                color: boxFill,
+                border: Border.all(color: boxBorder, width: 1.6),
+                borderRadius: BorderRadius.circular(8),
               ),
               alignment: Alignment.center,
-              child: approved
-                  ? const Icon(
-                      LucideIcons.check,
-                      size: 14,
-                      color: Colors.white,
-                    )
-                  : rejected
-                      ? const Icon(
-                          LucideIcons.x,
-                          size: 14,
-                          color: Colors.white,
-                        )
-                      : null,
+              child: boxIcon,
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    t.description,
-                    style: AppText.body(
-                      color: AppColors.kidInk,
-                    ).copyWith(
-                      decoration: approved
-                          ? TextDecoration.lineThrough
-                          : TextDecoration.none,
-                      decorationColor: AppColors.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    approved
-                        ? 'Submitted'
-                        : rejected
-                            ? 'AI rejected — retake proof'
-                            : 'Ready to submit',
-                    style: AppText.bodySecondary(
-                      size: 11,
-                      color: rejected ? AppColors.danger : null,
-                    ),
-                  ),
-                ],
+              child: Text(
+                t.description,
+                style: AppText.listTitle().copyWith(
+                  decoration: approved ? TextDecoration.lineThrough : null,
+                  decorationColor: AppColors.ink45,
+                  color: approved ? AppColors.ink45 : AppColors.ink,
+                ),
               ),
             ),
-            if (!approved)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.grass,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: TextButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TaskEntryScreen(
-                        sessionId: _activeSession!.id,
-                        childName: widget.childName,
-                      ),
+            const SizedBox(width: 8),
+            if (done)
+              DfStatusPill(
+                statusLabel,
+                tone: approved ? DfPillTone.success : DfPillTone.attention,
+              )
+            else
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TaskEntryScreen(
+                      sessionId: _activeSession!.id,
+                      childName: widget.childName,
                     ),
-                  ).then((_) => _checkActive()),
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(0, 0),
-                    foregroundColor: Colors.white,
+                  ),
+                ).then((_) => _checkActive()),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.green,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
                   child: Text(
-                    'Proof',
-                    style: AppText.button(color: Colors.white).copyWith(
-                      fontSize: 12,
-                    ),
+                    rejected ? 'Retake' : 'Proof',
+                    style: AppText.caption(
+                      color: Colors.white,
+                    ).copyWith(fontWeight: FontWeight.w700, fontSize: 12),
                   ),
                 ),
               ),
@@ -716,8 +739,8 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
   Widget _buildAllDoneCard() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.okFill,
-        borderRadius: BorderRadius.circular(AppRadius.kidCard),
+        color: AppColors.greenTint,
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(color: const Color(0xFFB6D7BE)),
       ),
       padding: const EdgeInsets.all(AppSpacing.cardPaddingKid),
@@ -727,7 +750,7 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: AppColors.grass,
+              color: AppColors.green,
               borderRadius: BorderRadius.circular(AppRadius.iconTile),
             ),
             child: const Icon(
@@ -739,8 +762,9 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'All tasks submitted! Waiting for a parent to review.',
-              style: AppText.body(color: AppColors.ok),
+              'All done! Waiting for a parent to review — apps unlock the '
+              'moment it’s approved.',
+              style: AppText.body(size: 14, color: AppColors.greenDeep),
             ),
           ),
         ],
@@ -754,8 +778,8 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
     );
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.infoFill,
-        borderRadius: BorderRadius.circular(AppRadius.kidCard),
+        color: AppColors.infoBg,
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(color: const Color(0xFFC8D8E0)),
       ),
       padding: const EdgeInsets.all(AppSpacing.cardPaddingKid),
@@ -767,44 +791,116 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
               const Icon(
                 LucideIcons.messageSquare,
                 size: 16,
-                color: AppColors.info,
+                color: AppColors.infoFg,
               ),
               const SizedBox(width: 6),
               Text(
                 'Parent feedback',
-                style: AppText.cardHeader(
-                  color: AppColors.info,
-                  size: 14,
-                ),
+                style: AppText.cardHeader(color: AppColors.infoFg, size: 14),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          ...items.map((p) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      p.isApproved
-                          ? LucideIcons.checkCircle2
-                          : LucideIcons.info,
-                      size: 14,
-                      color: p.isApproved
-                          ? AppColors.ok
-                          : AppColors.warnDot,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        p.parentNote!,
-                        style: AppText.body(size: 12.5),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
+          ...items.map(
+            (p) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    p.isApproved ? LucideIcons.checkCircle2 : LucideIcons.info,
+                    size: 14,
+                    color: p.isApproved ? AppColors.green : AppColors.amber,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(p.parentNote!, style: AppText.body(size: 12.5)),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  /// Bottom tab bar — Today / Tasks / Progress / Me. Today is the
+  /// current screen; the other tabs push the existing kid routes
+  /// where the data to open them is available.
+  Widget _buildTabBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.card,
+        border: Border(top: BorderSide(color: AppColors.borderCol)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          child: Row(
+            children: [
+              _tabItem(LucideIcons.house, 'Today', active: true, onTap: null),
+              _tabItem(
+                LucideIcons.listChecks,
+                'Tasks',
+                onTap: _activeSession == null
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TaskEntryScreen(
+                            sessionId: _activeSession!.id,
+                            childName: widget.childName,
+                          ),
+                        ),
+                      ).then((_) => _checkActive()),
+              ),
+              _tabItem(
+                LucideIcons.trendingUp,
+                'Progress',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => KidHistoryScreen(
+                      childId: widget.childId,
+                      childName: widget.childName,
+                    ),
+                  ),
+                ),
+              ),
+              _tabItem(LucideIcons.user, 'Me', onTap: null),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tabItem(
+    IconData icon,
+    String label, {
+    bool active = false,
+    VoidCallback? onTap,
+  }) {
+    final color = active ? AppColors.green : AppColors.ink45;
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 22, color: color),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: AppText.caption(color: color).copyWith(
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

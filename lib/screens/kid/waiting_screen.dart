@@ -86,43 +86,66 @@ class _WaitingScreenState extends State<WaitingScreen> {
               ),
             Center(
               child: Padding(
-                padding: const EdgeInsets.all(28),
+                padding: const EdgeInsets.all(AppSpacing.screenPadding),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      width: 92,
+                      height: 92,
                       decoration: const BoxDecoration(
-                        color: AppColors.warnFill,
+                        color: AppColors.greenTint,
                         shape: BoxShape.circle,
                       ),
+                      alignment: Alignment.center,
                       child: const Icon(
-                        LucideIcons.wifi,
-                        size: 56,
-                        color: AppColors.warn,
+                        LucideIcons.leaf,
+                        size: 44,
+                        color: AppColors.green,
                       ),
                     ),
                     const SizedBox(height: 28),
                     Text(
-                      "Can't reach the parent app",
+                      'Hang tight',
                       textAlign: TextAlign.center,
-                      style: AppText.title(size: 24),
+                      style: AppText.title(size: 26),
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'WiFi or the DoneFirst service dropped for a '
-                      'moment. Lock is paused — check your WiFi '
-                      'and we\'ll reconnect automatically.',
+                      "Waiting for your next session to start — this "
+                      'screen updates the moment it does. If the WiFi '
+                      "dipped, we'll reconnect on our own.",
                       textAlign: TextAlign.center,
-                      style: AppText.bodySecondary(size: 15),
+                      style: AppText.body(size: 15),
                     ),
-                    const SizedBox(height: 32),
-                    const SizedBox(
-                      width: 36,
-                      height: 36,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        color: AppColors.grass,
+                    const SizedBox(height: 28),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        border: Border.all(color: AppColors.borderCol),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: AppColors.green,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Checking for updates…',
+                            style: AppText.bodySecondary(size: 13.5),
+                          ),
+                        ],
                       ),
                     ),
                   ],

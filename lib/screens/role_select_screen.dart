@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_theme.dart';
 import '../widgets/brand_logo.dart';
+import '../widgets/df_kit.dart';
 import 'kid/kid_root.dart';
 
 /// First-launch screen for unauthenticated users. Asks "are you a
@@ -26,60 +27,50 @@ class RoleSelectScreen extends StatelessWidget {
       backgroundColor: AppColors.paper,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenPadding,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 48),
-              const Center(
-                child: BrandLogo(
-                  size: 56,
-                  tileColor: AppColors.forest,
-                  glyphColor: AppColors.kidBg,
-                ),
-              ),
+              const SizedBox(height: 40),
+              const Center(child: BrandLogo.signIn()),
               const SizedBox(height: 24),
               Text(
-                'Who’s using this device?',
-                style: AppText.screenTitle(),
+                'Set up this device',
+                style: AppText.label(),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                'DoneFirst is one app. Pick how you’ll use it on '
-                'this phone.',
-                style: AppText.bodySecondary(size: 14),
+                "Who's going to use it?",
+                style: AppText.screenTitle(),
                 textAlign: TextAlign.center,
               ),
               const Spacer(),
               _RoleCard(
                 icon: LucideIcons.user,
-                title: 'I’m a parent',
-                subtitle: 'Set homework timers, see proofs, manage '
-                    'devices.',
-                color: AppColors.forest,
-                onTap: () => Navigator.of(context).pushReplacementNamed(
-                  '/auth',
-                ),
+                title: "I'm the parent",
+                subtitle: 'Manage kids, approve work, set rules',
+                onTap: () =>
+                    Navigator.of(context).pushReplacementNamed('/auth'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               _RoleCard(
                 icon: LucideIcons.smartphone,
-                title: 'I’m a kid',
-                subtitle: 'Type the 6-digit code your parent set up.',
-                color: AppColors.grass,
+                title: "This is my kid's device",
+                subtitle: 'Pair it with a parent, then hand it over',
                 onTap: () => Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (_) => const KidRoot(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const KidRoot()),
                 ),
               ),
               const Spacer(),
               Padding(
-                padding: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.only(bottom: 20),
                 child: Text(
-                  'You can sign out and switch any time.',
-                  style: AppText.bodySecondary(size: 12),
+                  'Most families install on the parent\'s phone first, '
+                  'then set up each kid\'s device.',
+                  style: AppText.caption(),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -96,59 +87,48 @@ class _RoleCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.color,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
-  final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.card,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AppText.cardHeader(size: 16)),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: AppText.bodySecondary(size: 13),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                LucideIcons.chevronRight,
-                color: AppColors.muted,
-                size: 20,
-              ),
-            ],
+    return DfCard(
+      onTap: onTap,
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.greenTint,
+              borderRadius: BorderRadius.circular(AppRadius.iconTile),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, color: AppColors.green, size: 24),
           ),
-        ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppText.cardHeader(size: 16)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: AppText.bodySecondary(size: 13)),
+              ],
+            ),
+          ),
+          const Icon(
+            LucideIcons.chevronRight,
+            color: AppColors.ink45,
+            size: 20,
+          ),
+        ],
       ),
     );
   }

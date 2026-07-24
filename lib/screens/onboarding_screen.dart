@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
-import '../widgets/brand_logo.dart';
+import '../widgets/df_kit.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -15,49 +15,38 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _pageController = PageController();
   int _currentPage = 0;
 
-  final _pages = [
+  final _pages = const [
     _OnboardingPage(
-      icon: LucideIcons.sparkles,
-      title: 'Welcome to DoneFirst',
+      icon: LucideIcons.bookOpen,
+      title: 'Homework first',
       description:
-          'The calm way to get homework done first. Focus for kids, '
-          'peace of mind for parents.',
-      color: AppColors.primary,
-      isWelcome: true,
+          "Set a focus session — the distracting apps pause until the "
+          "work's done.",
     ),
     _OnboardingPage(
       icon: LucideIcons.shieldCheck,
-      title: 'Block Distractions',
+      title: 'Distractions pause',
       description:
-          'Distracting apps stay locked until homework is done. '
-          'Focus first, play later.',
-      color: AppColors.primary,
+          'Social, games and video wait quietly — nothing deleted, '
+          'nothing lost.',
     ),
     _OnboardingPage(
       icon: LucideIcons.camera,
-      title: 'Photo Proof',
+      title: 'Snap the finished work',
       description:
-          'Snap a photo of the finished work. AI checks it\'s real '
-          'homework — no shortcuts.',
-      color: AppColors.accent,
+          'A quick photo. Our AI gives it a first look and flags only '
+          'what needs your eyes.',
     ),
     _OnboardingPage(
-      icon: LucideIcons.checkCircle2,
-      title: 'Parents Stay In Control',
+      icon: LucideIcons.sparkles,
+      title: 'Earn the rest',
       description:
-          'Parents set study sessions and breaks, then approve the '
-          'proof. Kids earn their screen time back.',
-      color: AppColors.success,
-    ),
-    _OnboardingPage(
-      icon: LucideIcons.rocket,
-      title: 'Let\'s Get Set Up',
-      description:
-          'Next, tell us who\'s using this device — a parent or a kid — '
-          'and we\'ll take it from there.',
-      color: AppColors.primary,
+          "Work approved → apps unlock instantly. Streaks build. "
+          "Everyone stays calm.",
     ),
   ];
+
+  bool get _isLastPage => _currentPage == _pages.length - 1;
 
   @override
   void dispose() {
@@ -68,14 +57,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.paper,
       body: SafeArea(
         child: Column(
           children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: TextButton(
-                onPressed: () => _done(context),
-                child: const Text('Skip'),
+            SizedBox(
+              height: 44,
+              child: Align(
+                alignment: Alignment.topRight,
+                child: _isLastPage
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.only(
+                          right: AppSpacing.screenPadding,
+                        ),
+                        child: TextButton(
+                          onPressed: () => _done(context),
+                          child: Text(
+                            'Skip',
+                            style: AppText.button(
+                              color: AppColors.ink45,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ),
               ),
             ),
             Expanded(
@@ -95,43 +101,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _buildPage(_OnboardingPage page) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40),
+      padding: const EdgeInsets.symmetric(horizontal: 36),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (page.isWelcome)
-            const BrandLogo(
-              size: 96,
-              tileColor: AppColors.forest,
-              glyphColor: AppColors.kidBg,
-            )
-          else
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: page.color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(page.icon, size: 80, color: page.color),
+          Container(
+            width: 128,
+            height: 128,
+            decoration: BoxDecoration(
+              color: AppColors.greenTint,
+              borderRadius: BorderRadius.circular(AppRadius.card),
             ),
-          const SizedBox(height: 48),
+            alignment: Alignment.center,
+            child: Icon(page.icon, size: 56, color: AppColors.green),
+          ),
+          const SizedBox(height: 40),
           Text(
             page.title,
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+            style: AppText.screenTitle(size: 26),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Text(
             page.description,
-            style: const TextStyle(
-              fontSize: 16,
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
+            style: AppText.body(size: 16),
             textAlign: TextAlign.center,
           ),
         ],
@@ -141,7 +134,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _buildBottom() {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
       child: Column(
         children: [
           Row(
@@ -155,32 +148,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 height: 8,
                 decoration: BoxDecoration(
                   color: _currentPage == i
-                      ? AppColors.primary
-                      : AppColors.border,
+                      ? AppColors.green
+                      : AppColors.borderCol,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () {
-                if (_currentPage == _pages.length - 1) {
-                  _done(context);
-                } else {
-                  _pageController.nextPage(
+          const SizedBox(height: 28),
+          if (_isLastPage)
+            DfButton('Get started', onPressed: () => _done(context))
+          else
+            Row(
+              children: [
+                const Spacer(),
+                _NextArrow(
+                  onTap: () => _pageController.nextPage(
                     duration: const Duration(milliseconds: 400),
                     curve: Curves.easeInOut,
-                  );
-                }
-              },
-              child: Text(
-                _currentPage == _pages.length - 1 ? 'Get Started' : 'Next',
-              ),
+                  ),
+                ),
+              ],
             ),
-          ),
         ],
       ),
     );
@@ -198,20 +187,44 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
+class _NextArrow extends StatelessWidget {
+  const _NextArrow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: AppColors.green,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(color: AppColors.greenDeep, offset: const Offset(0, 4)),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: const Icon(
+          LucideIcons.arrowRight,
+          color: Colors.white,
+          size: 22,
+        ),
+      ),
+    );
+  }
+}
+
 class _OnboardingPage {
   final IconData icon;
   final String title;
   final String description;
-  final Color color;
 
-  /// When true the page shows the DoneFirst brand mark instead of a
-  /// feature icon — used for the leading "Welcome" page.
-  final bool isWelcome;
   const _OnboardingPage({
     required this.icon,
     required this.title,
     required this.description,
-    required this.color,
-    this.isWelcome = false,
   });
 }

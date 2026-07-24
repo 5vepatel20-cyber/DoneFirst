@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
+import '../widgets/df_kit.dart';
 import '../widgets/proof_thumbnail.dart';
 
 /// Proof photos are stored in a private Supabase bucket and served
@@ -73,7 +74,7 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
     if (remaining <= Duration.zero) {
       return (
         text: 'Photo URL expired',
-        color: AppColors.danger,
+        color: AppColors.dangerFg,
         icon: LucideIcons.alertCircle,
       );
     }
@@ -83,13 +84,31 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
       final text = days >= 1
           ? 'URL expires in $days day${days == 1 ? '' : 's'}'
           : 'URL expires in $hours hr';
-      return (
-        text: text,
-        color: AppColors.warning,
-        icon: LucideIcons.clock,
-      );
+      return (text: text, color: AppColors.amberDeep, icon: LucideIcons.clock);
     }
     return null;
+  }
+
+  DfPillTone _decisionTone(String decision) {
+    switch (decision) {
+      case 'approved':
+        return DfPillTone.success;
+      case 'rejected':
+        return DfPillTone.danger;
+      default:
+        return DfPillTone.attention;
+    }
+  }
+
+  IconData _decisionIcon(String decision) {
+    switch (decision) {
+      case 'approved':
+        return LucideIcons.checkCircle2;
+      case 'rejected':
+        return LucideIcons.xCircle;
+      default:
+        return LucideIcons.eye;
+    }
   }
 
   @override
@@ -100,49 +119,48 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
     final reason = widget.aiResult?.aiReason ?? '';
     final parentNote = widget.aiResult?.parentNote ?? '';
     final allUrls = _allUrls;
+    final expiry = _expiryWarning();
 
     return Scaffold(
+      backgroundColor: AppColors.ink,
       appBar: AppBar(
-        title: Text(widget.taskDescription),
+        backgroundColor: AppColors.ink,
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          widget.taskDescription,
+          style: AppText.cardHeader(color: Colors.white, size: 16),
+        ),
         actions: [
           // URL-expiry warning. Lives in the AppBar so it's always
           // visible while the parent is looking at the photo, without
-          // overlapping the AI/parent footer below. Tapping it shows
-          // a tooltip with the same text for a11y / long-text cases.
-          if (_expiryWarning() != null) ...[
+          // overlapping the AI/parent panel below. Tapping it shows a
+          // tooltip with the same text for a11y / long-text cases.
+          if (expiry != null) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Center(
                 child: Tooltip(
-                  message: _expiryWarning()!.text,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _expiryWarning()!.icon,
-                        color: _expiryWarning()!.color,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _expiryWarning()!.text,
-                        style: TextStyle(
-                          color: _expiryWarning()!.color,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                  message: expiry.text,
+                  child: DfStatusPill(
+                    expiry.text,
+                    tone: expiry.color == AppColors.dangerFg
+                        ? DfPillTone.danger
+                        : DfPillTone.attention,
+                    icon: expiry.icon,
                   ),
                 ),
               ),
             ),
           ],
           if (allUrls.length > 1)
-            Center(
-              child: Text(
-                '${_currentPage + 1}/${allUrls.length}',
-                style: const TextStyle(fontSize: 14),
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: Text(
+                  '${_currentPage + 1}/${allUrls.length}',
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
               ),
             ),
         ],
@@ -176,19 +194,21 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
           ),
           if (allUrls.length > 1)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(allUrls.length, (i) {
-                  return Container(
-                    width: 8,
+                  final active = i == _currentPage;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: active ? 18 : 8,
                     height: 8,
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: i == _currentPage
-                          ? AppColors.primary
-                          : AppColors.border,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      color: active
+                          ? AppColors.greenBright
+                          : Colors.white.withValues(alpha: 0.3),
                     ),
                   );
                 }),
@@ -197,70 +217,70 @@ class _ProofImageViewerState extends State<ProofImageViewer> {
           if (widget.aiResult != null)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              color: decision == 'approved'
-                  ? AppColors.success.withValues(alpha:0.08)
-                  : decision == 'rejected'
-                  ? AppColors.danger.withValues(alpha:0.08)
-                  : AppColors.accent.withValues(alpha:0.08),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.cardPadding,
+                18,
+                AppSpacing.cardPadding,
+                AppSpacing.cardPadding,
+              ),
+              decoration: const BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(AppRadius.card),
+                  topRight: Radius.circular(AppRadius.card),
+                ),
+                boxShadow: AppShadows.raised,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'AI: $decision',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: decision == 'approved'
-                          ? AppColors.success
-                          : decision == 'rejected'
-                          ? AppColors.danger
-                          : AppColors.accent,
-                    ),
-                  ),
-                  Text(
-                    'Confidence: ${(confidence * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(color: AppColors.textPrimary),
-                  ),
-                  if (reason.isNotEmpty) const SizedBox(height: 4),
-                  if (reason.isNotEmpty)
-                    Text(
-                      reason,
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                  if (parentDecision != 'pending') ...[
-                    const SizedBox(height: 8),
-                    Divider(
-                      height: 1,
-                      color: AppColors.border.withValues(alpha:0.3),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Parent: $parentDecision',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: parentDecision == 'approved'
-                            ? AppColors.success
-                            : AppColors.danger,
+                  Row(
+                    children: [
+                      DfStatusPill(
+                        'AI: $decision',
+                        tone: _decisionTone(decision),
+                        icon: _decisionIcon(decision),
                       ),
+                      const Spacer(),
+                      Text(
+                        '${(confidence * 100).toStringAsFixed(0)}% confidence',
+                        style: AppText.caption(),
+                      ),
+                    ],
+                  ),
+                  if (reason.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text(reason, style: AppText.body(size: 14)),
+                  ],
+                  if (parentDecision != 'pending') ...[
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+                    DfStatusPill(
+                      'Parent: $parentDecision',
+                      tone: parentDecision == 'approved'
+                          ? DfPillTone.success
+                          : DfPillTone.danger,
+                      icon: parentDecision == 'approved'
+                          ? LucideIcons.checkCircle2
+                          : LucideIcons.xCircle,
                     ),
                   ],
                   if (parentNote.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 10),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Icon(
                           LucideIcons.messageSquare,
-                          size: 14,
-                          color: AppColors.primary,
+                          size: 15,
+                          color: AppColors.green,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             parentNote,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                            ),
+                            style: AppText.body(size: 14),
                           ),
                         ),
                       ],

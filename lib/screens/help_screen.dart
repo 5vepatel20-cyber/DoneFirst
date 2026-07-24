@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 import 'upgrade_screen.dart';
 
 /// In-app help + FAQ. Lives in Settings so it's reachable from one
@@ -17,7 +18,7 @@ class HelpScreen extends StatelessWidget {
     _FaqCategory(
       title: 'Getting started',
       icon: LucideIcons.rocket,
-      tint: AppColors.primary,
+      tint: AppColors.green,
       items: [
         _FaqItem(
           question: 'How do I set up my kid\'s device?',
@@ -36,7 +37,7 @@ class HelpScreen extends StatelessWidget {
           question: 'Why does the kid-side app need so many permissions?',
           answer:
               'The AccessibilityService (Android) or FamilyControls (iOS) '
-              'is what lets DoneFirst actually block other apps during '
+              'is what lets DoneFirst actually pause other apps during '
               "your kid's homework time. Without it, the timer would "
               'run but the apps would still be open. We never read the '
               'content of those apps — only enforce that they close.',
@@ -53,7 +54,7 @@ class HelpScreen extends StatelessWidget {
     _FaqCategory(
       title: 'Proofs & AI verification',
       icon: LucideIcons.badgeCheck,
-      tint: AppColors.success,
+      tint: AppColors.green,
       items: [
         _FaqItem(
           question: 'How does the AI verify a homework photo?',
@@ -87,7 +88,7 @@ class HelpScreen extends StatelessWidget {
     _FaqCategory(
       title: 'Notifications',
       icon: LucideIcons.bell,
-      tint: AppColors.accent,
+      tint: AppColors.amberDeep,
       items: [
         _FaqItem(
           question: "I'm not getting notifications.",
@@ -112,7 +113,7 @@ class HelpScreen extends StatelessWidget {
     _FaqCategory(
       title: 'Account & privacy',
       icon: LucideIcons.shield,
-      tint: AppColors.info,
+      tint: AppColors.infoFg,
       items: [
         _FaqItem(
           question: 'Where is my data stored?',
@@ -147,7 +148,7 @@ class HelpScreen extends StatelessWidget {
     _FaqCategory(
       title: 'Billing & plans',
       icon: LucideIcons.crown,
-      tint: AppColors.warning,
+      tint: AppColors.amber,
       items: [
         _FaqItem(
           question: 'How many free sessions do I get per month?',
@@ -173,50 +174,40 @@ class HelpScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Help & Support')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
           // Greeting + contact line so the parent doesn't have to
           // hunt for support email when stuck.
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-            ),
+          DfCard(
+            color: AppColors.greenTint,
+            borderColor: AppColors.green.withValues(alpha: 0.25),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.15),
+                  decoration: const BoxDecoration(
+                    color: AppColors.card,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     LucideIcons.headphones,
-                    color: AppColors.primary,
+                    color: AppColors.green,
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Need more help?',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: AppColors.textPrimary,
-                        ),
+                        style: AppText.cardHeader(size: 15),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
                         'Email support@donefirst.app and a human will '
                         'reply within one business day.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
+                        style: AppText.caption(),
                       ),
                     ],
                   ),
@@ -224,7 +215,7 @@ class HelpScreen extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           ..._categories.map((c) => _CategorySection(category: c)),
         ],
       ),
@@ -239,27 +230,16 @@ class _CategorySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(category.icon, size: 18, color: category.tint),
-              const SizedBox(width: 6),
-              Text(
-                category.title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: category.tint,
-                ),
-              ),
-            ],
+          DfSectionLabel(
+            category.title,
+            trailing: Icon(category.icon, size: 16, color: category.tint),
           ),
-          const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
+          DfCard(
+            padding: EdgeInsets.zero,
             child: Column(
               children: List.generate(category.items.length, (i) {
                 final item = category.items[i];
@@ -267,7 +247,12 @@ class _CategorySection extends StatelessWidget {
                   children: [
                     _FaqTile(item: item),
                     if (i < category.items.length - 1)
-                      const Divider(height: 1, indent: 16, endIndent: 16),
+                      const Divider(
+                        height: 1,
+                        indent: 16,
+                        endIndent: 16,
+                        color: AppColors.border2,
+                      ),
                   ],
                 );
               }),
@@ -290,20 +275,22 @@ class _FaqTile extends StatelessWidget {
       // Card controls spacing; otherwise we get double dividers.
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
+        iconColor: AppColors.ink45,
+        collapsedIconColor: AppColors.ink45,
         title: Text(
           item.question,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          style: AppText.body(
+            size: 14,
+            w: FontWeight.w700,
+            color: AppColors.ink,
+          ),
         ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         expandedAlignment: Alignment.centerLeft,
         children: [
           Text(
             item.answer,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
+            style: AppText.body(size: 13).copyWith(height: 1.5),
           ),
         ],
       ),

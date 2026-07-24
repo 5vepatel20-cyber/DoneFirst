@@ -11,9 +11,9 @@ import '../services/kid_device_service.dart';
 import '../services/break_service.dart';
 import '../main.dart' as app;
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/monogram_avatar.dart';
-import '../widgets/status_dot.dart';
 import '../widgets/consent_gate.dart';
 import '../widgets/pin_guard.dart';
 import '../widgets/destructive_confirm_dialog.dart';
@@ -707,758 +707,644 @@ class _ParentDashboardState extends State<ParentDashboard> {
     }
   }
 
+  /// Opens the active LockActiveScreen for [childId] (used by the
+  /// "View lock" primary action). Resolves the session on tap so the
+  /// dashboard doesn't have to keep the full session object around.
+  Future<void> _openActiveLock(String childId, String childName) async {
+    final session = await _sessionService.getActiveSession(childId);
+    if (session != null && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              LockActiveScreen(sessionId: session.id, childName: childName),
+        ),
+      ).then((_) => _loadAll());
+    }
+  }
+
+  // ── Bottom-nav destinations ──────────────────────────────────────
+  // No cross-tab scaffold exists in the app yet, so the non-Home tabs
+  // push their nearest existing surface. Activity is per-child, so it
+  // opens the first kid's Activity; Family opens the device/pairing
+  // hub; Settings is PIN-gated.
+  void _openActivityTab() {
+    if (_children.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add a kid to see activity.')),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SessionStatsScreen(childName: _children.first.name),
+      ),
+    );
+  }
+
+  void _openFamilyTab() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const KidDevicePairingScreen()),
+    ).then((_) => _loadAll());
+  }
+
+  void _openSettingsTab() =>
+      PinGuard.push(context, destination: const SettingsScreen());
+
+  void _openNotifications() => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+  ).then((_) => _loadAll());
+
+  /// Small account sheet reachable from the header avatar. Keeps the
+  /// sign-out action one tap away without cluttering the mock header.
+  void _openAccountSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.card),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(LucideIcons.settings),
+              title: const Text('Settings'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openSettingsTab();
+              },
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.logOut, color: AppColors.danger),
+              title: Text(
+                'Sign out',
+                style: AppText.body(
+                  color: AppColors.danger,
+                ).copyWith(fontWeight: FontWeight.w600),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _signOut();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// "Tuesday · 3:40 PM" header eyebrow.
+  String _nowLabel() {
+    final now = DateTime.now();
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    final day = days[now.weekday - 1];
+    var h = now.hour % 12;
+    if (h == 0) h = 12;
+    final m = now.minute.toString().padLeft(2, '0');
+    final ap = now.hour < 12 ? 'AM' : 'PM';
+    return '$day · $h:$m $ap';
+  }
+
   @override
   Widget build(BuildContext context) {
     return ConsentGate(
       child: Scaffold(
-        appBar: AppBar(
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: AppColors.sageFill,
-                  borderRadius: BorderRadius.circular(AppRadius.iconTile),
-                ),
-                child: const Icon(
-                  LucideIcons.sprout,
-                  size: 16,
-                  color: AppColors.forest,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text('DoneFirst', style: AppText.screenTitle()),
-            ],
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(LucideIcons.refreshCw),
-              onPressed: _loadAll,
-              tooltip: 'Refresh',
-            ),
-            Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(LucideIcons.bell),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const NotificationCenterScreen(),
-                    ),
-                  ).then((_) => _loadAll()),
-                  tooltip: 'Notifications',
-                ),
-                if (_unreadNotifications > 0)
-                  Positioned(
-                    right: 6,
-                    top: 6,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: AppColors.danger,
-                        shape: BoxShape.circle,
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 18,
-                        minHeight: 18,
-                      ),
-                      child: Text(
-                        '$_unreadNotifications',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            IconButton(
-              icon: const Icon(LucideIcons.settings),
-              onPressed: () =>
-                  PinGuard.push(context, destination: const SettingsScreen()),
-              tooltip: 'Settings',
-            ),
-            IconButton(
-              icon: const Icon(LucideIcons.logOut),
-              onPressed: _signOut,
-              tooltip: 'Sign out',
-            ),
-          ],
-        ),
-        body: KidDeviceEventToastListener(
-          child: _loading
-              ? const DashboardShimmer()
-              : _children.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: const BoxDecoration(
-                          color: AppColors.sageFill,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          LucideIcons.userPlus,
-                          size: 44,
-                          color: AppColors.forest,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Add your first child to get started',
-                        style: AppText.cardHeader(size: 17),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'You can always add more later',
-                        style: AppText.bodySecondary(),
-                      ),
-                      const SizedBox(height: 24),
-                      FilledButton.icon(
-                        onPressed: _addChild,
-                        icon: const Icon(LucideIcons.userPlus, size: 18),
-                        label: const Text('Add Child'),
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadAll,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      if (_todaySchedules.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Card(
-                          color: AppColors.primary.withValues(alpha: 0.04),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      LucideIcons.calendarDays,
-                                      size: 17,
-                                      color: AppColors.forest,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      "Today's Schedule",
-                                      style: AppText.cardHeader(size: 14),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                ..._todaySchedules.map((s) {
-                                  final child = _children.firstWhere(
-                                    (c) => c.id == s.childId,
-                                    orElse: () =>
-                                        const Child(id: '', name: 'Child'),
-                                  );
-                                  final childName = child.name;
-                                  final childId = s.childId;
-                                  final hasActive =
-                                      _activeLocks[childId] ?? false;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            '$childName · ${s.durationMinutes}m',
-                                            style: AppText.body(size: 13),
-                                          ),
-                                        ),
-                                        if (!hasActive)
-                                          TextButton(
-                                            onPressed: () {
-                                              PinGuard.push(
-                                                context,
-                                                destination: LockConfigScreen(
-                                                  childId: childId,
-                                                  childName: childName,
-                                                  // Pre-fill from the
-                                                  // schedule so the parent
-                                                  // doesn't re-pick what the
-                                                  // schedule already says.
-                                                  initialMinLock:
-                                                      s.durationMinutes,
-                                                  initialApprovalMode:
-                                                      s.approvalMode,
-                                                ),
-                                              ).then((_) => _loadAll());
-                                            },
-                                            child: const Text('Start Now'),
-                                          )
-                                        else
-                                          Text(
-                                            'Already active',
-                                            style: AppText.bodySecondary(
-                                              size: 12,
-                                              color: AppColors.ok,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (_hasUnpairedChildren) ...[
-                        const SizedBox(height: 12),
-                        KidDeviceSetupHintCard(
-                          firstChildId: _children.isNotEmpty
-                              ? _children.first.id
-                              : null,
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      const RecentKidDeviceActivityCard(),
-                      const SizedBox(height: 12),
-                      ..._children.map((child) => _buildChildCard(child)),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: OutlinedButton.icon(
-                          onPressed: _addChild,
-                          icon: const Icon(LucideIcons.userPlus, size: 18),
-                          label: const Text('Add Another Child'),
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 2, bottom: 10),
-                        child: Text('This month', style: AppText.eyebrow()),
-                      ),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                LucideIcons.sparkles,
-                                color: AppColors.warnDot,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '$_monthlySessionCount / ${UpgradeScreen.freeLimit} free sessions this month',
-                                  style: AppText.body(size: 13),
+        backgroundColor: AppColors.paper,
+        bottomNavigationBar: _bottomNav(),
+        body: SafeArea(
+          bottom: false,
+          child: KidDeviceEventToastListener(
+            child: _loading
+                ? const DashboardShimmer()
+                : RefreshIndicator(
+                    onRefresh: _loadAll,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+                      children: [
+                        _header(),
+                        const SizedBox(height: 18),
+                        if (_children.isEmpty)
+                          _emptyKids()
+                        else ...[
+                          _planChip(),
+                          const SizedBox(height: 24),
+                          DfSectionLabel(
+                            'Your kids',
+                            trailing: GestureDetector(
+                              onTap: _addChild,
+                              behavior: HitTestBehavior.opaque,
+                              child: Text(
+                                'Manage',
+                                style: AppText.button(
+                                  color: AppColors.green,
+                                  size: 13,
                                 ),
                               ),
-                              if (_monthlySessionCount >=
-                                  UpgradeScreen.freeLimit)
-                                FilledButton.tonal(
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const UpgradeScreen(),
-                                    ),
-                                  ),
-                                  child: const Text('Upgrade'),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // AI usage card — shows how many Mistral verification
-                      // calls the parent has made in the last 24h. Parents
-                      // who hit the daily cap get an explanation of why
-                      // proofs aren't being auto-approved.
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            LucideIcons.bot,
-                            size: 15,
-                            color: _mistralCallsToday >= 40
-                                ? AppColors.danger
-                                : AppColors.muted,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '$_mistralCallsToday / 50 AI checks today',
-                            style: AppText.bodySecondary(
-                              size: 12,
-                              color: _mistralCallsToday >= 40
-                                  ? AppColors.danger
-                                  : AppColors.muted,
                             ),
                           ),
+                          if (_hasUnpairedChildren) ...[
+                            KidDeviceSetupHintCard(
+                              firstChildId: _children.isNotEmpty
+                                  ? _children.first.id
+                                  : null,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          ..._children.map(
+                            (child) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildChildCard(child),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          DfButton.outline(
+                            'Add another kid',
+                            icon: LucideIcons.userPlus,
+                            onPressed: _addChild,
+                          ),
+                          const SizedBox(height: 24),
+                          if (_todaySchedules.isNotEmpty) ...[
+                            const DfSectionLabel("Today's schedule"),
+                            _todayScheduleCard(),
+                            const SizedBox(height: 24),
+                          ],
+                          const RecentKidDeviceActivityCard(),
+                          const SizedBox(height: 24),
+                          _statsSection(),
                         ],
-                      ),
-                      if (_totalSessions > 0) ...[
-                        const SizedBox(height: 12),
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                _miniStat(
-                                  LucideIcons.playCircle,
-                                  '$_totalSessions',
-                                  'Sessions',
-                                ),
-                                const _StatDivider(),
-                                _miniStat(
-                                  LucideIcons.timer,
-                                  '${_totalMinutes}m',
-                                  'Time',
-                                ),
-                                const _StatDivider(),
-                                _miniStat(
-                                  LucideIcons.badgeCheck,
-                                  '$_totalApproved',
-                                  'Approved',
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
+          ),
         ),
       ),
     );
   }
 
+  // ── Header ───────────────────────────────────────────────────────
+  Widget _header() {
+    final email = _auth.currentUser?.email;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_nowLabel(), style: AppText.label()),
+              const SizedBox(height: 8),
+              Text('Home', style: AppText.display(size: 30)),
+            ],
+          ),
+        ),
+        _headerIconButton(
+          LucideIcons.bell,
+          onTap: _openNotifications,
+          badge: _unreadNotifications,
+        ),
+        const SizedBox(width: 4),
+        _headerIconButton(LucideIcons.settings, onTap: _openSettingsTab),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: _openAccountSheet,
+          behavior: HitTestBehavior.opaque,
+          child: DfAvatar(email ?? 'You', size: 40, circle: true),
+        ),
+      ],
+    );
+  }
+
+  Widget _headerIconButton(
+    IconData icon, {
+    required VoidCallback onTap,
+    int badge = 0,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(AppRadius.iconTile),
+              border: Border.all(color: AppColors.borderCol),
+            ),
+            child: Icon(icon, size: 19, color: AppColors.ink),
+          ),
+          if (badge > 0)
+            Positioned(
+              right: -3,
+              top: -3,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                decoration: const BoxDecoration(
+                  color: AppColors.danger,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '$badge',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Plan chip ────────────────────────────────────────────────────
+  Widget _planChip() {
+    final left = (UpgradeScreen.freeLimit - _monthlySessionCount).clamp(
+      0,
+      9999,
+    );
+    return DfCard(
+      color: AppColors.ink,
+      borderColor: AppColors.ink,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const UpgradeScreen()),
+      ),
+      child: Row(
+        children: [
+          const Icon(LucideIcons.sparkles, size: 18, color: AppColors.gold),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Free · $left of ${UpgradeScreen.freeLimit} sessions left this month',
+              style: AppText.body(size: 13, color: Colors.white),
+            ),
+          ),
+          Text(
+            'Upgrade →',
+            style: AppText.button(color: AppColors.gold, size: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Empty state ──────────────────────────────────────────────────
+  Widget _emptyKids() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 40),
+      child: DfEmptyState(
+        icon: LucideIcons.userPlus,
+        title: 'Add your first kid to get started',
+        hint: 'You can always add more later.',
+        ctaLabel: 'Add a kid',
+        onCta: _addChild,
+      ),
+    );
+  }
+
+  // ── Kid card ─────────────────────────────────────────────────────
   Widget _buildChildCard(Child child) {
     final childId = child.id;
     final childName = child.name;
     final hasActiveLock = _activeLocks[childId] ?? false;
+    final pendingProofs = _pendingProofs[childId] ?? 0;
+    final pendingBreaks = _pendingBreaks[childId] ?? 0;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                GestureDetector(
-                  onLongPress: () => showModalBottomSheet(
-                    context: context,
-                    builder: (ctx) => SafeArea(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ListTile(
-                            leading: const Icon(LucideIcons.pencil),
-                            title: const Text('Rename'),
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              _editChild(child);
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(LucideIcons.smartphone),
-                            title: const Text('Pair kid device'),
-                            subtitle: Text(
-                              'Generate a code for ${child.name}’s phone',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => KidDevicePairingScreen(
-                                    preselectChildId: child.id,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(
-                              LucideIcons.trash2,
-                              color: AppColors.danger,
-                            ),
-                            title: Text(
-                              'Delete',
-                              style: AppText.body(color: AppColors.danger),
-                            ),
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              _deleteChild(child);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  child: _ChildAvatar(child: child),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(childName, style: AppText.cardHeader(size: 17)),
-                      const SizedBox(height: 3),
-                      hasActiveLock
-                          ? const StatusDot.locked(label: 'Lock active')
-                          : const StatusDot.idle(label: 'No active lock'),
-                      Builder(
-                        builder: (context) {
-                          // Map the kid_devices_with_child view's
-                          // status enum to a coloured dot + short label.
-                          // null = no paired device at all. Below the
-                          // label we render a "Last seen X ago" caption
-                          // when we have a heartbeat timestamp, so
-                          // parents can tell whether offline is normal
-                          // (kid's at school) or suspicious (lost phone).
-                          final deviceStatus = _kidDeviceStatus[childId];
-                          final status = deviceStatus?.status;
-                          final lastSeen = deviceStatus?.lastSeenAt;
-                          return KidDeviceStatusCaption(
-                            status: status,
-                            lastSeenAt: lastSeen,
-                            // Only offer the pair CTA on the null
-                            // state. Other statuses are passive —
-                            // parents act on them via the long-press
-                            // on the avatar or by tapping into the
-                            // active lock screen.
-                            onPair: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => KidDevicePairingScreen(
-                                  preselectChildId: childId,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      if (child.streakCount > 0) ...[
-                        const SizedBox(height: 6),
-                        // Streak chip. Hidden when 0 so we never
-                        // display a discouraging "0 day streak" to
-                        // a kid who hasn't started yet.
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.warnFill,
-                            borderRadius: BorderRadius.circular(
-                              AppRadius.iconTile,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                LucideIcons.flame,
-                                size: 13,
-                                color: AppColors.warnDot,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                '${child.streakCount} day streak',
-                                style: AppText.bodySecondary(
-                                  size: 12,
-                                  color: AppColors.warn,
-                                ).copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              if (child.lastStreakDate != null &&
-                                  !_streakIsToday(child.lastStreakDate!))
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 5),
-                                  child: Text(
-                                    '(at risk)',
-                                    style: AppText.bodySecondary(
-                                      size: 11,
-                                      color: AppColors.muted,
-                                    ).copyWith(fontStyle: FontStyle.italic),
-                                  ),
-                                ),
-                            ],
+    return DfCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onLongPress: () => _showChildActions(child),
+                child: _ChildAvatar(child: child),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            childName,
+                            style: AppText.cardHeader(size: 17),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        hasActiveLock
+                            ? const DfStatusPill(
+                                'Focusing',
+                                tone: DfPillTone.success,
+                                dot: true,
+                              )
+                            : const DfStatusPill(
+                                'Free time',
+                                tone: DfPillTone.neutral,
+                                dot: true,
+                              ),
                       ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            // Pending-proof inbox banner. Hidden when 0 so we never
-            // say "0 to review" — empty state is the inbox-zero card
-            // on the screen itself.
-            if ((_pendingProofs[childId] ?? 0) > 0) ...[
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PendingProofsScreen(
-                      childId: childId,
-                      childName: childName,
                     ),
-                  ),
-                ).then((_) => _loadAll()),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.1),
-                    border: Border.all(
-                      color: AppColors.accent.withValues(alpha: 0.3),
+                    const SizedBox(height: 3),
+                    Text(
+                      hasActiveLock
+                          ? 'Focus session in progress'
+                          : 'No session running',
+                      style: AppText.bodySecondary(size: 13),
                     ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        LucideIcons.inbox,
-                        size: 18,
-                        color: AppColors.warnDot,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${_pendingProofs[childId]} ${_pendingProofs[childId] == 1 ? 'proof' : 'proofs'} to review',
-                          style: AppText.body(
-                            size: 13,
-                            color: AppColors.warn,
-                          ).copyWith(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      const Icon(
-                        LucideIcons.chevronRight,
-                        size: 16,
-                        color: AppColors.warnDot,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            // Pending-break banner. Only meaningful when a lock is
-            // active for this child — break requests are scoped to a
-            // session, so a pending one with no live session is a
-            // stale row. Tap → LockActiveScreen so the parent can
-            // approve / deny inline.
-            if ((_pendingBreaks[childId] ?? 0) > 0) ...[
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: () => _openActiveLockForBreaks(childId),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.warnFill,
-                    border: Border.all(color: AppColors.warnBd),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        LucideIcons.coffee,
-                        size: 18,
-                        color: AppColors.warn,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${_pendingBreaks[childId]} ${_pendingBreaks[childId] == 1 ? 'break request' : 'break requests'} waiting',
-                          style: AppText.body(
-                            size: 13,
-                            color: AppColors.warn,
-                          ).copyWith(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      const Icon(
-                        LucideIcons.chevronRight,
-                        size: 16,
-                        color: AppColors.warn,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => KidHomeScreen(
-                          childId: childId,
-                          childName: childName,
-                        ),
-                      ),
-                    ),
-                    icon: const Icon(LucideIcons.eye, size: 18),
-                    label: const Text('Kid View'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: hasActiveLock
-                      ? FilledButton.icon(
-                          onPressed: () async {
-                            final session = await _sessionService
-                                .getActiveSession(childId);
-                            if (session != null && mounted) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => LockActiveScreen(
-                                    sessionId: session.id,
-                                    childName: childName,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(LucideIcons.clock, size: 18),
-                          label: const Text('View Lock'),
-                        )
-                      : FilledButton.icon(
-                          onPressed: () => PinGuard.push(
+                    Builder(
+                      builder: (context) {
+                        // Map the kid_devices_with_child view's status
+                        // enum to a coloured dot + short label. null =
+                        // no paired device at all.
+                        final deviceStatus = _kidDeviceStatus[childId];
+                        final status = deviceStatus?.status;
+                        final lastSeen = deviceStatus?.lastSeenAt;
+                        return KidDeviceStatusCaption(
+                          status: status,
+                          lastSeenAt: lastSeen,
+                          onPair: () => Navigator.push(
                             context,
-                            destination: LockConfigScreen(
+                            MaterialPageRoute(
+                              builder: (_) => KidDevicePairingScreen(
+                                preselectChildId: childId,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    if (child.streakCount > 0) ...[
+                      const SizedBox(height: 8),
+                      _streakChip(child),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Pending-proof inbox banner.
+          if (pendingProofs > 0) ...[
+            const SizedBox(height: 12),
+            _attentionBanner(
+              icon: LucideIcons.inbox,
+              tone: DfPillTone.attention,
+              label:
+                  '$pendingProofs ${pendingProofs == 1 ? 'proof' : 'proofs'} to review',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PendingProofsScreen(
+                    childId: childId,
+                    childName: childName,
+                  ),
+                ),
+              ).then((_) => _loadAll()),
+            ),
+          ],
+          // Pending-break banner — only meaningful with a live lock.
+          if (pendingBreaks > 0) ...[
+            const SizedBox(height: 8),
+            _attentionBanner(
+              icon: LucideIcons.coffee,
+              tone: DfPillTone.attention,
+              label:
+                  '$pendingBreaks ${pendingBreaks == 1 ? 'break request' : 'break requests'} waiting',
+              onTap: () => _openActiveLockForBreaks(childId),
+            ),
+          ],
+
+          const SizedBox(height: 14),
+          // Primary actions row.
+          Row(
+            children: [
+              Expanded(
+                child: DfButton.outline(
+                  'Kid view',
+                  icon: LucideIcons.eye,
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          KidHomeScreen(childId: childId, childName: childName),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: pendingProofs > 0
+                    ? DfButton(
+                        'Review',
+                        icon: LucideIcons.clipboardCheck,
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PendingProofsScreen(
                               childId: childId,
                               childName: childName,
                             ),
                           ),
-                          icon: const Icon(LucideIcons.lock, size: 18),
-                          label: const Text('Start Lock'),
+                        ).then((_) => _loadAll()),
+                      )
+                    : hasActiveLock
+                    ? DfButton.ink(
+                        'View lock',
+                        icon: LucideIcons.clock,
+                        onPressed: () => _openActiveLock(childId, childName),
+                      )
+                    : DfButton(
+                        'Start',
+                        icon: LucideIcons.lock,
+                        onPressed: () => PinGuard.push(
+                          context,
+                          destination: LockConfigScreen(
+                            childId: childId,
+                            childName: childName,
+                          ),
                         ),
+                      ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 6),
+          // Secondary quick actions — kept complete so nothing the old
+          // dashboard reached is lost.
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              _quickAction(
+                LucideIcons.history,
+                'History',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProofReviewScreen(childId: childId),
+                  ),
                 ),
-              ],
+              ),
+              _quickAction(
+                LucideIcons.bookOpen,
+                'Homework',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChildHomeworkScreen(
+                      childId: childId,
+                      childName: childName,
+                    ),
+                  ),
+                ),
+              ),
+              _quickAction(
+                LucideIcons.chartColumn,
+                'Stats',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SessionStatsScreen(childName: childName),
+                  ),
+                ),
+              ),
+              _quickAction(
+                LucideIcons.calendar,
+                'Schedule',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        SchedulesScreen(childId: childId, childName: childName),
+                  ),
+                ),
+              ),
+              _quickAction(
+                LucideIcons.image,
+                'Gallery',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProofGalleryScreen(
+                      childId: childId,
+                      childName: childName,
+                    ),
+                  ),
+                ),
+              ),
+              _quickAction(
+                LucideIcons.user,
+                'Profile',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => KidProfileScreen(child: child),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _streakChip(Child child) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.amberTint,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(LucideIcons.flame, size: 13, color: AppColors.amber),
+          const SizedBox(width: 5),
+          Text(
+            '${child.streakCount} day streak',
+            style: AppText.caption(
+              color: AppColors.amberDeep,
+            ).copyWith(fontWeight: FontWeight.w700),
+          ),
+          if (child.lastStreakDate != null &&
+              !_streakIsToday(child.lastStreakDate!))
+            Padding(
+              padding: const EdgeInsets.only(left: 5),
+              child: Text(
+                '(at risk)',
+                style: AppText.caption(
+                  size: 11,
+                ).copyWith(fontStyle: FontStyle.italic),
+              ),
             ),
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProofReviewScreen(childId: childId),
-                    ),
-                  ),
-                  icon: const Icon(LucideIcons.history, size: 18),
-                  label: const Text('History'),
-                ),
-                const SizedBox(width: 4),
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ChildHomeworkScreen(
-                        childId: childId,
-                        childName: childName,
-                      ),
-                    ),
-                  ),
-                  icon: const Icon(LucideIcons.bookOpen, size: 18),
-                  label: const Text('Homework'),
-                ),
-                const SizedBox(width: 4),
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SessionStatsScreen(childName: childName),
-                    ),
-                  ),
-                  icon: const Icon(LucideIcons.barChart3, size: 18),
-                  label: const Text('Stats'),
-                ),
-                const SizedBox(width: 4),
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SchedulesScreen(
-                        childId: childId,
-                        childName: childName,
-                      ),
-                    ),
-                  ),
-                  icon: const Icon(LucideIcons.calendar, size: 18),
-                  label: const Text('Schedule'),
-                ),
-                const SizedBox(width: 4),
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProofGalleryScreen(
-                        childId: childId,
-                        childName: childName,
-                      ),
-                    ),
-                  ),
-                  icon: const Icon(LucideIcons.image, size: 18),
-                  label: const Text('Gallery'),
-                ),
-              ],
+        ],
+      ),
+    );
+  }
+
+  Widget _attentionBanner({
+    required IconData icon,
+    required DfPillTone tone,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: AppColors.amberTint,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+          border: Border.all(color: AppColors.amberTint2),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.amberDeep),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: AppText.body(
+                  size: 13,
+                  color: AppColors.amberDeep,
+                ).copyWith(fontWeight: FontWeight.w600),
+              ),
             ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                // Permanent entrance to the proof grader. The pending
-                // banner above only appears when there's something to
-                // review; this keeps the grader reachable at all times
-                // (it has its own inbox-zero empty state) so "did they
-                // actually finish?" is never a dead end.
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PendingProofsScreen(
-                        childId: childId,
-                        childName: childName,
-                      ),
-                    ),
-                  ).then((_) => _loadAll()),
-                  icon: const Icon(LucideIcons.clipboardCheck, size: 18),
-                  label: const Text('Review'),
-                ),
-                const SizedBox(width: 4),
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => KidProfileScreen(child: child),
-                    ),
-                  ),
-                  icon: const Icon(LucideIcons.user, size: 18),
-                  label: const Text('Profile'),
-                ),
-              ],
+            const Icon(
+              LucideIcons.chevronRight,
+              size: 16,
+              color: AppColors.amberDeep,
             ),
           ],
         ),
@@ -1466,16 +1352,288 @@ class _ParentDashboardState extends State<ParentDashboard> {
     );
   }
 
-  Widget _miniStat(IconData icon, String value, String label) {
-    return Expanded(
+  Widget _quickAction(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.chip),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 17, color: AppColors.ink70),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: AppText.body(
+                size: 13,
+                color: AppColors.ink70,
+              ).copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Long-press sheet on a kid avatar — rename / pair / delete.
+  void _showChildActions(Child child) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.card),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(LucideIcons.pencil),
+              title: const Text('Rename'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _editChild(child);
+              },
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.smartphone),
+              title: const Text('Pair kid device'),
+              subtitle: Text(
+                'Generate a code for ${child.name}’s phone',
+                style: const TextStyle(fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        KidDevicePairingScreen(preselectChildId: child.id),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.trash2, color: AppColors.danger),
+              title: Text(
+                'Delete',
+                style: AppText.body(color: AppColors.danger),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _deleteChild(child);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Today's schedule ─────────────────────────────────────────────
+  Widget _todayScheduleCard() {
+    return DfCard(
       child: Column(
         children: [
-          Icon(icon, size: 18, color: AppColors.forest),
-          const SizedBox(height: 6),
-          Text(value, style: AppText.statValue()),
-          const SizedBox(height: 2),
-          Text(label, style: AppText.bodySecondary(size: 11)),
+          for (var i = 0; i < _todaySchedules.length; i++) ...[
+            if (i > 0) const Divider(height: 20),
+            _scheduleRow(_todaySchedules[i]),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _scheduleRow(RecurringSchedule s) {
+    final child = _children.firstWhere(
+      (c) => c.id == s.childId,
+      orElse: () => const Child(id: '', name: 'Child'),
+    );
+    final childName = child.name;
+    final childId = s.childId;
+    final hasActive = _activeLocks[childId] ?? false;
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.greenTint,
+            borderRadius: BorderRadius.circular(AppRadius.iconTile),
+          ),
+          child: const Icon(
+            LucideIcons.calendarDays,
+            size: 18,
+            color: AppColors.green,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('$childName · Homework', style: AppText.listTitle(size: 15)),
+              const SizedBox(height: 2),
+              Text(
+                '${s.durationMinutes} min session',
+                style: AppText.bodySecondary(size: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (hasActive)
+          const DfStatusPill('Active', tone: DfPillTone.success, dot: true)
+        else
+          DfButton(
+            'Start now',
+            expand: false,
+            onPressed: () => PinGuard.push(
+              context,
+              destination: LockConfigScreen(
+                childId: childId,
+                childName: childName,
+                // Pre-fill from the schedule so the parent doesn't
+                // re-pick what the schedule already says.
+                initialMinLock: s.durationMinutes,
+                initialApprovalMode: s.approvalMode,
+              ),
+            ).then((_) => _loadAll()),
+          ),
+      ],
+    );
+  }
+
+  // ── This-month stats ─────────────────────────────────────────────
+  Widget _statsSection() {
+    if (_totalSessions <= 0) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const DfSectionLabel('This month'),
+        DfCard(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: DfStatTile(
+                      '$_totalSessions',
+                      'sessions',
+                      align: CrossAxisAlignment.center,
+                    ),
+                  ),
+                  const _StatDivider(),
+                  Expanded(
+                    child: DfStatTile(
+                      '${_totalMinutes}m',
+                      'focused',
+                      align: CrossAxisAlignment.center,
+                    ),
+                  ),
+                  const _StatDivider(),
+                  Expanded(
+                    child: DfStatTile(
+                      '$_totalApproved',
+                      'approved',
+                      valueColor: AppColors.green,
+                      align: CrossAxisAlignment.center,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(
+                    LucideIcons.bot,
+                    size: 15,
+                    color: _mistralCallsToday >= 40
+                        ? AppColors.danger
+                        : AppColors.ink45,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$_mistralCallsToday / 50 AI checks today',
+                    style: AppText.caption(
+                      color: _mistralCallsToday >= 40
+                          ? AppColors.danger
+                          : AppColors.ink45,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Bottom tab bar ───────────────────────────────────────────────
+  Widget _bottomNav() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.card,
+        border: Border(top: BorderSide(color: AppColors.borderCol)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          child: Row(
+            children: [
+              _navItem(LucideIcons.house, 'Home', selected: true, onTap: () {}),
+              _navItem(
+                LucideIcons.activity,
+                'Activity',
+                onTap: _openActivityTab,
+              ),
+              _navItem(LucideIcons.users, 'Family', onTap: _openFamilyTab),
+              _navItem(
+                LucideIcons.settings,
+                'Settings',
+                onTap: _openSettingsTab,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(
+    IconData icon,
+    String label, {
+    bool selected = false,
+    required VoidCallback onTap,
+  }) {
+    final color = selected ? AppColors.green : AppColors.ink45;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.tile),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 22, color: color),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: AppText.caption(color: color).copyWith(
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

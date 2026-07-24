@@ -39,66 +39,66 @@ void main() {
 
   testWidgets('renders all five category headings', (tester) async {
     await pump(tester);
-    expect(find.text('Getting started'), findsOneWidget);
-    expect(find.text('Proofs & AI verification'), findsOneWidget);
-    expect(find.text('Notifications'), findsOneWidget);
-    expect(find.text('Account & privacy'), findsOneWidget);
-    expect(find.text('Billing & plans'), findsOneWidget);
+    // Section labels render as UPPERCASE mono eyebrows (DfSectionLabel).
+    expect(find.text('GETTING STARTED'), findsOneWidget);
+    expect(find.text('PROOFS & AI VERIFICATION'), findsOneWidget);
+    expect(find.text('NOTIFICATIONS'), findsOneWidget);
+    expect(find.text('ACCOUNT & PRIVACY'), findsOneWidget);
+    expect(find.text('BILLING & PLANS'), findsOneWidget);
   });
 
-  testWidgets('questions are visible but answers are collapsed by default',
-      (tester) async {
+  testWidgets('questions are visible but answers are collapsed by default', (
+    tester,
+  ) async {
     await pump(tester);
     // A representative question is visible.
-    expect(
-      find.text("How do I set up my kid's device?"),
-      findsOneWidget,
-    );
+    expect(find.text("How do I set up my kid's device?"), findsOneWidget);
     // The answer text is not yet visible — it's inside a collapsed tile.
     expect(
-      find.textContaining(
-        'Install DoneFirst on the device your kid uses',
-      ),
+      find.textContaining('Install DoneFirst on the device your kid uses'),
       findsNothing,
     );
   });
 
-  testWidgets('tapping a question expands it to show the answer',
-      (tester) async {
+  testWidgets('tapping a question expands it to show the answer', (
+    tester,
+  ) async {
     await pump(tester);
     await tester.tap(find.text("How do I set up my kid's device?"));
     await tester.pumpAndSettle();
     expect(
-      find.textContaining(
-        'Install DoneFirst on the device your kid uses',
-      ),
+      find.textContaining('Install DoneFirst on the device your kid uses'),
       findsOneWidget,
     );
   });
 
-  testWidgets('every FAQ question across every category is rendered',
-      (tester) async {
+  testWidgets('every FAQ question across every category is rendered', (
+    tester,
+  ) async {
     await pump(tester);
     // A few specific anchors so a category accidentally being
     // dropped would break this test, not silently ship.
-    expect(find.text('Why is "needs_review" showing up so often?'),
-        findsOneWidget);
+    expect(
+      find.text('Why is "needs_review" showing up so often?'),
+      findsOneWidget,
+    );
     expect(find.text("I'm not getting notifications."), findsOneWidget);
     expect(find.text('How do I export or delete my data?'), findsOneWidget);
-    expect(find.text('How many free sessions do I get per month?'),
-        findsOneWidget);
+    expect(
+      find.text('How many free sessions do I get per month?'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('free-sessions FAQ answer matches UpgradeScreen.freeLimit',
-      (tester) async {
+  testWidgets('free-sessions FAQ answer matches UpgradeScreen.freeLimit', (
+    tester,
+  ) async {
     // Defensive: help used to hardcode '10' while UpgradeScreen
     // actually said 3, so a parent who read help would expect 10 but
     // hit 3. Now the answer interpolates UpgradeScreen.freeLimit
     // — if anyone flips the constant, the help text follows.
     await pump(tester);
-    await tester.tap(
-      find.text('How many free sessions do I get per month?'),
-    );
+    await tester.tap(find.text('How many free sessions do I get per month?'));
     await tester.pumpAndSettle();
     final expected = '${UpgradeScreen.freeLimit} sessions per parent account';
     expect(find.textContaining(expected), findsOneWidget);

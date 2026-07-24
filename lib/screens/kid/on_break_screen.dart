@@ -82,55 +82,90 @@ class _OnBreakScreenState extends State<OnBreakScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Use kidBg (not grass) because the kid is "free" right now;
-      // a grass background would visually conflict with the
+      // Warm paper (not grass) because the kid is "free" right now;
+      // a full green background would visually conflict with the
       // LockedScreen. The break icon + amber color carry the
       // "temporary" meaning.
-      backgroundColor: AppColors.kidBg,
+      backgroundColor: AppColors.paper,
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.all(AppSpacing.screenPadding),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.warnFill,
+                  width: 88,
+                  height: 88,
+                  decoration: const BoxDecoration(
+                    color: AppColors.amberTint,
                     shape: BoxShape.circle,
                   ),
+                  alignment: Alignment.center,
                   child: const Icon(
                     LucideIcons.coffee,
-                    size: 48,
-                    color: AppColors.warn,
+                    size: 42,
+                    color: AppColors.amber,
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 26),
                 Text(
                   'Take 5, ${widget.childName}',
                   textAlign: TextAlign.center,
                   style: AppText.title(size: 26),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Text(
-                  "Your parent approved a short break. Apps are "
-                  'unlocked while the timer runs.',
+                  'A parent approved a short break. Your apps are open '
+                  'while the timer runs.',
                   textAlign: TextAlign.center,
-                  style: AppText.bodySecondary(size: 15),
+                  style: AppText.body(size: 15),
                 ),
-                const SizedBox(height: 36),
-                Text(
-                  _format(_remaining),
-                  style: AppText.bigTimer(
-                    color: AppColors.warn,
-                    size: 64,
+                const SizedBox(height: 32),
+                // ── Break countdown card ──────────────────────────
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 24,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(AppRadius.card),
+                    border: Border.all(color: AppColors.borderCol),
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        _format(_remaining),
+                        style: AppText.bigTimer(
+                          color: AppColors.amberDeep,
+                          size: 60,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'until break ends',
+                        style: AppText.bodySecondary(size: 13),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'until break ends',
-                  style: AppText.bodySecondary(size: 13),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      LucideIcons.lock,
+                      size: 14,
+                      color: AppColors.ink45,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Apps re-lock automatically when the break ends',
+                      style: AppText.bodySecondary(size: 12.5),
+                    ),
+                  ],
                 ),
               ],
             ),

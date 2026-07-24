@@ -15,6 +15,7 @@ import '../utils/pin_strength.dart';
 import '../services/notification_preferences_service.dart';
 import '../widgets/monogram_avatar.dart';
 import '../widgets/pin_guard.dart';
+import '../widgets/df_kit.dart';
 import 'upgrade_screen.dart';
 import 'coparent_screen.dart';
 import 'help_screen.dart';
@@ -102,13 +103,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _notifyProofSubmitted =
               notifPrefs[NotificationPreferencesService.typeProofSubmitted] ??
-                  true;
+              true;
           _notifyBreakRequested =
               notifPrefs[NotificationPreferencesService.typeBreakRequested] ??
-                  true;
+              true;
           _notifySessionComplete =
               notifPrefs[NotificationPreferencesService.typeSessionComplete] ??
-                  true;
+              true;
           _pin = parentPrefsResults[0] as String?;
           _autoApproveMath = parentPrefsResults[1] as bool;
           _defaultMinutes = parentPrefsResults[2] as int;
@@ -224,9 +225,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     if (!mounted) return;
     setState(() => _pin = pin1);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('PIN saved')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('PIN saved')));
   }
 
   /// Shared PIN-entry dialog used by both the "enter new PIN"
@@ -258,10 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 24, letterSpacing: 8),
-            decoration: InputDecoration(
-              counterText: '',
-              labelText: label,
-            ),
+            decoration: InputDecoration(counterText: '', labelText: label),
             onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
           ),
           actions: [
@@ -283,9 +281,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showPinSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _changePassword() async {
@@ -422,9 +420,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         icon: const Icon(LucideIcons.copy, size: 20),
                         tooltip: 'Copy JSON',
                         onPressed: () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: json),
-                          );
+                          await Clipboard.setData(ClipboardData(text: json));
                           if (!ctx.mounted) return;
                           ScaffoldMessenger.of(ctx).showSnackBar(
                             const SnackBar(
@@ -453,9 +449,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Theme.of(ctx)
-                            .colorScheme
-                            .surfaceContainerHighest,
+                        color: Theme.of(
+                          ctx,
+                        ).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: SingleChildScrollView(
@@ -480,9 +476,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -611,11 +607,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// is fresh before invoking the destructive Edge Function. We don't
   /// keep the user signed in afterwards — _auth.deleteAccount() ends
   /// with signOut() anyway.
-  Future<void> _supabaseReauthForDelete(
-    String email,
-    String password,
-  ) async {
+  Future<void> _supabaseReauthForDelete(String email, String password) async {
     await _auth.verifyPassword(email, password);
+  }
+
+  /// Sign out and return to the auth screen. Mirrors the destructive
+  /// flow's navigation (pushNamedAndRemoveUntil '/auth') so the back
+  /// stack is cleared and a kid can't swipe back into the parent app.
+  Future<void> _signOut() async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _auth.signOut();
+      if (!mounted) return;
+      navigator.pushNamedAndRemoveUntil('/auth', (_) => false);
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Sign out failed: $e')));
+    }
   }
 
   /// Resend the Supabase signup confirmation email. Used when the
@@ -638,9 +647,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Verification email re-sent to $email.'),
-          ),
+          SnackBar(content: Text('Verification email re-sent to $email.')),
         );
       }
     } catch (e) {
@@ -658,9 +665,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// isn't worth the extra dep for one screen.
   Future<void> _reportProblem() async {
     const supportEmail = 'support@donefirst.app';
-    await Clipboard.setData(
-      const ClipboardData(text: supportEmail),
-    );
+    await Clipboard.setData(const ClipboardData(text: supportEmail));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -670,275 +675,323 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// True for trivially-guessable 4-digit PINs. We reject two
-  /// shapes — all-same digits (0000, 1111, …) and 4-in-a-row
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: AppColors.paper,
+        appBar: AppBar(title: Text('Settings', style: AppText.screenTitle())),
+        body: ListView(
+          padding: const EdgeInsets.all(AppSpacing.screenPadding),
+          children: [
+            _skeletonBlock(height: 84),
+            const SizedBox(height: 14),
+            _skeletonBlock(height: 64),
+            const SizedBox(height: 22),
+            _skeletonBlock(height: 180),
+            const SizedBox(height: 22),
+            _skeletonBlock(height: 140),
+          ],
+        ),
+      );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      backgroundColor: AppColors.paper,
+      appBar: AppBar(title: Text('Settings', style: AppText.screenTitle())),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpacing.screenPadding),
         children: [
-          _section('Account'),
-          Card(
-            child: Column(
+          // ── Profile ───────────────────────────────────────────────
+          DfCard(
+            onTap: _editProfile,
+            child: Row(
               children: [
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  leading: MonogramAvatar.parent(
-                    name: _displayName ?? '',
-                    size: 44,
-                  ),
-                  title: Text(
-                    _displayName ?? 'Unknown',
-                    style: AppText.cardHeader(size: 16),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      _userEmail ?? '',
-                      style: AppText.bodySecondary(size: 13),
-                    ),
-                  ),
-                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                  onTap: _editProfile,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(LucideIcons.sparkles, size: 22),
-                  title: const Text('DoneFirst Plus'),
-                  subtitle: const Text(
-                    '${UpgradeScreen.freeLimit} free sessions/month',
-                  ),
-                  trailing: FilledButton.tonal(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const UpgradeScreen()),
-                    ),
-                    child: const Text('Upgrade'),
+                MonogramAvatar.parent(name: _displayName ?? '', size: 52),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _displayName ?? 'Unknown',
+                        style: AppText.cardHeader(size: 18),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _userEmail ?? '',
+                        style: AppText.bodySecondary(size: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(LucideIcons.users, size: 22),
-                  title: const Text('Co-Parent'),
-                  subtitle: const Text('Invite a partner to manage together'),
-                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                  onTap: () => PinGuard.push(
-                    context,
-                    destination: const CoparentScreen(),
+                const Icon(
+                  LucideIcons.chevronRight,
+                  size: 18,
+                  color: AppColors.ink45,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          // ── Plan ──────────────────────────────────────────────────
+          DfCard(
+            color: AppColors.ink,
+            borderColor: AppColors.ink,
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(AppRadius.iconTile),
+                  ),
+                  child: const Icon(
+                    LucideIcons.sparkles,
+                    size: 20,
+                    color: AppColors.gold,
                   ),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(LucideIcons.smartphone, size: 22),
-                  title: const Text('Kid devices'),
-                  subtitle: const Text(
-                    'Pair or revoke the device running your kid’s mode',
-                  ),
-                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                  onTap: () => PinGuard.push(
-                    context,
-                    destination: const KidDevicePairingScreen(),
-                    title: 'Manage kid devices',
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  // Manual re-check entry point for parents whose
-                  // blocking stopped working mid-session (e.g. an
-                  // OS update revoked the toggle). The proactive
-                  // case — first-time setup — is handled by the
-                  // lock_config_screen redirect; this is the
-                  // pull-on-demand surface for the proactive parent
-                  // who wants to audit the grants themselves.
-                  leading: const Icon(LucideIcons.shieldCheck, size: 22),
-                  title: const Text('Device permissions'),
-                  subtitle: const Text(
-                    'Re-check Usage access and Display over other apps',
-                  ),
-                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DevicePermissionsScreen(),
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(LucideIcons.lock, size: 22),
-                  title: Text(
-                    _pin == null ? 'Set Parent PIN' : 'Change Parent PIN',
-                  ),
-                  subtitle: Text(
-                    _pin == null
-                        ? 'Protect parent screens with PIN'
-                        : 'PIN is set',
-                  ),
-                  trailing: _pin == null
-                      ? const Icon(LucideIcons.chevronRight, size: 16)
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                LucideIcons.trash2,
-                                color: AppColors.danger,
-                                size: 18,
-                              ),
-                              tooltip: 'Remove PIN',
-                              onPressed: () async {
-                                final messenger = ScaffoldMessenger.of(context);
-                                await _parentPrefs.setPin(null);
-                                if (!mounted) return;
-                                setState(() => _pin = null);
-                                messenger.showSnackBar(
-                                  const SnackBar(content: Text('PIN removed')),
-                                );
-                              },
-                            ),
-                            const Icon(LucideIcons.chevronRight, size: 16),
-                          ],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DoneFirst Free',
+                        style: AppText.cardHeader(
+                          size: 16,
+                          color: Colors.white,
                         ),
-                  onTap: _setPin,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(LucideIcons.key, size: 22),
-                  title: const Text('Change Password'),
-                  subtitle: const Text('Update your login password'),
-                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                  onTap: _changePassword,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          _section('Notifications'),
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: const Text('Proof submitted'),
-                  subtitle: const Text(
-                    'When your child submits homework photo',
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${UpgradeScreen.freeLimit} free sessions this month',
+                        style: AppText.bodySecondary(
+                          size: 12,
+                          color: const Color(0xFFCFC7B8),
+                        ),
+                      ),
+                    ],
                   ),
-                  value: _notifyProofSubmitted,
-                  onChanged: (v) async {
-                    setState(() => _notifyProofSubmitted = v);
-                    await _notificationPrefs.setEnabled(
-                      NotificationPreferencesService.typeProofSubmitted,
-                      v,
-                    );
-                  },
                 ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: const Text('Break requested'),
-                  subtitle: const Text('When your child asks for a break'),
-                  value: _notifyBreakRequested,
-                  onChanged: (v) async {
-                    setState(() => _notifyBreakRequested = v);
-                    await _notificationPrefs.setEnabled(
-                      NotificationPreferencesService.typeBreakRequested,
-                      v,
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: const Text('Session complete'),
-                  subtitle: const Text('When all tasks are done'),
-                  value: _notifySessionComplete,
-                  onChanged: (v) async {
-                    setState(() => _notifySessionComplete = v);
-                    await _notificationPrefs.setEnabled(
-                      NotificationPreferencesService.typeSessionComplete,
-                      v,
-                    );
-                  },
+                const SizedBox(width: 10),
+                DfButton.amber(
+                  'Upgrade',
+                  expand: false,
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const UpgradeScreen()),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          _section('Appearance'),
-          Card(
-            child: SwitchListTile(
+          const SizedBox(height: 26),
+
+          // ── Controls ──────────────────────────────────────────────
+          const DfSectionLabel('Controls'),
+          _group([
+            SwitchListTile(
+              title: const Text('Proof submitted'),
+              subtitle: const Text('When your child submits homework photo'),
+              value: _notifyProofSubmitted,
+              activeThumbColor: AppColors.green,
+              onChanged: (v) async {
+                setState(() => _notifyProofSubmitted = v);
+                await _notificationPrefs.setEnabled(
+                  NotificationPreferencesService.typeProofSubmitted,
+                  v,
+                );
+              },
+            ),
+            const Divider(height: 1),
+            SwitchListTile(
+              title: const Text('Break requested'),
+              subtitle: const Text('When your child asks for a break'),
+              value: _notifyBreakRequested,
+              activeThumbColor: AppColors.green,
+              onChanged: (v) async {
+                setState(() => _notifyBreakRequested = v);
+                await _notificationPrefs.setEnabled(
+                  NotificationPreferencesService.typeBreakRequested,
+                  v,
+                );
+              },
+            ),
+            const Divider(height: 1),
+            SwitchListTile(
+              title: const Text('Session complete'),
+              subtitle: const Text('When all tasks are done'),
+              value: _notifySessionComplete,
+              activeThumbColor: AppColors.green,
+              onChanged: (v) async {
+                setState(() => _notifySessionComplete = v);
+                await _notificationPrefs.setEnabled(
+                  NotificationPreferencesService.typeSessionComplete,
+                  v,
+                );
+              },
+            ),
+          ]),
+          const SizedBox(height: 14),
+          _group([
+            SwitchListTile(
               secondary: const Icon(LucideIcons.moon, size: 22),
               title: const Text('Dark Mode'),
               value: darkModeNotifier.value,
+              activeThumbColor: AppColors.green,
               onChanged: (v) => setState(() => darkModeNotifier.value = v),
             ),
-          ),
-          const SizedBox(height: 24),
-          _section('Proof Verification'),
-          Card(
+          ]),
+          const SizedBox(height: 14),
+          _group([
+            SwitchListTile(
+              secondary: const Icon(LucideIcons.sparkles, size: 22),
+              title: const Text('Approval mode · AI + you'),
+              subtitle: const Text(
+                'Auto-approve when the AI is highly confident (≥80%) the '
+                'photo is real homework. Anything unsure still waits for you.',
+              ),
+              value: _autoApproveMath,
+              activeThumbColor: AppColors.green,
+              onChanged: (v) async {
+                setState(() => _autoApproveMath = v);
+                await _parentPrefs.setAutoApproveMath(v);
+              },
+            ),
+          ]),
+          const SizedBox(height: 14),
+          DfCard(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SwitchListTile(
-                  title: const Text('Auto-approve confident AI proofs'),
-                  subtitle: const Text(
-                    'Skip manual review when the AI is highly confident '
-                    '(≥80%) the photo is real homework. Anything unsure or '
-                    'flagged still waits for you.',
-                  ),
-                  value: _autoApproveMath,
-                  onChanged: (v) async {
-                    setState(() => _autoApproveMath = v);
-                    await _parentPrefs.setAutoApproveMath(v);
+                Text(
+                  'Default session length',
+                  style: AppText.cardHeader(size: 15),
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<int>(
+                  segments: const [
+                    ButtonSegment(value: 30, label: Text('30 min')),
+                    ButtonSegment(value: 60, label: Text('1 hour')),
+                    ButtonSegment(value: 90, label: Text('1.5 hr')),
+                    ButtonSegment(value: 120, label: Text('2 hr')),
+                  ],
+                  selected: {_defaultMinutes},
+                  onSelectionChanged: (v) async {
+                    setState(() => _defaultMinutes = v.first);
+                    await _parentPrefs.setDefaultMinutes(v.first);
                   },
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          _section('Default Session'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Default duration',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 8),
-                  SegmentedButton<int>(
-                    segments: const [
-                      ButtonSegment(value: 30, label: Text('30 min')),
-                      ButtonSegment(value: 60, label: Text('1 hour')),
-                      ButtonSegment(value: 90, label: Text('1.5 hr')),
-                      ButtonSegment(value: 120, label: Text('2 hr')),
-                    ],
-                    selected: {_defaultMinutes},
-                    onSelectionChanged: (v) async {
-                      setState(() => _defaultMinutes = v.first);
-                      await _parentPrefs.setDefaultMinutes(v.first);
-                    },
-                  ),
-                ],
+          const SizedBox(height: 14),
+          _group([
+            ListTile(
+              leading: const Icon(LucideIcons.smartphone, size: 22),
+              title: const Text('Kid devices'),
+              subtitle: const Text(
+                'Pair or revoke the device running your kid’s mode',
+              ),
+              trailing: const Icon(LucideIcons.chevronRight, size: 16),
+              onTap: () => PinGuard.push(
+                context,
+                destination: const KidDevicePairingScreen(),
+                title: 'Manage kid devices',
               ),
             ),
-          ),
-          const SizedBox(height: 32),
-          _section('Your Data'),
-          Card(
-            child: ListTile(
-              leading: const Icon(LucideIcons.download, size: 22),
-              title: const Text('Export My Data'),
+            const Divider(height: 1),
+            ListTile(
+              // Manual re-check entry point for parents whose
+              // blocking stopped working mid-session (e.g. an OS
+              // update revoked the toggle).
+              leading: const Icon(LucideIcons.shieldCheck, size: 22),
+              title: const Text('Device permissions'),
               subtitle: const Text(
-                'Download a JSON copy of your profile, family, sessions, '
-                'proofs, and consent records.',
+                'Re-check Usage access and Display over other apps',
+              ),
+              trailing: const Icon(LucideIcons.chevronRight, size: 16),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const DevicePermissionsScreen(),
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 26),
+
+          // ── Account ───────────────────────────────────────────────
+          const DfSectionLabel('Account'),
+          _group([
+            ListTile(
+              leading: const Icon(LucideIcons.users, size: 22),
+              title: const Text('Co-parent'),
+              subtitle: const Text('Invite a partner to approve together'),
+              trailing: const Icon(LucideIcons.chevronRight, size: 16),
+              onTap: () =>
+                  PinGuard.push(context, destination: const CoparentScreen()),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(LucideIcons.lock, size: 22),
+              title: Text(
+                _pin == null ? 'Set Parent PIN' : 'Change Parent PIN',
+              ),
+              subtitle: Text(
+                _pin == null
+                    ? 'Protect parent screens with a PIN'
+                    : 'PIN is set',
+              ),
+              trailing: _pin == null
+                  ? const Icon(LucideIcons.chevronRight, size: 16)
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            LucideIcons.trash2,
+                            color: AppColors.danger,
+                            size: 18,
+                          ),
+                          tooltip: 'Remove PIN',
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            await _parentPrefs.setPin(null);
+                            if (!mounted) return;
+                            setState(() => _pin = null);
+                            messenger.showSnackBar(
+                              const SnackBar(content: Text('PIN removed')),
+                            );
+                          },
+                        ),
+                        const Icon(LucideIcons.chevronRight, size: 16),
+                      ],
+                    ),
+              onTap: _setPin,
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(LucideIcons.key, size: 22),
+              title: const Text('Change password'),
+              subtitle: const Text('Update your login password'),
+              trailing: const Icon(LucideIcons.chevronRight, size: 16),
+              onTap: _changePassword,
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(LucideIcons.download, size: 22),
+              title: const Text('Export my data'),
+              subtitle: const Text(
+                'A JSON copy of your profile, family, sessions, proofs and '
+                'consent records.',
               ),
               trailing: _exporting
                   ? const SizedBox(
@@ -949,171 +1002,169 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : const Icon(LucideIcons.chevronRight, size: 16),
               onTap: _exporting ? null : _exportData,
             ),
-          ),
-          const SizedBox(height: 32),
-          _section('Consent Audit'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Consent records are an immutable audit trail of every '
-                    'parental attestation you have made. They are required '
-                    'by COPPA and GDPR-K.',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_loadingConsent)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: LinearProgressIndicator(),
-                    )
-                  else if (_consentHistory.isEmpty)
-                    const Text(
-                      'No consent records yet.',
-                      style: TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary),
-                    )
-                  else
-                    ...(_consentHistory.map(
-                      (c) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(LucideIcons.checkCircle2,
-                                size: 16, color: AppColors.success),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    c.displayType,
-                                    style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500),
-                                  ),
-                                  Text(
-                                    '${c.consentVersion} • ${c.createdAt.toLocal().toString().split('.').first}',
-                                    style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textSecondary),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )),
-                ],
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(LucideIcons.helpCircle, size: 22),
+              title: const Text('Help & support'),
+              subtitle: const Text('FAQ and troubleshooting tips'),
+              trailing: const Icon(LucideIcons.chevronRight, size: 16),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HelpScreen()),
               ),
             ),
-          ),
-          const SizedBox(height: 32),
-          _section('Legal'),
-          Card(
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(
+                LucideIcons.logOut,
+                size: 22,
+                color: AppColors.danger,
+              ),
+              title: Text(
+                'Sign out',
+                style: AppText.body(
+                  color: AppColors.danger,
+                ).copyWith(fontWeight: FontWeight.w600),
+              ),
+              onTap: _signOut,
+            ),
+          ]),
+          const SizedBox(height: 26),
+
+          // ── Legal & audit ─────────────────────────────────────────
+          const DfSectionLabel('Legal'),
+          _group([
+            ListTile(
+              leading: const Icon(LucideIcons.shield, size: 22),
+              title: const Text('Privacy Policy'),
+              subtitle: const Text('What we collect and how we use it'),
+              trailing: const Icon(LucideIcons.chevronRight, size: 16),
+              onTap: () => _showPolicyDialog(
+                context,
+                'Privacy Policy',
+                kPrivacyPolicyText,
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(LucideIcons.fileText, size: 22),
+              title: const Text('Terms of Service'),
+              subtitle: const Text('Rules for using DoneFirst'),
+              trailing: const Icon(LucideIcons.chevronRight, size: 16),
+              onTap: () => _showPolicyDialog(
+                context,
+                'Terms of Service',
+                kTermsOfServiceText,
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          DfCard(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ListTile(
-                  leading: const Icon(LucideIcons.shield, size: 22),
-                  title: const Text('Privacy Policy'),
-                  subtitle: const Text(
-                    'What we collect and how we use it',
-                  ),
-                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                  onTap: () => _showPolicyDialog(
-                    context,
-                    'Privacy Policy',
-                    kPrivacyPolicyText,
-                  ),
+                Text('Consent audit', style: AppText.cardHeader(size: 15)),
+                const SizedBox(height: 8),
+                Text(
+                  'An immutable audit trail of every parental attestation you '
+                  'have made. Required by COPPA and GDPR-K.',
+                  style: AppText.bodySecondary(size: 12),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(LucideIcons.fileText, size: 22),
-                  title: const Text('Terms of Service'),
-                  subtitle: const Text('Rules for using DoneFirst'),
-                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                  onTap: () => _showPolicyDialog(
-                    context,
-                    'Terms of Service',
-                    kTermsOfServiceText,
-                  ),
-                ),
+                const SizedBox(height: 12),
+                if (_loadingConsent)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: LinearProgressIndicator(),
+                  )
+                else if (_consentHistory.isEmpty)
+                  Text(
+                    'No consent records yet.',
+                    style: AppText.bodySecondary(size: 13),
+                  )
+                else
+                  ...(_consentHistory.map(
+                    (c) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            LucideIcons.checkCircle2,
+                            size: 16,
+                            color: AppColors.success,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  c.displayType,
+                                  style: AppText.body(
+                                    size: 13,
+                                  ).copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                Text(
+                                  '${c.consentVersion} • ${c.createdAt.toLocal().toString().split('.').first}',
+                                  style: AppText.caption(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )),
               ],
             ),
           ),
-          const SizedBox(height: 32),
-          _section('Danger Zone'),
-          Card(
-            child: ListTile(
+          const SizedBox(height: 26),
+
+          // ── Danger ────────────────────────────────────────────────
+          const DfSectionLabel('Danger zone'),
+          _group([
+            ListTile(
               leading: const Icon(
-                LucideIcons.delete,
+                LucideIcons.trash2,
                 color: AppColors.danger,
                 size: 22,
               ),
               title: Text(
-                'Delete Account',
-                style: TextStyle(color: AppColors.danger),
+                'Delete account',
+                style: AppText.body(
+                  color: AppColors.danger,
+                ).copyWith(fontWeight: FontWeight.w600),
               ),
               subtitle: const Text('Permanently delete all data'),
               onTap: _deleteAccount,
             ),
-          ),
-          const SizedBox(height: 32),
-          _section('About'),
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(LucideIcons.helpCircle, size: 22),
-                  title: const Text('Help & Support'),
-                  subtitle: const Text(
-                    'FAQ and troubleshooting tips',
-                  ),
-                  trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const HelpScreen(),
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(LucideIcons.info, size: 22),
-                  title: const Text('App version'),
-                  subtitle: Text(
-                    'DoneFirst $_appVersion',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(LucideIcons.mail, size: 22),
-                  title: const Text('Resend verification email'),
-                  subtitle: const Text(
-                    "Didn't get the confirmation email? Send it again.",
-                  ),
-                  onTap: _resendVerification,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(LucideIcons.bug, size: 22),
-                  title: const Text('Report a problem'),
-                  subtitle: const Text(
-                    'Copies our support email so you can write us.',
-                  ),
-                  onTap: _reportProblem,
-                ),
-              ],
+          ]),
+          const SizedBox(height: 26),
+
+          // ── About ─────────────────────────────────────────────────
+          const DfSectionLabel('About'),
+          _group([
+            ListTile(
+              leading: const Icon(LucideIcons.mail, size: 22),
+              title: const Text('Resend verification email'),
+              subtitle: const Text(
+                "Didn't get the confirmation email? Send it again.",
+              ),
+              onTap: _resendVerification,
             ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(LucideIcons.bug, size: 22),
+              title: const Text('Report a problem'),
+              subtitle: const Text(
+                'Copies our support email so you can write us.',
+              ),
+              onTap: _reportProblem,
+            ),
+          ]),
+          const SizedBox(height: 20),
+          Center(
+            child: Text('DoneFirst v$_appVersion', style: AppText.label()),
           ),
           const SizedBox(height: 32),
         ],
@@ -1121,10 +1172,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _section(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10, left: 2, top: 2),
-      child: Text(title.toUpperCase(), style: AppText.eyebrow()),
+  /// Wraps a list of tiles in a padding-less warm card so the grouped
+  /// [ListTile]s / [SwitchListTile]s keep their own internal padding
+  /// and the dividers run edge-to-edge.
+  Widget _group(List<Widget> children) {
+    return DfCard(
+      padding: EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: Column(children: children),
+      ),
+    );
+  }
+
+  Widget _skeletonBlock({required double height}) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.borderCol),
+      ),
     );
   }
 
@@ -1162,10 +1230,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: SingleChildScrollView(
                     child: Text(
                       body,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        height: 1.5,
-                      ),
+                      style: const TextStyle(fontSize: 14, height: 1.5),
                     ),
                   ),
                 ),

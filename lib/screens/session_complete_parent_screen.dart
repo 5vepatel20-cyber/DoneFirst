@@ -1,27 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/app_theme.dart';
-import '../widgets/ring_timer.dart';
+import '../widgets/df_kit.dart';
 
 /// Parent-facing celebration shown after a homework session ends.
 ///
-/// The kid side uses a `SessionCompleteCelebration` overlay from
-/// inside the kid app — that path doesn't have a parent context.
-/// This screen is the parent's mirror moment: after `_unlock()` on
-/// the lock-active screen, the parent sees a focused confirmation
-/// of what just happened (how long the kid studied, how many tasks
-/// were approved, what the new streak is) before they go back to
-/// the dashboard.
+/// This screen is the parent's mirror moment: after `_unlock()` on the
+/// lock-active screen, the parent sees a focused confirmation of what
+/// just happened (how long the kid studied, how many tasks were
+/// approved, the new streak) before returning to the dashboard.
 ///
-/// The visual is intentionally calmer than the kid version: sage
-/// ring instead of grass, fewer confetti petals, paper background
-/// rather than kidBg. The parent isn't the one who just finished
-/// the homework — they're the witness, not the celebrant.
+/// Calmer than the kid version — a warm summary card on paper, not a
+/// full-bleed party. The parent is the witness, not the celebrant.
 ///
-/// Pass `minutesStudied`, `tasksCompleted`, and `streakDays`
-/// directly — the screen does no data fetching, so it can render
-/// even if the dashboard's other queries are still in flight.
+/// Pass `minutesStudied`, `tasksCompleted`, and `streakDays` directly —
+/// the screen does no data fetching, so it renders even if the
+/// dashboard's other queries are still in flight.
 class SessionCompleteParentScreen extends StatefulWidget {
   final String childName;
   final int minutesStudied;
@@ -57,17 +51,45 @@ class _SessionCompleteParentScreenState
     super.dispose();
   }
 
+  void _done() {
+    if (widget.onDone != null) {
+      widget.onDone!();
+      return;
+    }
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).pushNamedAndRemoveUntil('/dashboard', (_) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Only surface stats we actually have — the summary shouldn't
+    // invent a missing fact.
+    final stats = <({String value, String caption, Color? color})>[
+      if (widget.minutesStudied > 0)
+        (value: '${widget.minutesStudied}m', caption: 'studied', color: null),
+      if (widget.tasksCompleted > 0)
+        (
+          value: '${widget.tasksCompleted}',
+          caption: widget.tasksCompleted == 1
+              ? 'task approved'
+              : 'tasks approved',
+          color: null,
+        ),
+      if (widget.streakDays > 0)
+        (
+          value: '${widget.streakDays}',
+          caption: 'day streak',
+          color: AppColors.amberDeep,
+        ),
+    ];
+
     return Scaffold(
       backgroundColor: AppColors.paper,
       body: SafeArea(
         child: Stack(
           children: [
-            // Parent-side confetti — sage/forest/warn petals, fewer
-            // than the kid version so it doesn't read as a "party"
-            // screen. The parent wants a beat of "well done" before
-            // moving on, not fireworks.
             Positioned.fill(
               child: AnimatedBuilder(
                 animation: _controller,
@@ -77,113 +99,82 @@ class _SessionCompleteParentScreenState
               ),
             ),
             Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Forest ring + check disc. The center disc uses
-                  // forest (parent primary) rather than grass (kid
-                  // primary) so the screen reads as a parent
-                  // surface at a glance.
-                  Stack(
-                    alignment: Alignment.center,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.screenPadding),
+                child: DfCard(
+                  padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      RingTimer.celebration(
-                        progress: 1.0,
-                        progressColor: AppColors.forest,
-                        trackColor: AppColors.sageSoft,
-                        child: const SizedBox.shrink(),
-                      ),
                       Container(
-                        width: 78,
-                        height: 78,
-                        decoration: const BoxDecoration(
-                          color: AppColors.forest,
-                          shape: BoxShape.circle,
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: AppColors.greenTint,
+                          borderRadius: BorderRadius.circular(AppRadius.tile),
                         ),
                         alignment: Alignment.center,
                         child: const Icon(
                           LucideIcons.check,
-                          color: Colors.white,
-                          size: 44,
+                          size: 38,
+                          color: AppColors.green,
                         ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Homework complete',
+                        textAlign: TextAlign.center,
+                        style: AppText.title(size: 24),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.childName.isEmpty
+                            ? 'Apps are unlocked'
+                            : '${widget.childName} is free to go',
+                        textAlign: TextAlign.center,
+                        style: AppText.body(size: 14),
+                      ),
+                      if (stats.isNotEmpty) ...[
+                        const SizedBox(height: 22),
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.paper,
+                            borderRadius: BorderRadius.circular(AppRadius.tile),
+                            border: Border.all(color: AppColors.borderCol),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              for (var i = 0; i < stats.length; i++) ...[
+                                if (i > 0)
+                                  Container(
+                                    width: 1,
+                                    height: 34,
+                                    color: AppColors.border2,
+                                  ),
+                                Expanded(
+                                  child: DfStatTile(
+                                    stats[i].value,
+                                    stats[i].caption,
+                                    valueColor: stats[i].color,
+                                    align: CrossAxisAlignment.center,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      DfButton(
+                        'Done',
+                        icon: LucideIcons.check,
+                        onPressed: _done,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 26),
-                  Text(
-                    'Homework complete',
-                    style: GoogleFonts.bricolageGrotesque(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.6,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    widget.childName.isEmpty
-                        ? 'Apps are unlocked'
-                        : '${widget.childName} is free to go',
-                    style: AppText.bodySecondary(),
-                  ),
-                  const SizedBox(height: 22),
-                  // Three stat pills. We render them in a Wrap so
-                  // narrow widths collapse to two lines gracefully
-                  // rather than overflowing. Each pill is hidden
-                  // when its value is zero / unknown — the
-                  // celebration shouldn't lie about a missing fact.
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      if (widget.minutesStudied > 0)
-                        _StatPill(
-                          icon: LucideIcons.clock,
-                          value: '${widget.minutesStudied} min',
-                          label: 'studied',
-                        ),
-                      if (widget.tasksCompleted > 0)
-                        _StatPill(
-                          icon: LucideIcons.checkCheck,
-                          value: '${widget.tasksCompleted}',
-                          label: widget.tasksCompleted == 1
-                              ? 'task approved'
-                              : 'tasks approved',
-                        ),
-                      if (widget.streakDays > 0)
-                        _StatPill(
-                          icon: LucideIcons.flame,
-                          iconColor: AppColors.warnDot,
-                          value: '${widget.streakDays}-day',
-                          label: 'streak',
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: 240,
-                    child: FilledButton.icon(
-                      onPressed: widget.onDone ?? () {
-                        Navigator.of(context, rootNavigator: true)
-                            .pushNamedAndRemoveUntil(
-                          '/dashboard',
-                          (_) => false,
-                        );
-                      },
-                      icon: const Icon(
-                        LucideIcons.arrowLeft,
-                        size: 16,
-                      ),
-                      label: const Text('Back to dashboard'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.forest,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(44),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -193,58 +184,13 @@ class _SessionCompleteParentScreenState
   }
 }
 
-class _StatPill extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String value;
-  final String label;
-
-  const _StatPill({
-    required this.icon,
-    required this.value,
-    required this.label,
-    this.iconColor = AppColors.forest,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppRadius.button),
-        border: Border.all(color: AppColors.hair2),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: iconColor),
-          const SizedBox(width: 8),
-          Text(
-            value,
-            style: AppText.listTitle(),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: AppText.bodySecondary(size: 12),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Parent-side confetti. Same mechanics as the kid version (seeded
-/// petal positions, drift phase offset, rotation per petal) but
-/// with a calmer palette and fewer petals so it doesn't read as a
-/// party. Sage + forest + warn — pulled from the parent palette.
+/// Parent-side confetti — seeded petal positions, drift phase offset,
+/// rotation per petal — with a calm palette and few petals so it reads
+/// as "well done", not fireworks.
 class _ConfettiPainter extends CustomPainter {
   final Animation<double> controller;
   _ConfettiPainter({required this.controller}) : super(repaint: controller);
 
-  // Deterministic seed-based positions so the confetti layout
-  // doesn't shuffle between frames.
   static final List<_Confetti> _petals = List.generate(18, (i) {
     return _Confetti(
       x: (i * 73 + 17) % 100 / 100,
@@ -256,9 +202,9 @@ class _ConfettiPainter extends CustomPainter {
   });
 
   static const _palette = [
-    AppColors.forest,
-    AppColors.warnDot,
-    AppColors.sage,
+    AppColors.green,
+    AppColors.amber,
+    AppColors.greenBright,
   ];
 
   @override
@@ -269,8 +215,9 @@ class _ConfettiPainter extends CustomPainter {
     for (final p in _petals) {
       final startY = -20.0;
       final endY = size.height + 20.0;
-      final y = startY + (endY - startY) * (progress + p.drift) % 1.0 *
-              (endY - startY);
+      final y =
+          startY +
+          (endY - startY) * (progress + p.drift) % 1.0 * (endY - startY);
       final x = p.x * size.width;
       final opacity = (1.0 - progress).clamp(0.0, 1.0) * 0.5;
 
@@ -295,10 +242,10 @@ class _ConfettiPainter extends CustomPainter {
 }
 
 class _Confetti {
-  final double x;            // 0..1 of width
-  final double drift;        // 0..0.13 phase offset
+  final double x; // 0..1 of width
+  final double drift; // 0..0.13 phase offset
   final double rotationSpeed;
-  final int size;            // px
+  final int size; // px
   final int paletteIndex;
 
   _Confetti({

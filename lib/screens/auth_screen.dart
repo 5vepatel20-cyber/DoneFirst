@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/auth_service.dart';
 import '../services/consent_service.dart';
@@ -8,6 +7,7 @@ import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/validators.dart';
 import '../widgets/brand_logo.dart';
+import '../widgets/df_kit.dart';
 import '../widgets/error_banner.dart';
 import 'consent_capture_screen.dart';
 import 'parent_dashboard.dart';
@@ -53,8 +53,7 @@ class _AuthScreenState extends State<AuthScreen> {
       _signatureController.text.trim().length >= 2 &&
       _signatureController.text.trim().toLowerCase() != 'delete';
 
-  bool get _signUpReady =>
-      _allRequiredAcks && _signatureValid;
+  bool get _signUpReady => _allRequiredAcks && _signatureValid;
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -64,7 +63,10 @@ class _AuthScreenState extends State<AuthScreen> {
       });
       return;
     }
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       if (_isSignUp) {
         final user = await _auth.signUp(
@@ -166,9 +168,9 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       await _auth.resetPassword(email);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Reset link sent to $email')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Reset link sent to $email')));
       }
     } catch (e) {
       if (mounted) {
@@ -242,6 +244,11 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final title = _isSignUp ? 'Create your account' : 'Welcome back';
+    final subtitle = _isSignUp
+        ? "You're the parent. Kids get their own setup."
+        : 'Sign in to keep the streak going.';
+
     final body = SingleChildScrollView(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.screenPadding,
@@ -258,30 +265,13 @@ class _AuthScreenState extends State<AuthScreen> {
               children: [
                 const BrandLogo.signIn(),
                 const SizedBox(width: 10),
-                Text(
-                  'DoneFirst',
-                  style: AppText.screenTitle(),
-                ),
+                Text('DoneFirst', style: AppText.screenTitle()),
               ],
             ),
             const SizedBox(height: 28),
-            // Greeting — Bricolage 27px (-0.02em) per the handoff.
-            Text(
-              _isSignUp ? 'Create your account' : 'Welcome back',
-              style: GoogleFonts.bricolageGrotesque(
-                fontSize: 27,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
-                color: AppColors.ink,
-              ),
-            ),
+            Text(title, style: AppText.title(size: 27)),
             const SizedBox(height: 6),
-            Text(
-              _isSignUp
-                  ? 'Set up the parent dashboard in about a minute.'
-                  : 'Sign in to manage your family\'s homework locks.',
-              style: AppText.bodySecondary(),
-            ),
+            Text(subtitle, style: AppText.bodySecondary(size: 14)),
             const SizedBox(height: 24),
             if (_error != null)
               Padding(
@@ -291,7 +281,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   onDismiss: () => setState(() => _error = null),
                 ),
               ),
-            if (_isSignUp)
+            if (_isSignUp) ...[
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
@@ -301,11 +291,13 @@ class _AuthScreenState extends State<AuthScreen> {
                 textInputAction: TextInputAction.next,
                 validator: Validators.name,
               ),
-            if (_isSignUp) const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
             TextFormField(
               controller: _emailController,
               decoration: const InputDecoration(
                 labelText: 'Email',
+                hintText: 'sara@email.com',
                 prefixIcon: Icon(LucideIcons.mail, size: 18),
               ),
               keyboardType: TextInputType.emailAddress,
@@ -317,6 +309,7 @@ class _AuthScreenState extends State<AuthScreen> {
               controller: _passwordController,
               decoration: InputDecoration(
                 labelText: 'Password',
+                helperText: _isSignUp ? '6+ characters' : null,
                 prefixIcon: const Icon(LucideIcons.lock, size: 18),
                 suffixIcon: IconButton(
                   icon: Icon(
@@ -332,10 +325,6 @@ class _AuthScreenState extends State<AuthScreen> {
               validator: _isSignUp ? Validators.password : null,
               onFieldSubmitted: (_) => _submit(),
             ),
-            if (_isSignUp) ...[
-              const SizedBox(height: 16),
-              _buildConsentCard(),
-            ],
             if (!_isSignUp)
               Align(
                 alignment: Alignment.centerRight,
@@ -349,79 +338,35 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   child: Text(
                     'Forgot password?',
-                    style: AppText.body(color: AppColors.forest),
+                    style: AppText.body(color: AppColors.green, size: 13),
                   ),
                 ),
               ),
+            if (_isSignUp) ...[const SizedBox(height: 16), _buildConsentCard()],
             const SizedBox(height: 20),
-            // Primary CTA — full width per the handoff.
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: (_loading || (_isSignUp && !_signUpReady))
-                    ? null
-                    : _submit,
-                child: _loading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(_isSignUp ? 'Create account' : 'Sign in'),
-              ),
+            // Primary CTA — full width, chunky kit button.
+            DfButton(
+              _isSignUp ? 'Create account' : 'Sign in',
+              onPressed: (_loading || (_isSignUp && !_signUpReady))
+                  ? null
+                  : _submit,
+              loading: _loading,
             ),
             const SizedBox(height: 18),
             // "Or" divider — peer of the password path, not a
-            // footnote. Hairlines are sage-tinted (#EEF1E9) so the
-            // divider doesn't fight the form for attention.
+            // footnote.
             Row(
               children: [
-                const Expanded(child: Divider(color: AppColors.line)),
+                const Expanded(child: Divider()),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'OR',
-                    style: AppText.eyebrow(),
-                  ),
+                  child: Text('OR', style: AppText.eyebrow()),
                 ),
-                const Expanded(child: Divider(color: AppColors.line)),
+                const Expanded(child: Divider()),
               ],
             ),
             const SizedBox(height: 14),
-            // Google sign-in. Outlined to play against the filled
-            // primary above; the on-brand "G" tile stays because
-            // we don't want to fetch the Google SVG asset.
-            OutlinedButton.icon(
-              onPressed: _loading ? null : _signInWithGoogle,
-              icon: SizedBox(
-                width: 18,
-                height: 18,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4285F4),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'G',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              label: Text(
-                _isSignUp ? 'Sign up with Google' : 'Sign in with Google',
-              ),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(44),
-              ),
-            ),
+            _buildGoogleButton(),
             const SizedBox(height: 16),
             Center(
               child: TextButton(
@@ -431,9 +376,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 }),
                 child: Text(
                   _isSignUp
-                      ? 'Already have an account? Sign in'
-                      : 'New to DoneFirst? Create account',
-                  style: AppText.body(color: AppColors.forest),
+                      ? 'Already have one? Sign in'
+                      : 'New here? Create an account',
+                  style: AppText.body(color: AppColors.green, size: 14),
                 ),
               ),
             ),
@@ -458,55 +403,148 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  /// Parental consent capture card. Required checkboxes plus a typed
-  /// signature. The expansion state persists for the duration of the
-  /// signup form so parents can review the disclosures, then collapse
-  /// the card to focus on the form fields.
+  /// Google sign-in button, restyled to the kit's outline treatment
+  /// (52 height, r16, warm border) with the on-brand "G" tile kept as
+  /// the leading glyph so we don't need to fetch the Google SVG asset.
+  Widget _buildGoogleButton() {
+    final enabled = !_loading;
+    return Opacity(
+      opacity: enabled ? 1 : 0.55,
+      child: GestureDetector(
+        onTap: enabled ? _signInWithGoogle : null,
+        child: Container(
+          width: double.infinity,
+          height: 52,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(AppRadius.button),
+            border: Border.all(color: AppColors.borderCol, width: 1.5),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4285F4),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'G',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  _isSignUp ? 'Sign up with Google' : 'Sign in with Google',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.button(color: AppColors.ink),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Parental consent capture card. The header checkbox mirrors the
+  /// approved mock copy ("I'm 18+ and a parent or legal guardian. I
+  /// agree to the Terms & Privacy Policy.") and drives the two
+  /// attestations it names; the itemized data / AI-verification /
+  /// analytics consents and the typed signature stay in the expandable
+  /// section below so nothing legally required is granted silently.
   Widget _buildConsentCard() {
     final allChecked = _allRequiredAcks;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: allChecked
-              ? AppColors.success.withValues(alpha: 0.5)
-              : AppColors.textSecondary.withValues(alpha: 0.2),
-        ),
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return DfCard(
+      padding: EdgeInsets.zero,
+      borderColor: allChecked
+          ? AppColors.green.withValues(alpha: 0.5)
+          : AppColors.borderCol,
       child: Column(
         children: [
-          InkWell(
-            onTap: () => setState(() => _consentExpanded = !_consentExpanded),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Icon(
-                    allChecked ? LucideIcons.badgeCheck : LucideIcons.scale,
-                    color: allChecked
-                        ? AppColors.success
-                        : AppColors.textSecondary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Parental Consent (required)',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: _ackAdult && _ackGuardian,
+                  onChanged: _loading
+                      ? null
+                      : (v) => setState(() {
+                          _ackAdult = v ?? false;
+                          _ackGuardian = v ?? false;
+                        }),
+                  activeColor: AppColors.green,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: RichText(
+                      text: TextSpan(
+                        style: AppText.body(size: 13),
+                        children: [
+                          const TextSpan(
+                            text:
+                                "I'm 18+ and a parent or legal guardian. "
+                                'I agree to the ',
+                          ),
+                          TextSpan(
+                            text: 'Terms',
+                            style: AppText.body(
+                              size: 13,
+                              color: AppColors.green,
+                              w: FontWeight.w700,
+                            ),
+                          ),
+                          const TextSpan(text: ' & '),
+                          TextSpan(
+                            text: 'Privacy Policy',
+                            style: AppText.body(
+                              size: 13,
+                              color: AppColors.green,
+                              w: FontWeight.w700,
+                            ),
+                          ),
+                          const TextSpan(text: '.'),
+                        ],
                       ),
                     ),
                   ),
-                  Icon(
+                ),
+                IconButton(
+                  onPressed: () =>
+                      setState(() => _consentExpanded = !_consentExpanded),
+                  icon: Icon(
                     _consentExpanded
                         ? LucideIcons.chevronUp
                         : LucideIcons.chevronDown,
-                    color: AppColors.textSecondary,
+                    color: AppColors.ink45,
+                    size: 18,
                   ),
-                ],
-              ),
+                  visualDensity: VisualDensity.compact,
+                  tooltip: _consentExpanded
+                      ? 'Hide full consent details'
+                      : 'Show full consent details',
+                ),
+              ],
             ),
           ),
           if (_consentExpanded) ...[
@@ -516,94 +554,78 @@ class _AuthScreenState extends State<AuthScreen> {
               child: Column(
                 children: [
                   _ackTile(
-                    value: _ackAdult,
-                    onChanged: _loading
-                        ? null
-                        : (v) => setState(() => _ackAdult = v ?? false),
-                    title: 'I am 18 or older.',
-                    subtitle: 'Required for COPPA / GDPR-K.',
-                  ),
-                  _ackTile(
-                    value: _ackGuardian,
-                    onChanged: _loading
-                        ? null
-                        : (v) => setState(() => _ackGuardian = v ?? false),
-                    title:
-                        'I am the parent or legal guardian of any child I add.',
-                    subtitle:
-                        'DoneFirst only collects data on children whose legal parent or guardian uses this account.',
-                  ),
-                  _ackTile(
                     value: _ackChildData,
                     onChanged: _loading
                         ? null
                         : (v) => setState(() => _ackChildData = v ?? false),
                     title:
-                        'I consent to DoneFirst storing photos of my child\'s homework and basic profile info.',
-                    subtitle:
-                        'Photos are stored privately and never shared.',
+                        "I consent to DoneFirst storing photos of my child's "
+                        'homework and basic profile info.',
+                    subtitle: 'Photos are stored privately and never shared.',
                   ),
                   _ackTile(
                     value: _ackAiVerification,
                     onChanged: _loading
                         ? null
-                        : (v) => setState(() => _ackAiVerification = v ?? false),
+                        : (v) =>
+                              setState(() => _ackAiVerification = v ?? false),
                     title:
-                        'I consent to AI proof verification (Mistral) reviewing my child\'s submitted photos.',
+                        'I consent to AI proof verification (Mistral) '
+                        "reviewing my child's submitted photos.",
                     subtitle:
-                        'Verification runs on the first photo and the result is shown to you.',
+                        'Verification runs on the first photo and the '
+                        'result is shown to you.',
                   ),
                   _ackTile(
                     value: _ackOptionalAnalytics,
                     onChanged: _loading
                         ? null
                         : (v) => setState(
-                              () => _ackOptionalAnalytics = v ?? false,
-                            ),
+                            () => _ackOptionalAnalytics = v ?? false,
+                          ),
                     title:
-                        '(Optional) Share anonymous usage stats so we can improve DoneFirst.',
+                        '(Optional) Share anonymous usage stats so we can '
+                        'improve DoneFirst.',
                     subtitle:
-                        'You can change this anytime in Settings. Off by default.',
+                        'You can change this anytime in Settings. Off by '
+                        'default.',
                   ),
                 ],
               ),
             ),
             const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Type your full legal name as your signature:',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                    style: AppText.body(size: 12, w: FontWeight.w600),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: _signatureController,
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: 'e.g. Jane Patel',
-                      border: const OutlineInputBorder(),
                       suffixIcon: _signatureValid
                           ? const Icon(
                               LucideIcons.check,
-                              color: AppColors.success,
+                              color: AppColors.green,
                               size: 18,
                             )
                           : null,
                     ),
-                    style: const TextStyle(fontSize: 13),
+                    style: AppText.body(size: 13),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     'Policy ${ConsentService.currentPolicyVersion}. '
-                    'You can view the full policy in Settings after signing up.',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textSecondary,
-                    ),
+                    'You can view the full policy in Settings after signing '
+                    'up.',
+                    style: AppText.caption(size: 10.5),
                   ),
                 ],
               ),
@@ -623,13 +645,11 @@ class _AuthScreenState extends State<AuthScreen> {
     return CheckboxListTile(
       value: value,
       onChanged: onChanged,
-      title: Text(title, style: const TextStyle(fontSize: 12)),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(fontSize: 10),
-      ),
+      activeColor: AppColors.green,
+      title: Text(title, style: AppText.body(size: 12.5, color: AppColors.ink)),
+      subtitle: Text(subtitle, style: AppText.caption(size: 10.5)),
       controlAffinity: ListTileControlAffinity.leading,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 2),
       dense: true,
     );
   }

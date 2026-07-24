@@ -4,12 +4,18 @@ import '../services/schedule_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/destructive_confirm_dialog.dart';
-import '../widgets/empty_state.dart';
+import '../widgets/df_kit.dart';
 import 'lock_config_screen.dart';
 import '../models/models.dart';
 
 const List<String> weekdayNames = [
-  'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+  'Mon',
+  'Tue',
+  'Wed',
+  'Thu',
+  'Fri',
+  'Sat',
+  'Sun',
 ];
 
 class SchedulesScreen extends StatefulWidget {
@@ -30,6 +36,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   final _sessionService = SessionService();
   List<RecurringSchedule> _schedules = [];
   bool _loading = true;
+  String? _error;
   String? _activeSessionId;
 
   @override
@@ -39,6 +46,10 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   }
 
   Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       // Schedules + the active session lookup are independent reads.
       // The "Start now" button on each schedule row depends on
@@ -63,13 +74,10 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       // is the only place it flips false) and the spinner would
       // spin until the parent gives up.
       if (mounted) {
-        setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Couldn’t load schedules: $e'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
+        setState(() {
+          _loading = false;
+          _error = '$e';
+        });
       }
     }
   }
@@ -81,7 +89,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   /// pre-fill the segmented buttons; otherwise the defaults match
   /// the add flow.
   static Future<({int dayOfWeek, int durationMinutes, String approvalMode})?>
-      _showScheduleDialog({
+  _showScheduleDialog({
     required BuildContext context,
     required String title,
     int? initialDay,
@@ -97,7 +105,11 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDState) => AlertDialog(
-          title: Text(title),
+          backgroundColor: AppColors.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.card),
+          ),
+          title: Text(title, style: AppText.cardHeader(size: 18)),
           content: SizedBox(
             width: double.maxFinite,
             child: Column(
@@ -105,59 +117,45 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (allowPickDay) ...[
-                  const Text(
-                    'Day of Week',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
+                  DfSectionLabel('Day of week'),
                   Wrap(
-                    spacing: 4,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: List.generate(
                       7,
-                      (i) => ChoiceChip(
-                        label: Text(weekdayNames[i]),
+                      (i) => DfChip(
+                        weekdayNames[i],
                         selected: selectedDay == i + 1,
-                        onSelected: (v) => setDState(
-                          () => selectedDay = v ? i + 1 : null,
+                        onTap: () => setDState(
+                          () => selectedDay = (selectedDay == i + 1)
+                              ? null
+                              : i + 1,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                 ],
-                const Text(
-                  'Duration',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 4),
-                SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(value: 30, label: Text('30m')),
-                    ButtonSegment(value: 60, label: Text('1h')),
-                    ButtonSegment(value: 90, label: Text('1.5h')),
-                    ButtonSegment(value: 120, label: Text('2h')),
+                DfSectionLabel('Duration'),
+                DfSegmented<int>(
+                  options: const [
+                    (value: 30, label: '30m'),
+                    (value: 60, label: '1h'),
+                    (value: 90, label: '1.5h'),
+                    (value: 120, label: '2h'),
                   ],
-                  selected: {duration},
-                  onSelectionChanged: (v) =>
-                      setDState(() => duration = v.first),
+                  selected: duration,
+                  onChanged: (v) => setDState(() => duration = v),
                 ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Approval',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 4),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'balanced', label: Text('Balanced')),
-                    ButtonSegment(value: 'strict', label: Text('Strict')),
+                const SizedBox(height: 16),
+                DfSectionLabel('Who approves'),
+                DfSegmented<String>(
+                  options: const [
+                    (value: 'balanced', label: 'AI + you'),
+                    (value: 'strict', label: 'You only'),
                   ],
-                  selected: {approvalMode},
-                  onSelectionChanged: (v) =>
-                      setDState(() => approvalMode = v.first),
+                  selected: approvalMode,
+                  onChanged: (v) => setDState(() => approvalMode = v),
                 ),
               ],
             ),
@@ -191,7 +189,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   Future<void> _add() async {
     final result = await _showScheduleDialog(
       context: context,
-      title: 'Add Recurring Schedule',
+      title: 'Add recurring schedule',
     );
     if (result != null) {
       try {
@@ -222,7 +220,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
     // to add a different one", which is better expressed by adding).
     final result = await _showScheduleDialog(
       context: context,
-      title: 'Edit Schedule (${s.dayName})',
+      title: 'Edit ${s.dayName} schedule',
       initialDuration: s.durationMinutes,
       initialApprovalMode: s.approvalMode,
       allowPickDay: false,
@@ -272,9 +270,9 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn’t delete: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Couldn’t delete: $e')));
     }
   }
 
@@ -291,108 +289,223 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
     return '${hours.toStringAsFixed(1)}h';
   }
 
+  String _approvalLabel(String mode) =>
+      mode == 'strict' ? 'You only' : 'AI + you';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.childName}\'s Schedule'),
-        actions: [IconButton(icon: const Icon(LucideIcons.plus), onPressed: _add)],
+        title: Text('${widget.childName}\'s schedule'),
+        actions: [
+          IconButton(
+            icon: const Icon(LucideIcons.plus),
+            tooltip: 'Add schedule',
+            onPressed: _add,
+          ),
+        ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _schedules.isEmpty
-          ? EmptyState(
-              icon: LucideIcons.calendarDays,
-              title: 'No recurring schedule',
-              subtitle: 'Add weekly homework routines',
-              actionLabel: 'Add Schedule',
-              onAction: _add,
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _schedules.length,
-              itemBuilder: (ctx, i) {
-                final s = _schedules[i];
-                final day = s.dayOfWeek;
-                final dur = s.durationMinutes;
-                final mode = s.approvalMode;
-                final isToday = day == DateTime.now().weekday;
+      body: _buildBody(),
+    );
+  }
 
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
+  Widget _buildBody() {
+    if (_loading) return _buildLoading();
+    if (_error != null) return _buildError(_error!);
+    if (_schedules.isEmpty) {
+      return DfEmptyState(
+        icon: LucideIcons.calendarDays,
+        title: 'No recurring schedule',
+        hint: 'Add a weekly homework routine so sessions start themselves.',
+        ctaLabel: 'Add schedule',
+        onCta: _add,
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(AppSpacing.screenPadding),
+      itemCount: _schedules.length,
+      itemBuilder: (ctx, i) {
+        final s = _schedules[i];
+        final isToday = s.dayOfWeek == DateTime.now().weekday;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: DfCard(
+            borderColor: isToday
+                ? AppColors.green.withValues(alpha: 0.4)
+                : AppColors.borderCol,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color:
-                            (isToday
-                                    ? AppColors.primary
-                                    : AppColors.textSecondary)
-                                .withValues(alpha:0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        color: isToday
+                            ? AppColors.greenTint
+                            : AppColors.border2,
+                        borderRadius: BorderRadius.circular(AppRadius.iconTile),
                       ),
+                      alignment: Alignment.center,
                       child: Icon(
                         LucideIcons.calendarCheck,
-                        color: isToday
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
+                        size: 18,
+                        color: isToday ? AppColors.green : AppColors.ink45,
                       ),
                     ),
-                    title: Text(
-                      weekdayNames[day - 1],
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: isToday
-                            ? AppColors.primary
-                            : AppColors.textPrimary,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            weekdayNames[s.dayOfWeek - 1],
+                            style: AppText.cardHeader(size: 16),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_friendlyDuration(s.durationMinutes)} · ${_approvalLabel(s.approvalMode)}',
+                            style: AppText.caption(),
+                          ),
+                        ],
                       ),
                     ),
-                    subtitle: Text('$dur min | $mode'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isToday && _activeSessionId == null)
-                          FilledButton.tonal(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => LockConfigScreen(
-                                  childId: widget.childId,
-                                  childName: widget.childName,
-                                  // Pre-fill from this schedule so the
-                                  // parent doesn't re-pick duration and
-                                  // approval mode they already set on the
-                                  // schedule. Packs aren't part of the
-                                  // schedule today so they still default
-                                  // to empty.
-                                  initialMinLock: s.durationMinutes,
-                                  initialApprovalMode: s.approvalMode,
-                                ),
-                              ),
-                            ),
-                            child: const Text('Start Now'),
-                          ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: const Icon(LucideIcons.pencil, size: 20),
-                          tooltip: 'Edit schedule',
-                          onPressed: () => _edit(s),
+                    IconButton(
+                      icon: const Icon(
+                        LucideIcons.pencil,
+                        size: 18,
+                        color: AppColors.ink45,
+                      ),
+                      tooltip: 'Edit schedule',
+                      onPressed: () => _edit(s),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        LucideIcons.trash2,
+                        size: 18,
+                        color: AppColors.dangerFg,
+                      ),
+                      tooltip: 'Delete schedule',
+                      onPressed: () => _confirmDelete(s),
+                    ),
+                  ],
+                ),
+                if (isToday && _activeSessionId == null) ...[
+                  const SizedBox(height: 12),
+                  DfButton.outline(
+                    'Start now',
+                    icon: LucideIcons.play,
+                    expand: false,
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => LockConfigScreen(
+                          childId: widget.childId,
+                          childName: widget.childName,
+                          // Pre-fill from this schedule so the
+                          // parent doesn't re-pick duration and
+                          // approval mode they already set on the
+                          // schedule. Packs aren't part of the
+                          // schedule today so they still default
+                          // to empty.
+                          initialMinLock: s.durationMinutes,
+                          initialApprovalMode: s.approvalMode,
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            LucideIcons.trash2,
-                            size: 20,
-                            color: AppColors.danger,
-                          ),
-                          tooltip: 'Delete schedule',
-                          onPressed: () => _confirmDelete(s),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                );
-              },
+                ],
+              ],
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLoading() {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.screenPadding),
+      children: List.generate(
+        3,
+        (i) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: DfCard(
+            color: AppColors.border2,
+            borderColor: AppColors.border2,
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.borderCol,
+                    borderRadius: BorderRadius.circular(AppRadius.iconTile),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 14,
+                        width: 100,
+                        color: AppColors.borderCol,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 10,
+                        width: 140,
+                        color: AppColors.borderCol,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildError(String message) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.screenPadding),
+      children: [
+        const SizedBox(height: 60),
+        DfCard(
+          child: Column(
+            children: [
+              const Icon(
+                LucideIcons.wifiOff,
+                color: AppColors.dangerFg,
+                size: 28,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Couldn\'t load schedules',
+                style: AppText.cardHeader(size: 16),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: AppText.body(size: 13),
+              ),
+              const SizedBox(height: 16),
+              DfButton.outline(
+                'Try again',
+                icon: LucideIcons.refreshCw,
+                onPressed: _load,
+                expand: false,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

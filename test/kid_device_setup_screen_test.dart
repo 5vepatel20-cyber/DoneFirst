@@ -9,8 +9,9 @@ import 'package:donefirst/theme/app_theme.dart';
 /// We just verify the walk-through renders all six steps in order
 /// and exposes the canonical ADB command so the parent can copy it.
 void main() {
-  testWidgets('setup guide renders all six steps with the ADB command',
-      (tester) async {
+  testWidgets('setup guide renders all five steps with the ADB command', (
+    tester,
+  ) async {
     // Force a tall viewport so ListView builds every step card
     // instead of lazy-truncating at the test default.
     tester.view.physicalSize = const Size(800, 2400);
@@ -21,25 +22,25 @@ void main() {
     });
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light,
-        home: const KidDeviceSetupScreen(),
-      ),
+      MaterialApp(theme: AppTheme.light, home: const KidDeviceSetupScreen()),
     );
     await tester.pumpAndSettle();
 
-    // Step titles from the screen's _StepCard children.
+    // Step titles from the screen's _StepCard children (premium
+    // redesign — five steps matching the mock's setup guide).
     const titles = [
       'Install DoneFirst on the kid’s phone',
-      'Open DoneFirst and choose “Kid”',
-      'Grant accessibility when prompted',
+      'Open it and choose “Kid”',
+      'Grant accessibility when asked',
       'Promote to device owner (one-time)',
-      'Pair the device from the parent app',
-      'Verify it worked',
+      'Enter the pairing code, then test',
     ];
     for (final t in titles) {
-      expect(find.text(t), findsOneWidget,
-          reason: 'expected step title to render: "$t"');
+      expect(
+        find.text(t),
+        findsOneWidget,
+        reason: 'expected step title to render: "$t"',
+      );
     }
 
     // The ADB command must be present and copyable. The screen
@@ -50,13 +51,14 @@ void main() {
     expect(find.text(expectedCmd), findsOneWidget);
 
     // Copy button is wired (we don't simulate clipboard). The widget
-  // uses LucideIcons, so search for it specifically rather than
-  // the Material Icons.copy which isn't used here.
+    // uses LucideIcons, so search for it specifically rather than
+    // the Material Icons.copy which isn't used here.
     expect(find.byIcon(LucideIcons.copy), findsOneWidget);
   });
 
-  testWidgets('hardcoded package name matches what the kid app uses',
-      (tester) async {
+  testWidgets('hardcoded package name matches what the kid app uses', (
+    tester,
+  ) async {
     // Drift here would silently brick the ADB instruction. Pin
     // the value so any rename in the kid app's build.gradle.kts
     // also breaks this test loudly.

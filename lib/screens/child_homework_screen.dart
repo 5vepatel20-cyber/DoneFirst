@@ -4,8 +4,9 @@ import '../models/models.dart';
 import '../services/proof_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
-import '../utils/subjects.dart';
+import '../widgets/df_kit.dart';
 import '../widgets/proof_thumbnail.dart';
+import '../widgets/shimmer_loading.dart';
 import 'proof_image_viewer.dart';
 
 /// Parent-side screen showing all homework tasks and proof submissions
@@ -30,6 +31,8 @@ class _ChildHomeworkScreenState extends State<ChildHomeworkScreen> {
   final Map<String, List<HomeworkTask>> _tasksBySession = {};
   final Map<String, List<ProofSubmission>> _proofsBySession = {};
   bool _loading = true;
+  // Inline error banner state — set on load failure.
+  String? _error;
 
   @override
   void initState() {
@@ -38,7 +41,10 @@ class _ChildHomeworkScreenState extends State<ChildHomeworkScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final sessions = await _sessionService.getHistory(widget.childId);
       _sessions = sessions;
@@ -56,14 +62,7 @@ class _ChildHomeworkScreenState extends State<ChildHomeworkScreen> {
         _proofsBySession[entry.key] = entry.value.$2;
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load homework: $e'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
-      }
+      _error = e.toString();
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -71,6 +70,7 @@ class _ChildHomeworkScreenState extends State<ChildHomeworkScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.paper,
       appBar: AppBar(
         title: Text('${widget.childName}\'s Homework'),
         actions: [
@@ -80,43 +80,100 @@ class _ChildHomeworkScreenState extends State<ChildHomeworkScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _sessions.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return ListView(
+        padding: const EdgeInsets.all(AppSpacing.screenPadding),
+        children: List.generate(
+          3,
+          (_) => Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.blockGap),
+            child: DfCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Icon(
-                        LucideIcons.bookOpen,
-                        size: 48,
-                        color: AppColors.muted,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No homework sessions yet',
-                        style: AppText.body(color: AppColors.muted),
-                      ),
+                      ShimmerLoading(width: 90, height: 16, borderRadius: 6),
+                      const Spacer(),
+                      ShimmerLoading(width: 40, height: 14, borderRadius: 6),
                     ],
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _sessions.length,
-                    itemBuilder: (context, index) {
-                      final session = _sessions[index];
-                      final tasks = _tasksBySession[session.id] ?? [];
-                      final proofs = _proofsBySession[session.id] ?? [];
-                      return _SessionCard(
-                        session: session,
-                        tasks: tasks,
-                        proofs: proofs,
-                      );
-                    },
-                  ),
+                  const SizedBox(height: 14),
+                  const ShimmerLoading(height: 12, width: double.infinity),
+                  const SizedBox(height: 8),
+                  ShimmerLoading(height: 12, width: 180, borderRadius: 6),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: DfCard(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  LucideIcons.alertCircle,
+                  color: AppColors.dangerFg,
+                  size: 32,
                 ),
+                const SizedBox(height: 12),
+                Text(
+                  'Couldn’t load homework.',
+                  style: AppText.cardHeader(size: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _error!,
+                  style: AppText.bodySecondary(),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                DfButton.outline('Try again', onPressed: _load, expand: false),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_sessions.isEmpty) {
+      return DfEmptyState(
+        icon: LucideIcons.bookOpen,
+        title: 'No homework sessions yet',
+        hint:
+            '${widget.childName}’s sessions will appear here once they '
+            'start focusing.',
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(AppSpacing.screenPadding),
+        itemCount: _sessions.length,
+        itemBuilder: (context, index) {
+          final session = _sessions[index];
+          final tasks = _tasksBySession[session.id] ?? [];
+          final proofs = _proofsBySession[session.id] ?? [];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.blockGap),
+            child: _SessionCard(session: session, tasks: tasks, proofs: proofs),
+          );
+        },
+      ),
     );
   }
 }
@@ -147,6 +204,20 @@ class _SessionCard extends StatelessWidget {
     }
   }
 
+  DfPillTone _statusTone(String status) {
+    switch (status) {
+      case 'completed':
+        return DfPillTone.success;
+      case 'ended_by_parent':
+      case 'cancelled':
+        return DfPillTone.danger;
+      case 'timed_out':
+        return DfPillTone.attention;
+      default:
+        return DfPillTone.neutral;
+    }
+  }
+
   IconData _statusIcon(String status) {
     switch (status) {
       case 'completed':
@@ -162,237 +233,214 @@ class _SessionCard extends StatelessWidget {
     }
   }
 
-  Color _statusColor(String status) {
+  DfPillTone _taskTone(String status) {
     switch (status) {
-      case 'completed':
-        return AppColors.success;
-      case 'ended_by_parent':
-      case 'cancelled':
-        return AppColors.danger;
-      case 'timed_out':
-        return AppColors.warn;
+      case 'approved':
+        return DfPillTone.success;
+      case 'rejected':
+        return DfPillTone.danger;
+      case 'submitted':
+        return DfPillTone.info;
       default:
-        return AppColors.muted;
+        return DfPillTone.neutral;
+    }
+  }
+
+  DfPillTone _proofTone(String? decision) {
+    switch (decision) {
+      case 'approved':
+        return DfPillTone.success;
+      case 'rejected':
+        return DfPillTone.danger;
+      case 'needs_review':
+        return DfPillTone.attention;
+      default:
+        return DfPillTone.neutral;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final doneCount = tasks.where((t) => !t.isPending).length;
-    final approvedCount = proofs.where((p) => p.aiDecision == 'approved').length;
+    final approvedCount = proofs
+        .where((p) => p.aiDecision == 'approved')
+        .length;
     final sessionDate = session.startedAt;
     final dateStr =
         '${sessionDate.month}/${sessionDate.day}/${sessionDate.year}';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return DfCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.border2,
+                  borderRadius: BorderRadius.circular(AppRadius.small),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  _statusIcon(session.status),
+                  size: 18,
+                  color: AppColors.ink70,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(dateStr, style: AppText.cardHeader(size: 15)),
+                    const SizedBox(height: 4),
+                    DfStatusPill(
+                      _statusLabel(session.status),
+                      tone: _statusTone(session.status),
+                    ),
+                  ],
+                ),
+              ),
+              if (session.endedAt != null)
+                Text(
+                  '${session.endedAt!.difference(session.startedAt).inMinutes}m',
+                  style: AppText.caption(),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          // Tasks summary
+          if (tasks.isNotEmpty) ...[
             Row(
               children: [
-                Icon(_statusIcon(session.status),
-                    size: 18, color: _statusColor(session.status)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(dateStr,
-                          style: AppText.body(
-                              size: 14, color: AppColors.textPrimary)
-                              .copyWith(fontWeight: FontWeight.w600)),
-                      Text(
-                        _statusLabel(session.status),
-                        style: AppText.bodySecondary(
-                            size: 12, color: _statusColor(session.status)),
-                      ),
-                    ],
-                  ),
+                const Icon(
+                  LucideIcons.listChecks,
+                  size: 15,
+                  color: AppColors.amber,
                 ),
-                if (session.endedAt != null) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    '${session.endedAt!.difference(session.startedAt).inMinutes}m',
-                    style:
-                        AppText.bodySecondary(size: 12, color: AppColors.muted),
-                  ),
-                ],
+                const SizedBox(width: 6),
+                Text(
+                  'Tasks · $doneCount/${tasks.length} done',
+                  style: AppText.body(size: 13, w: FontWeight.w700),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            // Tasks summary
-            if (tasks.isNotEmpty) ...[
-              Row(
-                children: [
-                  const Icon(LucideIcons.listChecks,
-                      size: 15, color: AppColors.accent),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Tasks: $doneCount/${tasks.length} done',
-                    style: AppText.body(
-                        size: 13, color: AppColors.textPrimary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              ...tasks.map((t) => Padding(
-                    padding: const EdgeInsets.only(left: 21),
-                    child: Row(
-                      children: [
-                        Icon(
-                          t.isPending
-                              ? LucideIcons.circle
-                              : LucideIcons.circleCheck,
+            const SizedBox(height: 8),
+            ...tasks.map(
+              (t) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      t.isPending
+                          ? LucideIcons.circle
+                          : LucideIcons.circleCheck,
+                      size: 14,
+                      color: t.isPending ? AppColors.ink45 : AppColors.green,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        t.description,
+                        style: AppText.body(
                           size: 13,
-                          color: t.isPending
-                              ? AppColors.muted
-                              : AppColors.success,
+                          color: t.isPending ? AppColors.ink45 : AppColors.ink,
                         ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            t.description,
-                            style: AppText.body(
-                              size: 12,
-                              color: t.isPending
-                                  ? AppColors.muted
-                                  : AppColors.textPrimary,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    DfStatusPill(t.status, tone: _taskTone(t.status)),
+                  ],
+                ),
+              ),
+            ),
+          ] else
+            Row(
+              children: [
+                const Icon(
+                  LucideIcons.listChecks,
+                  size: 15,
+                  color: AppColors.ink45,
+                ),
+                const SizedBox(width: 6),
+                Text('No tasks', style: AppText.bodySecondary()),
+              ],
+            ),
+          // Proofs
+          if (proofs.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Icon(LucideIcons.image, size: 15, color: AppColors.amber),
+                const SizedBox(width: 6),
+                Text(
+                  'Proofs · $approvedCount/${proofs.length} approved',
+                  style: AppText.body(size: 13, w: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 78,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: proofs.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (context, i) {
+                  final p = proofs[i];
+                  return GestureDetector(
+                    onTap: () {
+                      final url = p.imageUrl.isNotEmpty
+                          ? p.imageUrl
+                          : (p.imageUrls.isNotEmpty ? p.imageUrls.first : '');
+                      if (url.isNotEmpty) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProofImageViewer(
+                              imageUrl: url,
+                              taskDescription: p.taskDescription ?? '',
+                              aiResult: p,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }
+                    },
+                    child: Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(AppRadius.small),
+                          child: ProofThumbnail(
+                            url: p.imageUrl,
+                            height: 54,
+                            width: 54,
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.small,
+                            ),
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: _taskStatusColor(t.status).withAlpha(30),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            t.status,
-                            style: AppText.body(
-                                size: 10,
-                                color: _taskStatusColor(t.status)),
-                          ),
+                        const SizedBox(height: 4),
+                        DfStatusPill(
+                          p.aiDecision ?? 'pending',
+                          tone: _proofTone(p.aiDecision),
                         ),
                       ],
                     ),
-                  )),
-            ] else ...[
-              Row(
-                children: [
-                  const Icon(LucideIcons.listChecks,
-                      size: 15, color: AppColors.muted),
-                  const SizedBox(width: 6),
-                  Text(
-                    'No tasks',
-                    style:
-                        AppText.bodySecondary(size: 13, color: AppColors.muted),
-                  ),
-                ],
+                  );
+                },
               ),
-            ],
-            // Proofs
-            if (proofs.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(LucideIcons.image,
-                      size: 15, color: AppColors.accent),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Proofs: $approvedCount/${proofs.length} approved',
-                    style: AppText.body(
-                        size: 13, color: AppColors.textPrimary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                height: 64,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: proofs.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, i) {
-                    final p = proofs[i];
-                    return GestureDetector(
-                      onTap: () {
-                        final url = p.imageUrl.isNotEmpty
-                            ? p.imageUrl
-                            : (p.imageUrls.isNotEmpty ? p.imageUrls.first : '');
-                        if (url.isNotEmpty) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ProofImageViewer(
-                                imageUrl: url,
-                                taskDescription: p.taskDescription ?? '',
-                                aiResult: p,
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                      child: Column(
-                        children: [
-                          ProofThumbnail(url: p.imageUrl),
-                          const SizedBox(height: 2),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 1),
-                            decoration: BoxDecoration(
-                              color:
-                                  _proofDecisionColor(p.aiDecision).withAlpha(30),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text(
-                              p.aiDecision ?? 'pending',
-                              style: AppText.body(
-                                  size: 9,
-                                  color: _proofDecisionColor(p.aiDecision)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
-  }
-
-  Color _taskStatusColor(String status) {
-    switch (status) {
-      case 'approved':
-        return AppColors.success;
-      case 'rejected':
-        return AppColors.danger;
-      case 'submitted':
-        return AppColors.accent;
-      default:
-        return AppColors.muted;
-    }
-  }
-
-  Color _proofDecisionColor(String? decision) {
-    switch (decision) {
-      case 'approved':
-        return AppColors.success;
-      case 'rejected':
-        return AppColors.danger;
-      case 'needs_review':
-        return AppColors.warn;
-      default:
-        return AppColors.muted;
-    }
   }
 }

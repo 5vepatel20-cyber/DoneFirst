@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 
-/// DoneFirst brand mark — a rounded-square tile with a sprout
-/// glyph in the center. Used on the splash screen (large, dark
-/// forest bg) and the sign-in screen (small, paper bg). The two
-/// variants share the geometry; only the color treatment differs.
+/// DoneFirst brand mark — a rounded-square tile carrying a bold "D"
+/// wordmark glyph. Used on the splash (large, on the green gradient)
+/// and inline on the sign-in / account screens (small, on paper). The
+/// two variants share the geometry; only the color treatment differs.
 class BrandLogo extends StatelessWidget {
   final double size;
   final Color tileColor;
   final Color glyphColor;
 
-  /// Splash-screen variant: 72px, slightly lighter forest tile, mint
-  /// glyph. Sits centered on the dark forest scaffold.
+  /// Splash-screen variant: 76px, white tile, emerald glyph. Sits on
+  /// the celebratory green gradient.
   const BrandLogo.splash({super.key})
-      : size = 72,
-        tileColor = const Color(0xFF3B7355),
-        glyphColor = const Color(0xFFC9E4D5);
+    : size = 76,
+      tileColor = Colors.white,
+      glyphColor = AppColors.green;
 
-  /// Sign-in variant: 36px, sageSoft tile, forest glyph. Sits
-  /// inline next to the wordmark.
+  /// Sign-in variant: 40px, emerald tile, white glyph. Sits inline
+  /// next to the wordmark on paper.
   const BrandLogo.signIn({super.key})
-      : size = 36,
-        tileColor = AppColors.sageSoft,
-        glyphColor = AppColors.forest;
+    : size = 40,
+      tileColor = AppColors.green,
+      glyphColor = Colors.white;
 
   const BrandLogo({
     super.key,
@@ -34,19 +34,33 @@ class BrandLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(size * 0.22);
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: tileColor,
-        borderRadius: radius,
+        borderRadius: BorderRadius.circular(size * 0.28),
+        boxShadow: tileColor == Colors.white
+            ? const [
+                BoxShadow(
+                  color: Color(0x2A0C3A22),
+                  blurRadius: 24,
+                  spreadRadius: -6,
+                  offset: Offset(0, 10),
+                ),
+              ]
+            : null,
       ),
       alignment: Alignment.center,
-      child: Icon(
-        LucideIcons.sprout,
-        size: size * 0.48,
-        color: glyphColor,
+      child: Text(
+        'D',
+        style: GoogleFonts.bricolageGrotesque(
+          fontSize: size * 0.56,
+          height: 1.0,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -1,
+          color: glyphColor,
+        ),
       ),
     );
   }

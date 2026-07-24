@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 
 /// Walk-through for getting a kid's phone ready to enforce locks.
 ///
@@ -25,7 +26,7 @@ import '../theme/app_theme.dart';
 ///   • Help FAQ #1 ("… see the in-app setup guide")
 class KidDeviceSetupScreen extends StatelessWidget {
   /// The kid-app applicationId. Must match
-/// android/app/build.gradle.kts' `applicationId`. Hardcoded
+  /// android/app/build.gradle.kts' `applicationId`. Hardcoded
   /// here because the kid app is a sibling Flutter project, not
   /// a packaged dependency of the parent — Dart has no way to
   /// read the kid app's package name at runtime.
@@ -46,78 +47,57 @@ class KidDeviceSetupScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.paper,
-      appBar: AppBar(
-        title: const Text('Kid device setup'),
-      ),
+      appBar: AppBar(title: const Text('Kid device setup')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenPadding,
+          12,
+          AppSpacing.screenPadding,
+          32,
+        ),
         children: [
+          Text('Set up the kid’s device', style: AppText.screenTitle()),
+          const SizedBox(height: 6),
+          Text(
+            'Five quick steps — including the one-time ADB command that '
+            'lets DoneFirst hold the lock screen.',
+            style: AppText.bodySecondary(size: 13.5),
+          ),
+          const SizedBox(height: AppSpacing.blockGap),
           const _StepCard(
             number: 1,
             icon: LucideIcons.download,
             title: 'Install DoneFirst on the kid’s phone',
-            body:
-                'Get the latest APK from the parent app’s onboarding or '
-                'sideload the same build that the parent installed. The '
-                'kid app is the same codebase but with the device-owner '
-                'and accessibility permissions built in.',
+            body: 'Same build the parent installed.',
           ),
           const _StepCard(
             number: 2,
             icon: LucideIcons.user,
-            title: 'Open DoneFirst and choose “Kid”',
-            body:
-                'On the kid’s phone, launch DoneFirst. Pick “Kid” at the '
-                'role-select screen and tap “I have a pairing code”. You '
-                'don’t need a password for the kid account.',
+            title: 'Open it and choose “Kid”',
+            body: 'Tap “I have a pairing code.” No password needed.',
           ),
           const _StepCard(
             number: 3,
             icon: LucideIcons.shieldCheck,
-            title: 'Grant accessibility when prompted',
-            body:
-                'The kid app immediately asks for Android’s '
-                'AccessibilityService permission — this is what lets it '
-                'detect when other apps open and block them during a '
-                'lock. Tap the system settings link, find DoneFirst, and '
-                'toggle on. The kid app pops you back to itself once '
-                'permission is granted.',
+            title: 'Grant accessibility when asked',
+            body: 'Lets the app detect & pause other apps in a lock.',
           ),
           const _StepCard(
             number: 4,
             icon: LucideIcons.terminal,
             title: 'Promote to device owner (one-time)',
-            body:
-                'Connect the kid phone to a computer with ADB installed '
-                'and run the command below. You only need to do this '
-                'once per device — it survives app updates and reboots. '
-                'If the device already has another admin app installed, '
-                'remove it first; Android only allows one device owner.',
+            body: 'Run this once over ADB — survives reboots.',
             commandSlot: _AdbCommandBox(),
           ),
           const _StepCard(
             number: 5,
-            icon: LucideIcons.keyRound,
-            title: 'Pair the device from the parent app',
-            body:
-                'Back on your phone, open Settings → Kid devices, tap '
-                'your child’s name, and read the 6-digit code aloud. '
-                'Type it into the kid app — the device shows up in the '
-                'paired-devices list within a few seconds.',
-          ),
-          const _StepCard(
-            number: 6,
             icon: LucideIcons.checkCheck,
-            title: 'Verify it worked',
+            title: 'Enter the pairing code, then test',
             body:
-                'Lock a quick 5-minute session from the dashboard. The '
-                'kid phone should immediately switch to the lock screen '
-                'and the home button should stop working. If it doesn’t, '
-                'check the kid device status chip on the lock-active '
-                'screen — it’ll tell you whether the device is online '
-                'or still being set up.',
+                'Lock a 5-min session — the phone should switch to '
+                'the lock screen.',
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           const _Footnote(),
         ],
       ),
@@ -144,37 +124,28 @@ class _StepCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.hair2),
-        ),
+      child: DfCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  width: 28,
-                  height: 28,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
-                    color: AppColors.forest,
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppColors.green,
+                    borderRadius: BorderRadius.circular(AppRadius.small),
                   ),
                   child: Center(
                     child: Text(
                       '$number',
-                      style: AppText.cardHeader(
-                        color: Colors.white,
-                        size: 14,
-                      ),
+                      style: AppText.cardHeader(color: Colors.white, size: 15),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Icon(icon, size: 18, color: AppColors.forest),
+                const SizedBox(width: 12),
+                Icon(icon, size: 18, color: AppColors.green),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(title, style: AppText.cardHeader(size: 15)),
@@ -182,10 +153,7 @@ class _StepCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(
-              body,
-              style: AppText.body(size: 13.5),
-            ),
+            Text(body, style: AppText.bodySecondary(size: 13.5)),
             if (commandSlot != null) ...[
               const SizedBox(height: 12),
               commandSlot!,
@@ -214,10 +182,10 @@ class _AdbCommandBox extends StatelessWidget {
     const cmd = KidDeviceSetupScreen.adbCommand;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
       decoration: BoxDecoration(
-        color: AppColors.deep,
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(AppRadius.tile),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -225,28 +193,22 @@ class _AdbCommandBox extends StatelessWidget {
           Expanded(
             child: Text(
               cmd,
-              style: AppText.body(
-                color: Colors.white,
+              style: AppText.code(
                 size: 12.5,
-              ).copyWith(
-                fontFamily: 'monospace',
-                letterSpacing: 0.2,
-              ),
+                color: Colors.white,
+              ).copyWith(letterSpacing: 0, height: 1.4),
             ),
           ),
+          const SizedBox(width: 4),
           IconButton(
             tooltip: 'Copy',
-            icon: const Icon(
-              LucideIcons.copy,
-              size: 16,
-              color: Colors.white,
-            ),
+            icon: const Icon(LucideIcons.copy, size: 16, color: Colors.white),
             onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: cmd));
+              await Clipboard.setData(const ClipboardData(text: cmd));
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Command copied')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Command copied')));
             },
           ),
         ],
@@ -260,21 +222,13 @@ class _Footnote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.warnFill,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.warnBd),
-      ),
+    return DfCard(
+      color: AppColors.amberTint,
+      borderColor: AppColors.amberTint2,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            LucideIcons.info,
-            size: 16,
-            color: AppColors.warn,
-          ),
+          const Icon(LucideIcons.info, size: 16, color: AppColors.amberDeep),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

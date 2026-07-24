@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../services/auth_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 import 'parent_dashboard.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
@@ -93,75 +94,67 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.paper,
       body: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(20),
+                width: 88,
+                height: 88,
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha:0.1),
+                  color: AppColors.greenTint,
                   shape: BoxShape.circle,
                 ),
+                alignment: Alignment.center,
                 child: const Icon(
                   LucideIcons.mail,
-                  size: 48,
-                  color: AppColors.accent,
+                  size: 40,
+                  color: AppColors.green,
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Verify your email',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
+              Text('Check your inbox', style: AppText.screenTitle()),
               const SizedBox(height: 12),
-              Text(
-                'We sent a verification link to\n${widget.email}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: AppColors.textSecondary,
+              Text.rich(
+                TextSpan(
+                  style: AppText.body(size: 15),
+                  children: [
+                    const TextSpan(text: 'We sent a link to '),
+                    TextSpan(
+                      text: widget.email,
+                      style: AppText.body(
+                        size: 15,
+                        w: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const TextSpan(text: '. Tap it, then come back here.'),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Click the link in the email, then come back.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 32),
-              FilledButton.icon(
+              DfButton(
+                "I've verified — continue",
                 onPressed: _checking ? null : _checkVerification,
-                icon: _checking
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(LucideIcons.refreshCw),
-                label: const Text('I\'ve Verified — Continue'),
+                loading: _checking,
+                icon: _checking ? null : LucideIcons.refreshCw,
               ),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
+              DfButton.outline(
+                'Resend email',
                 onPressed: _resend,
-                icon: const Icon(LucideIcons.send, size: 18),
-                label: const Text('Resend Email'),
+                icon: LucideIcons.send,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               TextButton(
                 onPressed: _skip,
-                child: const Text(
-                  'Skip — I\'ll verify later',
-                  style: TextStyle(color: AppColors.textSecondary),
+                child: Text(
+                  "Skip — I'll verify later",
+                  style: AppText.button(color: AppColors.ink45, size: 14),
                 ),
               ),
             ],

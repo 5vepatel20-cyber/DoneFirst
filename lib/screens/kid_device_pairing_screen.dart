@@ -9,6 +9,7 @@ import '../models/child.dart';
 import '../services/kid_device_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/df_kit.dart';
 import '../widgets/destructive_confirm_dialog.dart';
 import '../app_globals.dart' as app;
 import 'kid_device_setup_screen.dart';
@@ -113,22 +114,25 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
       // the regular refetch path below; no need to fetch it here.
     }
 
-    _eventService.listFamilyEvents().then((updated) {
-      if (!mounted) return;
-      // Skip the refetch if the IDs we already have are still
-      // current; this avoids a redundant setState during the
-      // initial open when realtime floods multiple inserts at once.
-      if (updated.length == _events.length &&
-          updated.isNotEmpty &&
-          updated.first.id == _events.first.id) {
-        return;
-      }
-      setState(() => _events = updated);
-    }).catchError((_) {
-      // Realtime refetch failures are non-fatal — the 10s
-      // pull-to-refresh path will heal the feed on the next
-      // user gesture. Swallow to avoid spamming snackbars.
-    });
+    _eventService
+        .listFamilyEvents()
+        .then((updated) {
+          if (!mounted) return;
+          // Skip the refetch if the IDs we already have are still
+          // current; this avoids a redundant setState during the
+          // initial open when realtime floods multiple inserts at once.
+          if (updated.length == _events.length &&
+              updated.isNotEmpty &&
+              updated.first.id == _events.first.id) {
+            return;
+          }
+          setState(() => _events = updated);
+        })
+        .catchError((_) {
+          // Realtime refetch failures are non-fatal — the 10s
+          // pull-to-refresh path will heal the feed on the next
+          // user gesture. Swallow to avoid spamming snackbars.
+        });
   }
 
   /// Lighter refetch that only updates the device list (no event
@@ -185,7 +189,8 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
       // skip rendering an Active card that just says "Expired".
       // Jump straight to the Expired state so the parent can
       // retry instead of seeing the card flash and vanish.
-      final alreadyExpired = !code.timeUntilExpiry.isNegative &&
+      final alreadyExpired =
+          !code.timeUntilExpiry.isNegative &&
           code.timeUntilExpiry == Duration.zero;
       setState(() {
         _activeCode = alreadyExpired ? null : code;
@@ -219,8 +224,7 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
   }
 
   Future<void> _revoke(KidDevice device) async {
-    final name =
-        device.deviceName ?? device.childDisplayName ?? 'Device';
+    final name = device.deviceName ?? device.childDisplayName ?? 'Device';
     final confirmed = await DestructiveConfirmDialog.show(
       context,
       title: 'Revoke $name?',
@@ -240,9 +244,9 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn’t revoke: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Couldn’t revoke: $e')));
     }
   }
 
@@ -285,9 +289,9 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
         await _load();
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Couldn’t rename: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Couldn’t rename: $e')));
       }
     } finally {
       // Single dispose site covers cancel, no-op, success, server
@@ -333,10 +337,19 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn’t share: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Couldn’t share: $e')));
     }
+  }
+
+  String _childName(String? id, {String fallback = 'child'}) {
+    return _children
+        .firstWhere(
+          (c) => c.id == id,
+          orElse: () => Child(id: '', name: fallback),
+        )
+        .name;
   }
 
   @override
@@ -354,156 +367,162 @@ class _KidDevicePairingScreenState extends State<KidDevicePairingScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const _LoadingView()
           : _error != null
-              ? _ErrorView(message: _error!, onRetry: _load)
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                    children: [
-                      if (_activeCode != null) ...[
-                        _ActiveCodeCard(
-                          code: _activeCode!.code,
-                          childName: _children
-                              .firstWhere(
-                                (c) => c.id == _activeCodeChildId,
-                                orElse: () => Child(
-                                  id: '',
-                                  name: 'child',
-                                ),
-                              )
-                              .name,
-                          remaining: _countdownLabel,
-                          onCopy: () {
-                            Clipboard.setData(
-                              ClipboardData(text: _activeCode!.code),
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Code copied'),
-                              ),
-                            );
-                          },
-                          onShare: () => _shareCode(
-                            code: _activeCode!,
-                            childName: _children
-                                .firstWhere(
-                                  (c) => c.id == _activeCodeChildId,
-                                  orElse: () => Child(
-                                    id: '',
-                                    name: 'your child',
-                                  ),
-                                )
-                                .name,
-                          ),
-                          onCancel: () async {
-                            try {
-                              await _service
-                                  .cancelPairingCode(_activeCode!.code);
-                            } catch (_) {}
-                            if (!mounted) return;
-                            _countdownTimer?.cancel();
-                            setState(() => _activeCode = null);
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                      ] else if (_codeExpired && _activeCodeChildId != null) ...[
-                        _ExpiredCodeCard(
-                          childName: _children
-                              .firstWhere(
-                                (c) => c.id == _activeCodeChildId,
-                                orElse: () => Child(
-                                  id: '',
-                                  name: 'child',
-                                ),
-                              )
-                              .name,
-                          onGenerate: () {
-                            setState(() => _codeExpired = false);
-                            _generateCode(_activeCodeChildId!);
-                          },
-                          onDismiss: () {
-                            setState(() {
-                              _codeExpired = false;
-                              _activeCodeChildId = null;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                      Text(
-                        'Pair a new device',
-                        style: AppText.cardHeader(size: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_children.isEmpty)
-                        _EmptyState(
-                          icon: LucideIcons.userPlus,
-                          title: 'Add a child first',
-                          subtitle: 'Pairing requires at least one child '
-                              'in your family.',
-                        )
-                      else
-                        ..._children.map(
-                          (c) => _ChildPairRow(
-                            child: c,
-                            activeCodeChildId: _activeCodeChildId,
-                            onGenerate: () => _generateCode(c.id),
-                          ),
-                        ),
-                      const SizedBox(height: 32),
-                      Text(
-                        'Paired devices',
-                        style: AppText.cardHeader(size: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_devices.isEmpty)
-                        _EmptyState(
-                          icon: LucideIcons.smartphone,
-                          title: 'No devices yet',
-                          subtitle: 'Generate a code above and enter it '
-                              'on the kid’s device.',
-                        )
-                      else
-                        ..._devices.map((d) => _DeviceRow(
-                              device: d,
-                              onRevoke: () => _revoke(d),
-                              onRename: () => _showRenameDialog(d),
-                            )),
-                      const SizedBox(height: 32),
-                      _SetupGuideRow(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const KidDeviceSetupScreen(),
-                          ),
-                        ),
-                      ),
-                      if (_devices.isEmpty && _events.isEmpty) const SizedBox(height: 32),
-                      Text(
-                        'Recent activity',
-                        style: AppText.cardHeader(size: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_events.isEmpty)
-                        _EmptyState(
-                          icon: LucideIcons.history,
-                          title: 'No activity yet',
-                          subtitle: 'Pairings, claims, and revokes show '
-                              'up here once you start using kid devices.',
-                        )
-                      else
-                        ..._events
-                            .take(8)
-                            .map((e) => _ActivityRow(event: e)),
-                    ],
-                  ),
+          ? _ErrorView(message: _error!, onRetry: _load)
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenPadding,
+                  12,
+                  AppSpacing.screenPadding,
+                  32,
                 ),
+                children: [
+                  if (_activeCode != null) ...[
+                    _ActiveCodeCard(
+                      code: _activeCode!.code,
+                      childName: _childName(_activeCodeChildId),
+                      remaining: _countdownLabel,
+                      onCopy: () {
+                        Clipboard.setData(
+                          ClipboardData(text: _activeCode!.code),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Code copied')),
+                        );
+                      },
+                      onShare: () => _shareCode(
+                        code: _activeCode!,
+                        childName: _childName(
+                          _activeCodeChildId,
+                          fallback: 'your child',
+                        ),
+                      ),
+                      onCancel: () async {
+                        try {
+                          await _service.cancelPairingCode(_activeCode!.code);
+                        } catch (_) {}
+                        if (!mounted) return;
+                        _countdownTimer?.cancel();
+                        setState(() => _activeCode = null);
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                  ] else if (_codeExpired && _activeCodeChildId != null) ...[
+                    _ExpiredCodeCard(
+                      childName: _childName(_activeCodeChildId),
+                      onGenerate: () {
+                        setState(() => _codeExpired = false);
+                        _generateCode(_activeCodeChildId!);
+                      },
+                      onDismiss: () {
+                        setState(() {
+                          _codeExpired = false;
+                          _activeCodeChildId = null;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  DfSectionLabel(
+                    _activeCode != null
+                        ? 'Or pick another kid'
+                        : 'Pair a device',
+                  ),
+                  if (_children.isEmpty)
+                    const DfEmptyState(
+                      icon: LucideIcons.userPlus,
+                      title: 'Add a kid first',
+                      hint:
+                          'Pairing needs at least one kid in your '
+                          'family.',
+                    )
+                  else
+                    ..._children.map(
+                      (c) => _ChildPairRow(
+                        child: c,
+                        activeCodeChildId: _activeCodeChildId,
+                        onGenerate: () => _generateCode(c.id),
+                      ),
+                    ),
+                  const SizedBox(height: 28),
+                  DfSectionLabel('Paired · ${_devices.length}'),
+                  if (_devices.isEmpty)
+                    const DfEmptyState(
+                      icon: LucideIcons.smartphone,
+                      title: 'No devices yet',
+                      hint:
+                          'Generate a code above and enter it on '
+                          'the kid’s device.',
+                    )
+                  else
+                    ..._devices.map(
+                      (d) => _DeviceRow(
+                        device: d,
+                        onRevoke: () => _revoke(d),
+                        onRename: () => _showRenameDialog(d),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  _SetupGuideRow(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const KidDeviceSetupScreen(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  DfSectionLabel('Recent activity'),
+                  if (_events.isEmpty)
+                    const DfEmptyState(
+                      icon: LucideIcons.history,
+                      title: 'No activity yet',
+                      hint:
+                          'Pairings, claims, and revokes show up '
+                          'here once you start using kid devices.',
+                    )
+                  else
+                    ..._events.take(8).map((e) => _ActivityRow(event: e)),
+                ],
+              ),
+            ),
     );
   }
 }
 
+/// Small square icon tile used across this screen's rows.
+class _IconTile extends StatelessWidget {
+  const _IconTile({
+    required this.icon,
+    this.bg = AppColors.greenTint,
+    this.fg = AppColors.green,
+    this.size = 44,
+  });
+
+  final IconData icon;
+  final Color bg;
+  final Color fg;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.iconTile),
+      ),
+      child: Icon(icon, size: size * 0.42, color: fg),
+    );
+  }
+}
+
+/// The green pairing-code hero card. Big spaced digits, a live
+/// countdown pill, tap-to-copy, and Share / Cancel actions.
 class _ActiveCodeCard extends StatelessWidget {
   const _ActiveCodeCard({
     required this.code,
@@ -523,100 +542,106 @@ class _ActiveCodeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final spaced = code.split('').join('  ');
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.grassDeep,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.green,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        boxShadow: AppShadows.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Icon(
-                LucideIcons.keyRound,
-                color: Colors.white,
-                size: 18,
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(AppRadius.small),
+                ),
+                child: const Icon(
+                  LucideIcons.keyRound,
+                  color: Colors.white,
+                  size: 17,
+                ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Pair $childName’s device',
-                  style: AppText.cardHeader(
-                    size: 14,
-                    color: Colors.white,
-                  ),
+                  style: AppText.cardHeader(size: 16, color: Colors.white),
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 3,
+                  horizontal: 10,
+                  vertical: 5,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       LucideIcons.timer,
-                      size: 12,
+                      size: 13,
                       color: Colors.white,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Text(
                       remaining,
-                      style: AppText.body(
-                        color: Colors.white,
-                        size: 12,
-                      ),
+                      style: AppText.timerDigits(size: 13, color: Colors.white),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Center(
             child: GestureDetector(
               onTap: onCopy,
+              behavior: HitTestBehavior.opaque,
               child: Text(
-                code,
-                style: AppText.code(size: 40),
+                spaced,
+                style: AppText.code(size: 34, color: Colors.white),
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Center(
             child: Text(
-              'Tap to copy • enter on the kid’s device',
+              'Tap to copy · enter on the kid’s device',
               style: AppText.bodySecondary(
                 color: Colors.white.withValues(alpha: 0.85),
-                size: 12,
+                size: 12.5,
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              TextButton.icon(
-                onPressed: onShare,
-                icon: const Icon(LucideIcons.share2, size: 16),
-                label: const Text('Share'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
+              Expanded(
+                child: _CodeAction(
+                  icon: LucideIcons.share2,
+                  label: 'Share',
+                  onTap: onShare,
+                  filled: true,
                 ),
               ),
-              TextButton(
-                onPressed: onCancel,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
+              const SizedBox(width: 12),
+              Expanded(
+                child: _CodeAction(
+                  icon: LucideIcons.x,
+                  label: 'Cancel code',
+                  onTap: onCancel,
+                  filled: false,
                 ),
-                child: const Text('Cancel code'),
               ),
             ],
           ),
@@ -626,10 +651,55 @@ class _ActiveCodeCard extends StatelessWidget {
   }
 }
 
-/// Compact card shown in place of the active-code card when the
-/// countdown reaches zero. Without this, the parent has to scroll
-/// back to the per-child "Pair new device" row to recover — easy
-/// to miss on a long list of devices.
+/// Share / Cancel pill used on the green code card. [filled] gives a
+/// white button with green label; otherwise a translucent outline.
+class _CodeAction extends StatelessWidget {
+  const _CodeAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.filled,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = filled ? AppColors.greenDeep : Colors.white;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: filled ? Colors.white : Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppRadius.button),
+          border: filled
+              ? null
+              : Border.all(
+                  color: Colors.white.withValues(alpha: 0.45),
+                  width: 1.4,
+                ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: fg),
+            const SizedBox(width: 7),
+            Text(label, style: AppText.button(color: fg, size: 14)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Amber recovery card shown when the active code's countdown hits
+/// zero, so the parent can re-generate without hunting for the row.
 class _ExpiredCodeCard extends StatelessWidget {
   final String childName;
   final VoidCallback onGenerate;
@@ -643,60 +713,53 @@ class _ExpiredCodeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.warnFill,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warnBd),
-      ),
+    return DfCard(
+      color: AppColors.amberTint,
+      borderColor: AppColors.amberTint2,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(LucideIcons.clock, size: 18, color: AppColors.warn),
-          const SizedBox(width: 10),
+          const Icon(LucideIcons.clock, size: 18, color: AppColors.amberDeep),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Code for $childName expired',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
+                  style: AppText.cardHeader(size: 15),
                 ),
-                const SizedBox(height: 2),
-                const Text(
+                const SizedBox(height: 3),
+                Text(
                   'Generate a new code to keep pairing.',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: AppColors.textSecondary,
-                  ),
+                  style: AppText.bodySecondary(size: 12.5),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
                   children: [
-                    FilledButton.icon(
+                    DfButton.amber(
+                      'New code',
+                      icon: LucideIcons.refreshCw,
                       onPressed: onGenerate,
-                      icon: const Icon(LucideIcons.refreshCw, size: 14),
-                      label: const Text('Generate new code'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 36),
+                      expand: false,
+                    ),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: onDismiss,
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
+                          horizontal: 8,
+                          vertical: 14,
+                        ),
+                        child: Text(
+                          'Dismiss',
+                          style: AppText.button(
+                            color: AppColors.ink70,
+                            size: 14,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: onDismiss,
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 36),
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                      ),
-                      child: const Text('Dismiss'),
                     ),
                   ],
                 ),
@@ -709,6 +772,7 @@ class _ExpiredCodeCard extends StatelessWidget {
   }
 }
 
+/// Per-child "generate a code" row.
 class _ChildPairRow extends StatelessWidget {
   const _ChildPairRow({
     required this.child,
@@ -724,69 +788,46 @@ class _ChildPairRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isActive = activeCodeChildId == child.id;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: isActive ? null : onGenerate,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.kidBg,
-                    borderRadius: BorderRadius.circular(10),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DfCard(
+        padding: const EdgeInsets.all(14),
+        onTap: isActive ? null : onGenerate,
+        child: Row(
+          children: [
+            DfAvatar(child.name, size: 44),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(child.name, style: AppText.cardHeader(size: 15)),
+                  const SizedBox(height: 2),
+                  Text(
+                    isActive
+                        ? 'Code active — see above'
+                        : 'Generate a 6-digit code',
+                    style: AppText.bodySecondary(size: 12.5),
                   ),
-                  child: Center(
-                    child: Text(
-                      child.name.isNotEmpty
-                          ? child.name[0].toUpperCase()
-                          : '?',
-                      style: AppText.cardHeader(
-                        color: AppColors.kidInk,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        child.name,
-                        style: AppText.cardHeader(size: 15),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isActive
-                            ? 'Code active — see above'
-                            : 'Generate a 6-digit code',
-                        style: AppText.bodySecondary(size: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  isActive ? LucideIcons.dot : LucideIcons.chevronRight,
-                  color: isActive ? AppColors.grass : AppColors.muted,
-                  size: isActive ? 18 : 20,
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            if (isActive)
+              const DfStatusPill('Active', tone: DfPillTone.success, dot: true)
+            else
+              const Icon(
+                LucideIcons.chevronRight,
+                color: AppColors.ink45,
+                size: 20,
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
+/// One paired-device row with a status pill, last-seen, rename and
+/// revoke actions.
 class _DeviceRow extends StatelessWidget {
   const _DeviceRow({
     required this.device,
@@ -800,122 +841,70 @@ class _DeviceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (dotColor, statusLabel) = switch (device.status) {
-      'online' => (AppColors.ok, 'Online'),
-      'recent' => (AppColors.warn, 'Recent'),
-      'stale' => (AppColors.muted, 'Stale'),
-      'revoked' => (AppColors.danger, 'Revoked'),
-      _ => (AppColors.muted, 'Never'),
+    final (tone, statusLabel) = switch (device.status) {
+      'online' => (DfPillTone.success, 'Online'),
+      'recent' => (DfPillTone.attention, 'Recent'),
+      'stale' => (DfPillTone.neutral, 'Stale'),
+      'revoked' => (DfPillTone.danger, 'Revoked'),
+      _ => (DfPillTone.neutral, 'Never'),
     };
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.sageFill,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  LucideIcons.smartphone,
-                  size: 18,
-                  color: AppColors.forest,
-                ),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DfCard(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            const _IconTile(icon: LucideIcons.smartphone),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    device.deviceName ?? device.childDisplayName ?? 'Device',
+                    style: AppText.cardHeader(size: 15),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      DfStatusPill(statusLabel, tone: tone, dot: true),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          '${device.childDisplayName ?? '—'} · '
+                          '${device.lastSeenLabel(DateTime.now())}',
+                          style: AppText.bodySecondary(size: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      device.deviceName ??
-                          device.childDisplayName ??
-                          'Device',
-                      style: AppText.cardHeader(size: 14),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${device.childDisplayName ?? '—'} • '
-                      '$statusLabel • '
-                      '${device.lastSeenLabel(DateTime.now())}',
-                      style: AppText.bodySecondary(size: 12),
-                    ),
-                  ],
-                ),
+            ),
+            if (!device.isRevoked) ...[
+              IconButton(
+                tooltip: 'Rename',
+                icon: const Icon(LucideIcons.pencil, size: 16),
+                color: AppColors.ink70,
+                onPressed: onRename,
               ),
-              if (!device.isRevoked) ...[
-                IconButton(
-                  tooltip: 'Rename',
-                  icon: const Icon(LucideIcons.pencil, size: 16),
-                  color: AppColors.ink2,
-                  onPressed: onRename,
-                ),
-                IconButton(
-                  tooltip: 'Revoke',
-                  icon: const Icon(LucideIcons.trash2, size: 16),
-                  color: AppColors.danger,
-                  onPressed: onRevoke,
-                ),
-              ],
+              IconButton(
+                tooltip: 'Revoke',
+                icon: const Icon(LucideIcons.trash2, size: 16),
+                color: AppColors.dangerFg,
+                onPressed: onRevoke,
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.hair2),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.muted, size: 24),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppText.cardHeader(size: 14)),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: AppText.bodySecondary(size: 12),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
+/// Full-screen error state with a retry.
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
 
@@ -930,21 +919,24 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              LucideIcons.alertCircle,
-              size: 32,
-              color: AppColors.danger,
+            const _IconTile(
+              icon: LucideIcons.alertCircle,
+              bg: AppColors.dangerBg,
+              fg: AppColors.dangerFg,
+              size: 60,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
               message,
               style: AppText.body(size: 14),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            FilledButton(
+            const SizedBox(height: 18),
+            DfButton.outline(
+              'Try again',
+              icon: LucideIcons.refreshCw,
               onPressed: onRetry,
-              child: const Text('Retry'),
+              expand: false,
             ),
           ],
         ),
@@ -953,10 +945,56 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-/// Tappable row that opens the setup guide. Sits between the
-/// paired-devices list and the activity feed — parents who finish
-/// reading the empty state typically wonder "what's next?" and
-/// this is the answer.
+/// Skeleton placeholder shown while the first load is in flight.
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenPadding,
+        12,
+        AppSpacing.screenPadding,
+        32,
+      ),
+      children: const [
+        _SkeletonBox(height: 200),
+        SizedBox(height: 24),
+        _SkeletonBox(height: 14, width: 120),
+        SizedBox(height: 14),
+        _SkeletonBox(height: 72),
+        SizedBox(height: 10),
+        _SkeletonBox(height: 72),
+        SizedBox(height: 28),
+        _SkeletonBox(height: 14, width: 100),
+        SizedBox(height: 14),
+        _SkeletonBox(height: 72),
+      ],
+    );
+  }
+}
+
+class _SkeletonBox extends StatelessWidget {
+  const _SkeletonBox({required this.height, this.width});
+
+  final double height;
+  final double? width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: AppColors.border2,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+    );
+  }
+}
+
+/// Tappable row that opens the setup guide.
 class _SetupGuideRow extends StatelessWidget {
   const _SetupGuideRow({required this.onTap});
 
@@ -964,67 +1002,45 @@ class _SetupGuideRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: AppColors.sageFill,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
+    return DfCard(
+      color: AppColors.greenTint,
+      borderColor: AppColors.greenTint,
+      padding: const EdgeInsets.all(14),
+      onTap: onTap,
+      child: Row(
+        children: [
+          const _IconTile(icon: LucideIcons.helpCircle, bg: AppColors.card),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    LucideIcons.helpCircle,
-                    size: 18,
-                    color: AppColors.forest,
-                  ),
+                Text(
+                  'How to set up the kid’s device',
+                  style: AppText.cardHeader(size: 15),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'How to set up the kid’s device',
-                        style: AppText.cardHeader(size: 14),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Install the app, grant access, run one ADB '
-                        'command — full walk-through with copy-able '
-                        'steps.',
-                        style: AppText.bodySecondary(size: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  LucideIcons.chevronRight,
-                  color: AppColors.muted,
-                  size: 18,
+                const SizedBox(height: 2),
+                Text(
+                  'Install the app, grant access, run one ADB command — '
+                  'a full walk-through with copy-able steps.',
+                  style: AppText.bodySecondary(size: 12.5),
                 ),
               ],
             ),
           ),
-        ),
+          const SizedBox(width: 8),
+          const Icon(
+            LucideIcons.chevronRight,
+            color: AppColors.ink45,
+            size: 20,
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Single line in the recent-activity feed. The event_type drives
-/// the icon + color so the parent can scan the feed at a glance.
-/// Time-ago label right-aligned via Expanded above.
+/// Single line in the recent-activity feed.
 class _ActivityRow extends StatelessWidget {
   const _ActivityRow({required this.event});
 
@@ -1033,36 +1049,42 @@ class _ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color) = switch (event.eventType) {
-      KidDeviceEvent.typeCodeGenerated => (LucideIcons.keyRound, AppColors.forest),
-      KidDeviceEvent.typeCodeClaimed => (LucideIcons.link, AppColors.grass),
-      KidDeviceEvent.typeCodeCancelled => (LucideIcons.x, AppColors.muted),
-      KidDeviceEvent.typeDeviceRevoked => (LucideIcons.trash2, AppColors.danger),
-      _ => (LucideIcons.circle, AppColors.muted),
+      KidDeviceEvent.typeCodeGenerated => (
+        LucideIcons.keyRound,
+        AppColors.green,
+      ),
+      KidDeviceEvent.typeCodeClaimed => (LucideIcons.link, AppColors.green),
+      KidDeviceEvent.typeCodeCancelled => (LucideIcons.x, AppColors.ink45),
+      KidDeviceEvent.typeDeviceRevoked => (
+        LucideIcons.trash2,
+        AppColors.dangerFg,
+      ),
+      _ => (LucideIcons.circle, AppColors.ink45),
     };
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.hair2),
-        ),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: DfCard(
+        padding: const EdgeInsets.fromLTRB(12, 11, 14, 11),
         child: Row(
           children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 10),
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.small),
+              ),
+              child: Icon(icon, size: 15, color: color),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 event.label(),
-                style: AppText.body(size: 13),
+                style: AppText.body(size: 13.5, color: AppColors.ink),
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              event.ageLabel(DateTime.now()),
-              style: AppText.bodySecondary(size: 12),
-            ),
+            Text(event.ageLabel(DateTime.now()), style: AppText.caption()),
           ],
         ),
       ),
