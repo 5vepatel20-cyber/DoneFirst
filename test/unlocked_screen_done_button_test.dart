@@ -41,12 +41,15 @@ void main() {
   Future<void> pumpUnlockedAs(
     WidgetTester tester,
     TargetPlatform platform,
-    Future<void> Function() body,
-  ) async {
+    Future<void> Function() body, {
+    bool celebrate = false,
+  }) async {
     debugDefaultTargetPlatformOverride = platform;
     try {
       await tester.pumpWidget(
-        const MaterialApp(home: UnlockedScreen(childName: 'Maya')),
+        MaterialApp(
+          home: UnlockedScreen(childName: 'Maya', celebrate: celebrate),
+        ),
       );
       await tester.pump();
       await body();
@@ -61,9 +64,7 @@ void main() {
     });
   });
 
-  testWidgets('iOS shows a statement instead of a dead button', (
-    tester,
-  ) async {
+  testWidgets('iOS shows a statement instead of a dead button', (tester) async {
     await pumpUnlockedAs(tester, TargetPlatform.iOS, () async {
       expect(find.text('Done — open my apps'), findsNothing);
       expect(
@@ -77,12 +78,39 @@ void main() {
     tester,
   ) async {
     await pumpUnlockedAs(tester, TargetPlatform.iOS, () async {
-      expect(find.text('Approved.'), findsOneWidget);
-      expect(find.text("You're free."), findsOneWidget);
       // Without a childId the numbers never resolve, so no tile may
       // claim a real zero.
       expect(find.text('0'), findsNothing);
       expect(find.text('0m'), findsNothing);
+    });
+  });
+
+  group('celebration is only claimed when a session actually ended', () {
+    testWidgets('a session that ended gets "Approved. You\'re free."', (
+      tester,
+    ) async {
+      await pumpUnlockedAs(
+        tester,
+        TargetPlatform.iOS,
+        celebrate: true,
+        () async {
+          expect(find.text('Approved.'), findsOneWidget);
+          expect(find.text("You're free."), findsOneWidget);
+        },
+      );
+    });
+
+    testWidgets('an idle device never claims a parent approved anything', (
+      tester,
+    ) async {
+      // The reported bug: pairing a device with no session in flight
+      // showed the kid "Approved. You're free.", implying a parent
+      // had released them from something that never happened.
+      await pumpUnlockedAs(tester, TargetPlatform.iOS, () async {
+        expect(find.text('Approved.'), findsNothing);
+        expect(find.text("You're free."), findsNothing);
+        expect(find.text('All clear.'), findsOneWidget);
+      });
     });
   });
 }

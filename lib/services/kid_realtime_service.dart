@@ -133,10 +133,12 @@ class HomeworkSessionPayload {
 class BreakRequestPayload {
   final String id;
   final String sessionId;
-  final String status; // 'pending' | 'approved' | 'denied' | 'completed' | 'cancelled'
+  final String
+  status; // 'pending' | 'approved' | 'denied' | 'completed' | 'cancelled'
   final DateTime createdAt;
   final DateTime? startedAt;
   final DateTime? endedAt;
+
   /// Parent-stamped expiry. Set by BreakService.approveBreak at
   /// `now + 5 min` (see migration 16). The kid-side realtime
   /// service uses this for a crash-resilient local auto-expire
@@ -164,11 +166,9 @@ class BreakRequestPayload {
         createdAt:
             DateTime.tryParse(map['created_at']?.toString() ?? '') ??
             DateTime.now(),
-        startedAt:
-            DateTime.tryParse(map['started_at']?.toString() ?? ''),
+        startedAt: DateTime.tryParse(map['started_at']?.toString() ?? ''),
         endedAt: DateTime.tryParse(map['ended_at']?.toString() ?? ''),
-        breakEndsAt:
-            DateTime.tryParse(map['break_ends_at']?.toString() ?? ''),
+        breakEndsAt: DateTime.tryParse(map['break_ends_at']?.toString() ?? ''),
       );
 
   /// True iff the parent has approved this break AND the break
@@ -229,12 +229,21 @@ class KidRealtimeService extends ChangeNotifier {
   /// `waiting` when we're truly blind (no healthy socket AND no
   /// successful read).
   bool _restReachable = false;
+
   /// Local auto-expire timer armed from a break's
   /// `break_ends_at`. Fires once at the wall-clock expiry and
   /// re-engages the lock without waiting for the parent's
   /// endBreak write. Defends against a parent app that crashes
   /// mid-break.
   Timer? _breakExpireTimer;
+
+  /// True only when an active session ended during this app run.
+  /// Distinguishes "the parent released you, nice work" from "there
+  /// was never a session" — both of which are [KidLockState.unlocked].
+  /// Resets when a new session starts, and starts false on launch:
+  /// a cold boot into no-session is not a completed session.
+  bool _justFinishedSession = false;
+  bool get justFinishedSession => _justFinishedSession;
 
   KidLockState get state => _state;
   HomeworkSessionPayload? get session => _session;
@@ -268,6 +277,7 @@ class KidRealtimeService extends ChangeNotifier {
   /// visible in the console instead of invisible.
   int _sessionEventCount = 0;
   int _breakEventCount = 0;
+
   /// session.id for which we've attached the break_requests
   /// listener. Used to avoid re-subscribing on every session row
   /// update.
@@ -759,6 +769,23 @@ class KidRealtimeService extends ChangeNotifier {
   }
 
   void _recomputeState() {
+    final previous = _state;
+    _state = _computeState();
+
+    // `unlocked` covers two very different situations: a kid whose
+    // session just ended, and a kid who was never in one. Only the
+    // first has earned the "Approved. You're free." celebration —
+    // congratulating the second reads as the parent having released
+    // them from something that never happened.
+    if (previous == KidLockState.locked || previous == KidLockState.onBreak) {
+      if (_state == KidLockState.unlocked) _justFinishedSession = true;
+    } else if (_state == KidLockState.locked) {
+      // A fresh session — the next release earns its own celebration.
+      _justFinishedSession = false;
+    }
+  }
+
+  KidLockState _computeState() {
     // Only truly blind — no healthy realtime socket AND no recent
     // successful REST read — is `waiting`. With the 5s poll keeping
     // [_restReachable] fresh, an unhealthy/silent socket (the web
@@ -766,24 +793,19 @@ class KidRealtimeService extends ChangeNotifier {
     // compute the lock from the last read instead. This is the fix for
     // "the lock only engages after a manual refresh".
     if (!_isHealthy && !_restReachable) {
-      _state = KidLockState.waiting;
-      return;
+      return KidLockState.waiting;
     }
     final s = _session;
     if (s == null) {
-      _state = KidLockState.unlocked;
-      return;
+      return KidLockState.unlocked;
     }
     if (s.status == 'active') {
       // A break in flight flips us out of locked without
       // dropping out of the active session — the UI shows the
       // "Break time" banner while blocking is released.
-      _state = _activeBreak != null
-          ? KidLockState.onBreak
-          : KidLockState.locked;
-    } else {
-      // 'paused' / 'completed' / 'cancelled' — kid is free.
-      _state = KidLockState.unlocked;
+      return _activeBreak != null ? KidLockState.onBreak : KidLockState.locked;
     }
+    // 'paused' / 'completed' / 'cancelled' — kid is free.
+    return KidLockState.unlocked;
   }
 }

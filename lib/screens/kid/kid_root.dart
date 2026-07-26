@@ -185,6 +185,7 @@ class _KidRootState extends State<KidRoot> {
               childName: _childDisplayName,
               childId: kidAuth.childId,
               onUnpair: _unpair,
+              celebrate: realtime.justFinishedSession,
             );
           }
           return LockedScreen(
@@ -199,6 +200,7 @@ class _KidRootState extends State<KidRoot> {
           childName: _childDisplayName,
           childId: kidAuth.childId,
           onUnpair: _unpair,
+          celebrate: realtime.justFinishedSession,
         );
       case KidLockState.waiting:
         return WaitingScreen(

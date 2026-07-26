@@ -8,20 +8,20 @@ import '../../services/streak_service.dart';
 import '../../theme/app_theme.dart';
 import 'kid_settings_button.dart';
 
-/// The kid's "you're free" screen — shown when the realtime
-/// subscription is healthy and there's no active homework session.
+/// The kid's no-active-session screen — shown when the realtime
+/// subscription is healthy and nothing is locking the device.
 ///
-/// Styled as the "Kid · Unlocked ✦" payoff: a warm green celebration
-/// on the kid gradient with the real numbers behind the moment (this
-/// week's focus, streak, sessions). Every stat is pulled from the
-/// kid's own sessions/schedules and degrades gracefully to a calm
-/// state if a fetch returns nothing.
+/// Reads two ways depending on [celebrate]: the "Kid · Unlocked ✦"
+/// payoff after a session actually ends, or a calm "all clear" when
+/// there simply isn't one. Both carry the real numbers behind the
+/// moment (this week's focus, streak, sessions), pulled from the
+/// kid's own sessions and held at "—" when they can't be loaded.
 class UnlockedScreen extends StatefulWidget {
   final String childName;
 
   /// The kid's child_id. Null only on the brief race-fallback path
-  /// in kid_root; when null we skip the data fetch and show the
-  /// calm celebration rather than erroring.
+  /// in kid_root; when null we skip the data fetch and hold the stat
+  /// tiles at "—" rather than erroring.
   final String? childId;
 
   /// Clears the pairing and returns to the pairing screen. Surfaced
@@ -29,11 +29,21 @@ class UnlockedScreen extends StatefulWidget {
   /// no longer a dead end.
   final Future<void> Function()? onUnpair;
 
+  /// True only when a session actually ended during this app run.
+  ///
+  /// Both "your parent just released you" and "there is no session
+  /// and never was one" are KidLockState.unlocked, but they don't
+  /// read the same to a kid: "Approved. You're free." on a device
+  /// that was never locked claims a parent approved something that
+  /// never happened. False renders the calm idle copy instead.
+  final bool celebrate;
+
   const UnlockedScreen({
     super.key,
     required this.childName,
     this.childId,
     this.onUnpair,
+    this.celebrate = false,
   });
 
   @override
@@ -58,6 +68,7 @@ class _UnlockedScreenState extends State<UnlockedScreen>
   // admitting we couldn't load it.
   bool _streakFailed = false;
   bool _sessionsFailed = false;
+
   /// Set on the childId == null path, where there's nothing to query
   /// at all. Distinct from the failure flags because it isn't an
   /// error worth apologising for — it's a momentary race in kid_root.
@@ -203,25 +214,18 @@ class _UnlockedScreenState extends State<UnlockedScreen>
                           const SizedBox(height: 12),
                           _badge(),
                           const SizedBox(height: 26),
-                          Text(
-                            'Approved.',
-                            textAlign: TextAlign.center,
-                            style: AppText.display(
-                              size: 40,
-                              color: Colors.white,
+                          for (final line in _headline)
+                            Text(
+                              line,
+                              textAlign: TextAlign.center,
+                              style: AppText.display(
+                                size: 40,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          Text(
-                            "You're free.",
-                            textAlign: TextAlign.center,
-                            style: AppText.display(
-                              size: 40,
-                              color: Colors.white,
-                            ),
-                          ),
                           const SizedBox(height: 14),
                           Text(
-                            'Apps are unlocked. Nice work today.',
+                            _subhead,
                             textAlign: TextAlign.center,
                             style: AppText.body(
                               size: 15,
@@ -245,6 +249,18 @@ class _UnlockedScreenState extends State<UnlockedScreen>
     );
   }
 
+  /// "Approved" is a claim about something a parent did. It only
+  /// belongs on the screen when a session actually ended; otherwise
+  /// the kid is simply idle and the copy says so.
+  List<String> get _headline => widget.celebrate
+      ? const ['Approved.', "You're free."]
+      : const ['All clear.'];
+
+  String get _subhead => widget.celebrate
+      ? 'Apps are unlocked. Nice work today.'
+      : 'Nothing due right now. Your apps are unlocked — when a '
+            'parent starts a session, it shows up here.';
+
   Widget _badge() {
     return Container(
       width: 92,
@@ -262,7 +278,13 @@ class _UnlockedScreenState extends State<UnlockedScreen>
           shape: BoxShape.circle,
         ),
         alignment: Alignment.center,
-        child: const Icon(LucideIcons.check, size: 36, color: AppColors.green),
+        // A checkmark means "approved". Idle gets the calm leaf the
+        // waiting screen already uses.
+        child: Icon(
+          widget.celebrate ? LucideIcons.check : LucideIcons.leaf,
+          size: 36,
+          color: AppColors.green,
+        ),
       ),
     );
   }
