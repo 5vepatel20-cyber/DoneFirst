@@ -78,8 +78,10 @@ void main() {
       // behavior when the network is offline.
       expect(
         realtime.state,
-        KidLockState.unlocked,
-        reason: 'fresh KidRealtimeService starts unlocked',
+        KidLockState.waiting,
+        reason: 'a fresh KidRealtimeService has read nothing yet, so it '
+            'must not claim unlocked — that state renders the kid\'s '
+            '"Approved. You\'re free." screen',
       );
       expect(realtime.isRealtimeHealthy, isFalse);
 

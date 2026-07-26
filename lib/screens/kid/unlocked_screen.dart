@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -51,6 +52,16 @@ class _UnlockedScreenState extends State<UnlockedScreen>
   int _streak = 0;
   int _weekMinutes = 0;
   int _weekSessions = 0;
+  // Tracked separately from the values so a failed fetch renders as
+  // "—" rather than a confident "0". Telling a kid who just finished
+  // a week of sessions that they have a 0-day streak is worse than
+  // admitting we couldn't load it.
+  bool _streakFailed = false;
+  bool _sessionsFailed = false;
+  /// Set on the childId == null path, where there's nothing to query
+  /// at all. Distinct from the failure flags because it isn't an
+  /// error worth apologising for — it's a momentary race in kid_root.
+  bool _noChildId = false;
 
   @override
   void initState() {
@@ -76,18 +87,33 @@ class _UnlockedScreenState extends State<UnlockedScreen>
   Future<void> _load() async {
     final childId = widget.childId;
     if (childId == null) {
-      if (mounted) setState(() => _loading = false);
+      // Nothing to query — leave every tile on "—". Rendering 0m /
+      // 0 / 0 here would state, in the kid's own numbers, that they
+      // did no work this week.
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _noChildId = true;
+        });
+      }
       return;
     }
 
     // Both fetches are best-effort: if RLS or the network drops one,
     // the other still populates and the screen shows whatever it got
-    // rather than a scary error.
+    // rather than a scary error. Which one failed is recorded so the
+    // tile can show "—" instead of a made-up zero.
+    var streakFailed = false;
+    var sessionsFailed = false;
     final results = await Future.wait([
-      _streaks.getStreakCount(childId).catchError((_) => 0),
-      _streaks
-          .getRecentSessions(childId, limit: 60)
-          .catchError((_) => <HomeworkSession>[]),
+      _streaks.getStreakCount(childId).catchError((Object _) {
+        streakFailed = true;
+        return 0;
+      }),
+      _streaks.getRecentSessions(childId, limit: 60).catchError((Object _) {
+        sessionsFailed = true;
+        return <HomeworkSession>[];
+      }),
     ]);
 
     final streak = results[0] as int;
@@ -118,6 +144,8 @@ class _UnlockedScreenState extends State<UnlockedScreen>
       _streak = streak;
       _weekMinutes = weekMinutes;
       _weekSessions = weekSessions;
+      _streakFailed = streakFailed;
+      _sessionsFailed = sessionsFailed;
     });
   }
 
@@ -241,29 +269,50 @@ class _UnlockedScreenState extends State<UnlockedScreen>
 
   // Three glassy stat tiles over the gradient.
   Widget _statsRow() {
-    return Row(
+    // A tile shows "—" while loading and when its fetch failed; only
+    // a fetch that actually came back empty prints a zero.
+    String value(bool failed, String Function() render) =>
+        (_loading || _noChildId || failed) ? '—' : render();
+
+    return Column(
       children: [
-        Expanded(
-          child: _glassStat(
-            value: _loading ? '—' : _formatMinutes(_weekMinutes),
-            caption: 'focused',
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _glassStat(
+                value: value(
+                  _sessionsFailed,
+                  () => _formatMinutes(_weekMinutes),
+                ),
+                caption: 'focused',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _glassStat(
+                value: value(_streakFailed, () => '$_streak'),
+                caption: 'day streak',
+                leadingIcon: LucideIcons.flame,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _glassStat(
+                value: value(_sessionsFailed, () => '$_weekSessions'),
+                caption: _weekSessions == 1 ? 'session' : 'sessions',
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _glassStat(
-            value: _loading ? '—' : '$_streak',
-            caption: 'day streak',
-            leadingIcon: LucideIcons.flame,
+        if (!_loading && (_streakFailed || _sessionsFailed)) ...[
+          const SizedBox(height: 12),
+          Text(
+            "Couldn't load your numbers right now — they'll be back "
+            'next time.',
+            textAlign: TextAlign.center,
+            style: AppText.caption(color: Colors.white.withValues(alpha: 0.85)),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _glassStat(
-            value: _loading ? '—' : '$_weekSessions',
-            caption: _weekSessions == 1 ? 'session' : 'sessions',
-          ),
-        ),
+        ],
       ],
     );
   }
@@ -307,7 +356,41 @@ class _UnlockedScreenState extends State<UnlockedScreen>
     );
   }
 
+  /// Handing the kid back to their launcher is an Android-only
+  /// affordance: SystemNavigator.pop() is a no-op on web, and on iOS
+  /// an app can't terminate itself (Apple rejects apps that try).
+  /// Offering the button there gives the kid a control that does
+  /// nothing when tapped.
+  bool get _canExitToLauncher =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   Widget _doneButton() {
+    if (!_canExitToLauncher) {
+      // Nothing to hand back to, so the screen ends on a statement
+      // rather than a dead control.
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(LucideIcons.lockOpen, size: 18, color: Colors.white),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'Your apps are unlocked — go enjoy them.',
+                textAlign: TextAlign.center,
+                style: AppText.body(size: 14, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return GestureDetector(
       // Apps are already unlocked here; "open my apps" hands the kid
       // back to their device launcher.

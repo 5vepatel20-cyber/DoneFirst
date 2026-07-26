@@ -7,6 +7,7 @@ import '../../../services/kid_realtime_service.dart';
 import '../../../services/kiosk_service.dart';
 import '../../../theme/app_theme.dart';
 import '../auth_screen.dart';
+import '../splash_screen.dart';
 import 'locked_screen.dart';
 import 'on_break_screen.dart';
 import 'pairing_screen.dart';
@@ -42,6 +43,15 @@ class KidRoot extends StatefulWidget {
 }
 
 class _KidRootState extends State<KidRoot> {
+  /// True until [_bootstrap] finishes. Without it the first build
+  /// runs while kidAuth.isPaired is still false and an already-paired
+  /// kid sees a flash of PairingScreen. On web that window is
+  /// seconds, not a frame: restoreSession has to wait out two
+  /// setSession round-trips before the persisted-JWT fallback kicks
+  /// in, which is long enough for a kid to start typing a code into
+  /// a screen that's about to be yanked away.
+  bool _booting = true;
+
   @override
   void initState() {
     super.initState();
@@ -85,15 +95,20 @@ class _KidRootState extends State<KidRoot> {
       // would also be skipped. We land on WaitingScreen so the kid
       // at least sees something actionable.
       debugPrint('KidRoot bootstrap failed: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Couldn’t start the kid app: $e'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t start the kid app: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      // Always clear the boot flag — a bootstrap that threw still
+      // has to render something, and the routing below already
+      // handles the not-paired / no-realtime-state cases.
+      if (mounted) setState(() => _booting = false);
     }
-    if (mounted) setState(() {});
   }
 
   Future<void> _signOut() async {
@@ -118,6 +133,12 @@ class _KidRootState extends State<KidRoot> {
 
   @override
   Widget build(BuildContext context) {
+    if (_booting) {
+      // Brand splash, not PairingScreen — we don't yet know whether
+      // this device is paired, and guessing wrong in either
+      // direction shows the kid a screen that then swaps under them.
+      return const SplashScreen();
+    }
     if (!kidAuth.isPaired) {
       return PairingScreen(onSignOut: _signOut, authService: kidAuth);
     }

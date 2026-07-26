@@ -209,7 +209,14 @@ class KidRealtimeService extends ChangeNotifier {
   final KioskService kiosk;
   final RealtimeRetryPolicy _retryPolicy;
 
-  KidLockState _state = KidLockState.unlocked;
+  /// Starts at `waiting`, not `unlocked`. Before the first read we
+  /// know nothing, and `unlocked` is not a neutral default — it
+  /// renders the kid's "Approved. You're free." celebration. A kid
+  /// opening a paired device would see that (with empty stats)
+  /// during every boot, including boots where the session turns out
+  /// to be active. `waiting` is the honest "we're checking" state
+  /// and [_recomputeState] moves off it as soon as a read lands.
+  KidLockState _state = KidLockState.waiting;
   HomeworkSessionPayload? _session;
   BreakRequestPayload? _activeBreak;
   bool _isHealthy = false;
