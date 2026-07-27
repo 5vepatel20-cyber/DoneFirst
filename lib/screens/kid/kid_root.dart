@@ -11,6 +11,7 @@ import '../splash_screen.dart';
 import 'locked_screen.dart';
 import 'on_break_screen.dart';
 import 'pairing_screen.dart';
+import 'today_screen.dart';
 import 'unlocked_screen.dart';
 import 'waiting_screen.dart';
 
@@ -196,11 +197,24 @@ class _KidRootState extends State<KidRoot> {
         }
         return OnBreakScreen(childName: _childDisplayName, activeBreak: brk);
       case KidLockState.unlocked:
-        return UnlockedScreen(
+        // Two very different situations share this state. Right after a
+        // session ends, `justFinishedSession` is true → the transient
+        // "Approved. You're free." payoff (UnlockedScreen). Otherwise
+        // the kid is simply free — no session running — and lands on
+        // their Today dashboard (greeting, streak, next session,
+        // today's focus), the redesign's "Kid · Today" home.
+        if (realtime.justFinishedSession) {
+          return UnlockedScreen(
+            childName: _childDisplayName,
+            childId: kidAuth.childId,
+            onUnpair: _unpair,
+            celebrate: true,
+          );
+        }
+        return KidTodayScreen(
           childName: _childDisplayName,
           childId: kidAuth.childId,
           onUnpair: _unpair,
-          celebrate: realtime.justFinishedSession,
         );
       case KidLockState.waiting:
         return WaitingScreen(
