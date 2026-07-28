@@ -38,12 +38,19 @@ class UnlockedScreen extends StatefulWidget {
   /// never happened. False renders the calm idle copy instead.
   final bool celebrate;
 
+  /// Ends the celebration and hands the kid back to their Today
+  /// dashboard. Only supplied when [celebrate] is true — the idle
+  /// "All clear." rendering *is* reached from Today and has nothing
+  /// to dismiss.
+  final VoidCallback? onDone;
+
   const UnlockedScreen({
     super.key,
     required this.childName,
     this.childId,
     this.onUnpair,
     this.celebrate = false,
+    this.onDone,
   });
 
   @override
@@ -236,6 +243,10 @@ class _UnlockedScreenState extends State<UnlockedScreen>
                           _statsRow(),
                           const SizedBox(height: 30),
                           _doneButton(),
+                          if (widget.onDone != null) ...[
+                            const SizedBox(height: 14),
+                            _backToTodayButton(),
+                          ],
                         ],
                       ),
                     ),
@@ -385,6 +396,23 @@ class _UnlockedScreenState extends State<UnlockedScreen>
   /// nothing when tapped.
   bool get _canExitToLauncher =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  /// Escape hatch out of the celebration. It also times out on its
+  /// own (see KidRoot._armCelebrationTimeout), but a kid who is done
+  /// admiring their streak shouldn't have to wait out a timer to
+  /// reach Today.
+  Widget _backToTodayButton() {
+    return TextButton(
+      onPressed: widget.onDone,
+      child: Text(
+        'Back to today',
+        style: AppText.button(
+          size: 14,
+          color: Colors.white.withValues(alpha: 0.92),
+        ),
+      ),
+    );
+  }
 
   Widget _doneButton() {
     if (!_canExitToLauncher) {

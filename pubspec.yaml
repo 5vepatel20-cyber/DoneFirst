@@ -42,6 +42,10 @@ dependencies:
   google_fonts: ^8.1.0
   lucide_icons_flutter: ^3.1.15
   share_plus: ^13.2.0
+  # Browser API bindings (getUserMedia) for the web-only live camera
+  # in services/web_camera_web.dart. Already present transitively;
+  # declared directly because we import it.
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

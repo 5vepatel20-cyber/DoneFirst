@@ -255,6 +255,13 @@ class ProofService {
     // Proofs carry session_id directly (see ProofSubmission model),
     // so we can skip the task-id intermediate that the old code
     // used to do. One query instead of two.
+    //
+    // This relies on submitProofWithUrls stamping session_id, which it
+    // did not until recently — and the parent's RLS policy is scoped
+    // the same way, so proofs written before that fix are invisible to
+    // the parent at the database level, not just filtered out here.
+    // migration_21 backfills them; querying by task_id instead would
+    // not have helped, because RLS is the gate.
     final response = await _supabase
         .from('proof_submissions')
         .select()
@@ -269,15 +276,32 @@ class ProofService {
     return uploadImageToStorage(path, bytes);
   }
 
-  Future<void> submitProofWithUrls({
+  /// Returns the session the proof was filed under, so callers don't
+  /// have to re-query homework_tasks for it.
+  Future<String> submitProofWithUrls({
     required String taskId,
     required List<String> imageUrls,
     required String taskDescription,
     String subject = 'General',
     String? note,
   }) async {
+    // The parent's review queue reads with .eq('session_id', ...) (see
+    // getProofsForSession), so a proof inserted with session_id NULL is
+    // invisible to the parent forever: the task flips to 'submitted'
+    // and shows "Checking…", but the lock screen sits on "Waiting for
+    // proof…" with nothing to approve, and the session can never
+    // finish. Stamp it here from the task that owns it so the proof and
+    // its task can't disagree about which session they belong to.
+    final task = await _supabase
+        .from('homework_tasks')
+        .select('session_id')
+        .eq('id', taskId)
+        .single();
+    final sessionId = task['session_id'] as String;
+
     final response = await _supabase.from('proof_submissions').insert({
       'task_id': taskId,
+      'session_id': sessionId,
       'image_url': imageUrls.isNotEmpty ? imageUrls.first : '',
       'image_urls': imageUrls,
       'optional_note': note,
@@ -309,6 +333,7 @@ class ProofService {
         .from('homework_tasks')
         .update({'status': taskStatus})
         .eq('id', taskId);
+    return sessionId;
   }
 
   Future<List<HomeworkTask>> getTasks(String sessionId) async {

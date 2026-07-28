@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../services/blocking_service.dart';
@@ -66,11 +68,72 @@ class _KidRootState extends State<KidRoot> {
   void dispose() {
     kidAuth.removeListener(_onChange);
     realtime.removeListener(_onChange);
+    _celebrationTimer?.cancel();
     super.dispose();
   }
 
+  /// Auto-dismisses the "Approved. You're free." payoff.
+  Timer? _celebrationTimer;
+
+  /// Long enough to read the headline and the three stat tiles and
+  /// feel rewarded; short enough that a kid who wanders off and comes
+  /// back finds their dashboard rather than a stale trophy.
+  static const Duration _celebrationDuration = Duration(seconds: 45);
+
+  /// Called from build, so it must be idempotent: an already-armed
+  /// timer is left alone rather than restarted, otherwise every
+  /// rebuild (the stats fetch alone triggers several) would push the
+  /// deadline out and the celebration would never end.
+  void _armCelebrationTimeout() {
+    if (_celebrationTimer?.isActive ?? false) return;
+    _celebrationTimer = Timer(_celebrationDuration, () {
+      if (mounted) realtime.dismissFinishedSession();
+    });
+  }
+
+  /// child_id the background services are running for. Guards
+  /// [_ensureServicesStarted] against re-entry — kidAuth and realtime
+  /// both notify on every state change, so this runs constantly.
+  String? _servicesStartedFor;
+
   void _onChange() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    // A kid who *just* paired arrives here, not through _bootstrap.
+    _ensureServicesStarted();
+  }
+
+  /// Start realtime + heartbeat for the paired kid if they aren't
+  /// already running.
+  ///
+  /// Pairing finishes inside PairingScreen, which only claims the
+  /// code — it deliberately doesn't navigate, it just lets kidAuth
+  /// notify so this router rebuilds. But _bootstrap ran minutes ago
+  /// and was the only thing that ever called realtime.start(), so a
+  /// freshly-paired kid rebuilt straight into `KidLockState.waiting`
+  /// — "Can't reach the parent app" — and sat there until they
+  /// relaunched the app or found the reconnect button. Starting the
+  /// services here closes that gap: pairing lands on the Today
+  /// dashboard the way an already-paired launch does.
+  Future<void> _ensureServicesStarted() async {
+    final childId = kidAuth.childId;
+    if (childId == null || _servicesStartedFor == childId) return;
+    // Claim before the await so a burst of notifications can't fire
+    // several concurrent starts.
+    _servicesStartedFor = childId;
+    try {
+      // Bounded: start() does a network read and a socket handshake,
+      // and a hung one would latch the guard above forever — no later
+      // notification would ever retry, leaving a paired kid on the
+      // waiting screen for good.
+      await realtime.start(childId).timeout(const Duration(seconds: 20));
+      heartbeat.start();
+    } catch (e) {
+      // Let the next notification (or the waiting screen's 5s nudge)
+      // retry rather than latching a half-started state.
+      _servicesStartedFor = null;
+      debugPrint('KidRoot: starting services for $childId failed: $e');
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -86,10 +149,15 @@ class _KidRootState extends State<KidRoot> {
         kidAuth.restoreSession(),
       ]);
       restored = results[1] as bool;
-      if (restored && kidAuth.childId != null) {
-        await realtime.start(kidAuth.childId!);
-        heartbeat.start();
-      }
+      // Render the moment we know whether this device is paired.
+      // Subscribing to realtime takes a REST read plus a socket
+      // handshake — seconds on a good network, forever on a stalled
+      // one — and the router already has an honest screen for
+      // "paired, realtime hasn't reported yet". Holding the splash
+      // until the subscription lands turned a slow network into an
+      // app that never finishes launching.
+      if (mounted) setState(() => _booting = false);
+      if (restored) unawaited(_ensureServicesStarted());
     } catch (e) {
       // Without this catch the kid would see a stuck loading
       // screen forever with no feedback. The next call to setState
@@ -129,6 +197,9 @@ class _KidRootState extends State<KidRoot> {
   Future<void> _unpair() async {
     await realtime.stop();
     heartbeat.stop();
+    // Re-arm the start guard, or pairing this device to a sibling
+    // right afterwards would never bring the services back up.
+    _servicesStartedFor = null;
     await kidAuth.signOut();
   }
 
@@ -155,7 +226,7 @@ class _KidRootState extends State<KidRoot> {
           return WaitingScreen(
             onReconnect: () {
               if (kidAuth.childId != null) {
-                realtime.start(kidAuth.childId!);
+                realtime.reconnect(kidAuth.childId!);
               }
             },
             heartbeat: heartbeat,
@@ -204,11 +275,18 @@ class _KidRootState extends State<KidRoot> {
         // their Today dashboard (greeting, streak, next session,
         // today's focus), the redesign's "Kid · Today" home.
         if (realtime.justFinishedSession) {
+          // Transient by design — see _armCelebrationTimeout. Without
+          // the timeout (and the tap-out below) this screen was a
+          // dead end: the flag only cleared when the *next* session
+          // began, so finishing homework cost the kid their dashboard
+          // until the app was relaunched.
+          _armCelebrationTimeout();
           return UnlockedScreen(
             childName: _childDisplayName,
             childId: kidAuth.childId,
             onUnpair: _unpair,
             celebrate: true,
+            onDone: realtime.dismissFinishedSession,
           );
         }
         return KidTodayScreen(
@@ -220,7 +298,7 @@ class _KidRootState extends State<KidRoot> {
         return WaitingScreen(
           onReconnect: () {
             if (kidAuth.childId != null) {
-              realtime.start(kidAuth.childId!);
+              realtime.reconnect(kidAuth.childId!);
             }
           },
           heartbeat: heartbeat,

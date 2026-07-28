@@ -211,8 +211,17 @@ class _SessionTimerState extends State<SessionTimer> {
   }
 
   String _formatTime(DateTime dt) {
-    final h = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
-    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    return '$h:${dt.minute.toString().padLeft(2, '0')} $ampm';
+    // started_at comes back from Postgres as a timestamptz, so
+    // DateTime.parse hands us a *UTC* DateTime and .hour is the UTC
+    // hour. Reading it straight showed a session begun at 10:00 AM
+    // EDT as "Started 2:00 PM" — four hours in the future, next to a
+    // countdown that was ticking correctly (Duration maths is
+    // timezone-agnostic, so only the wall-clock labels were wrong).
+    final local = dt.toLocal();
+    final h = local.hour > 12
+        ? local.hour - 12
+        : (local.hour == 0 ? 12 : local.hour);
+    final ampm = local.hour >= 12 ? 'PM' : 'AM';
+    return '$h:${local.minute.toString().padLeft(2, '0')} $ampm';
   }
 }

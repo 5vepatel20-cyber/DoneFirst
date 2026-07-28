@@ -87,15 +87,24 @@ class HeartbeatService {
     }
     final url = Uri.parse('$supabaseUrl/functions/v1/heartbeat');
     try {
+      // Authorization only, deliberately.
+      //
+      // Adding `apikey` or `Content-Type: application/json` promotes
+      // this from a CORS-simple request to a preflighted one, and the
+      // deployed heartbeat function's OPTIONS response does not list
+      // `apikey` in Access-Control-Allow-Headers (the source in
+      // supabase/functions/heartbeat does — the deployed build is
+      // older). The preflight failed, every POST died as "Failed to
+      // fetch", `kid_devices.last_seen_at` stayed NULL forever, and
+      // the parent's device chip read "Not connected · Never" for a
+      // kid who was sitting right there with the app open.
+      //
+      // Neither header is load-bearing: the function authenticates
+      // from the JWT, and we send no body. Dropping them also skips
+      // the preflight round-trip entirely, so this stays correct even
+      // once the function is redeployed.
       final response = await http
-          .post(
-            url,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $access',
-              'apikey': supabaseAnonKey,
-            },
-          )
+          .post(url, headers: {'Authorization': 'Bearer $access'})
           .timeout(_requestTimeout);
       if (response.statusCode == 401) {
         // Device was revoked between heartbeats — stop the timer

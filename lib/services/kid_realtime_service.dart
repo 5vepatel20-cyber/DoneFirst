@@ -245,6 +245,20 @@ class KidRealtimeService extends ChangeNotifier {
   bool _justFinishedSession = false;
   bool get justFinishedSession => _justFinishedSession;
 
+  /// Ends the "Approved. You're free." payoff and drops the kid back
+  /// on their Today dashboard.
+  ///
+  /// Without this the celebration was only ever cleared by the *next*
+  /// session starting, so a kid who finished their homework was parked
+  /// on a congratulations screen for the rest of the day — no streak,
+  /// no next-session card, no way to add tomorrow's tasks. Relaunching
+  /// the app was the only way out, because the flag starts false.
+  void dismissFinishedSession() {
+    if (!_justFinishedSession) return;
+    _justFinishedSession = false;
+    notifyListeners();
+  }
+
   KidLockState get state => _state;
   HomeworkSessionPayload? get session => _session;
   BreakRequestPayload? get activeBreak => _activeBreak;
@@ -271,6 +285,11 @@ class KidRealtimeService extends ChangeNotifier {
   Timer? _pollTimer;
   static const Duration _pollInterval = Duration(seconds: 5);
   bool _pollInFlight = false;
+
+  /// Ceiling on the bootstrap/poll reads. Long enough for a slow
+  /// phone network, short enough that a hung request can't hold the
+  /// kid's launch open indefinitely.
+  static const Duration _readTimeout = Duration(seconds: 10);
 
   /// Delivered-event counters, bumped in [_onChange] / [_onBreakChange]
   /// so a silent channel (subscribed but receiving zero rows) is
@@ -323,6 +342,26 @@ class KidRealtimeService extends ChangeNotifier {
 
     _subscribe();
     _startPolling();
+  }
+
+  /// Reconnect nudge from the waiting screen.
+  ///
+  /// [start] returns early when a channel for this child already
+  /// exists — which is precisely the situation this is for (a channel
+  /// that subscribed and then errored) — so the waiting screen was
+  /// calling a no-op. Rebuilding the channel is the missing recovery
+  /// step, but it has to stay rare: the waiting screen fires this
+  /// every 5s on a timer, and an unconditional teardown would restart
+  /// the handshake before it could finish and reset the backoff on
+  /// every tick. So we only rebuild when nothing else is going to:
+  /// the channel isn't healthy AND no retry is already pending
+  /// (i.e. the retry policy has given up, or nothing ever started).
+  Future<void> reconnect(String childId) async {
+    if (_isHealthy && _childId == childId) return;
+    if (_retryTimer?.isActive ?? false) return;
+    debugPrint('KidRealtimeService: rebuilding channel on reconnect nudge');
+    await stop();
+    await start(childId);
   }
 
   /// Push the current kid access token onto the realtime socket so
@@ -452,6 +491,13 @@ class KidRealtimeService extends ChangeNotifier {
     _childId = null;
     _activeBreak = null;
     _subscribedBreakSessionId = null;
+    // Drop the lock state too. We're no longer subscribed to anything,
+    // so a retained `locked` + session payload is a claim we can't
+    // back up — and [reconnect] calls this mid-flight, which would
+    // flash LockedScreen at a kid who is no longer in a session until
+    // the next read reconciles.
+    _state = KidLockState.waiting;
+    _session = null;
     _retryPolicy.reset();
     // Don't release the blocking here unconditionally — the
     // Locked/Unlocked screen swap may not have happened yet. The
@@ -484,7 +530,12 @@ class KidRealtimeService extends ChangeNotifier {
           .eq('child_id', childId)
           .eq('status', 'active')
           .order('started_at', ascending: false)
-          .limit(1);
+          .limit(1)
+          // A stalled XHR here used to hang start(), and start() is
+          // awaited on the kid's launch path. Time out into the catch
+          // below (which fails open to `waiting`) instead of leaving
+          // the kid on a screen that never resolves.
+          .timeout(_readTimeout);
       _restReachable = true;
       if (response.isNotEmpty) {
         final payload = HomeworkSessionPayload.fromMap(response.first);
@@ -525,7 +576,8 @@ class KidRealtimeService extends ChangeNotifier {
           .eq('status', 'approved')
           .filter('ended_at', 'is', null)
           .order('started_at', ascending: false)
-          .limit(1);
+          .limit(1)
+          .timeout(_readTimeout);
       if (response.isNotEmpty) {
         _applyBreak(BreakRequestPayload.fromMap(response.first));
       } else {
@@ -640,7 +692,16 @@ class KidRealtimeService extends ChangeNotifier {
     // matches. We don't bother detaching explicitly — the next
     // stop() tears the whole channel down anyway.
     if (session != null) {
-      _subscribeBreaksForActiveSession();
+      // Deferred deliberately. _applySession is reached from
+      // _onSessionChange, which RealtimeChannel.trigger invokes while
+      // iterating a lazy .where() view over the channel's own binding
+      // list. onPostgresChanges appends to that same list, so
+      // subscribing synchronously here throws
+      // ConcurrentModificationError *out of* trigger — which both
+      // spams the console and aborts the dispatch loop, so any
+      // binding ordered after this one silently never fires for that
+      // event. A microtask runs after trigger's loop has finished.
+      scheduleMicrotask(_subscribeBreaksForActiveSession);
     } else {
       // No session → no break can be active. Clear state and let
       // _recomputeState push us to KidLockState.unlocked. Also

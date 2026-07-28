@@ -70,15 +70,26 @@ class KidAuthService extends ChangeNotifier {
   /// Returns the kid's display name if known, else null. Callers
   /// should fall back to a generic greeting ("there") when null.
   String? get childName => _childName;
-  /// True when we have either a live Supabase session or a decoded
-  /// kid identity from persisted tokens.  The two paths cover:
+  /// True when we have either a live *kid* Supabase session or a
+  /// decoded kid identity from persisted tokens.  The two paths cover:
   ///   1. setSession succeeded → currentSession is set (normal path)
   ///   2. setSession failed (web CORS) but JWT decode succeeded →
   ///      _childId is set (offline fallback)
-  /// PairingScreen has its own KidAuthService instance that shares
-  /// the same Supabase client, so path 1 triggers the screen
-  /// transition via the shared currentSession.
-  bool get isPaired => _supabase.auth.currentSession != null || _childId != null;
+  ///
+  /// Path 1 checks the session's app_metadata rather than just
+  /// "a session exists". The parent app shares this Supabase client —
+  /// and on web, the same browser origin and localStorage — so a
+  /// signed-in parent would otherwise make an unpaired kid device
+  /// look paired: KidRoot skips the pairing screen, no child_id is
+  /// ever known, realtime never starts, and the kid is stranded on
+  /// "Can't reach the parent app" with no way back. The same applies
+  /// to a kid JWT that restoreSession rejected for missing claims.
+  bool get isPaired {
+    if (_childId != null) return true;
+    final session = _supabase.auth.currentSession;
+    if (session == null) return false;
+    return session.user.appMetadata['child_id'] != null;
+  }
 
   /// Return the current access token, preferring the live Supabase
   /// session and falling back to the persisted token in
@@ -242,7 +253,19 @@ class KidAuthService extends ChangeNotifier {
         }
       }
       if (_childId == null || _familyId == null || _deviceId == null) {
+        // Incomplete claims (e.g. a JWT minted before device_id
+        // existed). Clear the *whole* identity, not just the tokens:
+        // leaving _childId set would keep isPaired true while
+        // getAccessToken returns null, so realtime would fall back to
+        // anon, RLS would filter every row into an empty-but-successful
+        // read, and the kid would sit on a Today dashboard of zeroes
+        // on a device that is effectively unpaired.
         await _clearTokens();
+        _childId = null;
+        _familyId = null;
+        _deviceId = null;
+        _childName = null;
+        notifyListeners();
         return false;
       }
       final cachedName = prefs.getString(_kChildName)?.trim();

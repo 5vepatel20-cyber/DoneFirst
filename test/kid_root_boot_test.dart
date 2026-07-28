@@ -40,4 +40,24 @@ void main() {
       reason: 'we do not know yet whether this device is paired',
     );
   });
+
+  testWidgets('boot resolves off the splash once pairing is known', (
+    tester,
+  ) async {
+    // The splash used to be held until the realtime subscription
+    // landed, so a stalled socket left an unpaired kid staring at the
+    // logo with nothing to tap. Boot now only waits on the "are we
+    // paired?" answer — with no persisted tokens that's an immediate
+    // no, and the pairing screen must appear.
+    // runAsync so the SharedPreferences platform channel that
+    // restoreSession waits on actually resolves.
+    await tester.runAsync(() async {
+      await tester.pumpWidget(const MaterialApp(home: KidRoot()));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pump();
+
+    expect(find.byType(SplashScreen), findsNothing);
+    expect(find.byType(PairingScreen), findsOneWidget);
+  });
 }

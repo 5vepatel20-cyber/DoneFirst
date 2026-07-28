@@ -3,10 +3,10 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/proof_service.dart';
 import '../services/notification_service.dart';
 import '../services/session_service.dart';
+import '../services/web_camera.dart';
 import '../theme/app_theme.dart';
 import '../widgets/df_kit.dart';
 
@@ -40,6 +40,26 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
   }
 
   Future<void> _pickImage() async {
+    // On web, image_picker's ImageSource.camera can't open a live
+    // camera — on desktop browsers it degrades to a plain file dialog
+    // (the `capture` attribute is only honoured on mobile browsers).
+    // Use our own getUserMedia-based capture so the snap-proof flow is
+    // testable on desktop web. Native builds keep the platform camera.
+    if (kIsWeb) {
+      try {
+        final shot = await captureFromWebCamera(context);
+        if (shot != null && mounted) setState(() => _images.add(shot));
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t open camera: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+      return;
+    }
     try {
       final picked = await _picker.pickImage(
         source: ImageSource.camera,
@@ -106,7 +126,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
               .timeout(const Duration(seconds: 60)),
         ),
       );
-      await _proofService.submitProofWithUrls(
+      final sessionId = await _proofService.submitProofWithUrls(
         taskId: widget.taskId,
         imageUrls: urls,
         taskDescription: widget.taskDescription,
@@ -115,14 +135,7 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
             ? null
             : _noteController.text.trim(),
       );
-      final taskData = await Supabase.instance.client
-          .from('homework_tasks')
-          .select('session_id')
-          .eq('id', widget.taskId)
-          .single();
-      final sessionData = await SessionService().getSessionById(
-        taskData['session_id'] as String,
-      );
+      final sessionData = await SessionService().getSessionById(sessionId);
       await _notificationService.insertNotification(
         parentId: sessionData!.parentId,
         childId: sessionData.childId,

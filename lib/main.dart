@@ -190,7 +190,13 @@ class _EntryPointState extends State<EntryPoint> {
     final profileService = ProfileService();
     String? role;
     try {
-      final profile = await profileService.getParentProfile();
+      // Bounded — this read gates the whole app's first route, and a
+      // stalled request would strand every user (parent and kid) on
+      // the splash with nothing to tap. On timeout we fall through to
+      // the same branch a missing row takes.
+      final profile = await profileService
+          .getParentProfile()
+          .timeout(const Duration(seconds: 10));
       role = profile?.role;
     } catch (_) {
       // If the parents row is missing or unreadable we treat as
