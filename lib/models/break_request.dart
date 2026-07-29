@@ -1,3 +1,5 @@
+import '../utils/db_time.dart';
+
 class BreakRequest {
   final String id;
   final String sessionId;
@@ -47,8 +49,8 @@ class BreakRequest {
         'session_id': sessionId,
         'child_id': childId,
         'status': status,
-        'created_at': createdAt.toIso8601String(),
-        if (startedAt != null) 'started_at': startedAt!.toIso8601String(),
-        if (endedAt != null) 'ended_at': endedAt!.toIso8601String(),
+        'created_at': dbTime(createdAt),
+        if (startedAt != null) 'started_at': dbTime(startedAt!),
+        if (endedAt != null) 'ended_at': dbTime(endedAt!),
       };
 }

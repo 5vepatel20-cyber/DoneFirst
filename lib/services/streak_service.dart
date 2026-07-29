@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
+import '../utils/db_time.dart';
 
 /// Result of a streak computation. [graceUsed] is true when the
 /// streak counted at least one missed day as grace — useful for the
@@ -47,7 +48,7 @@ class StreakService {
         .select('started_at')
         .eq('child_id', childId)
         .eq('status', 'completed')
-        .gte('started_at', thirtyDaysAgo.toIso8601String())
+        .gte('started_at', dbTime(thirtyDaysAgo))
         .order('started_at', ascending: false);
 
     // Convert to a Set<DateTime> of truncated-to-date values so

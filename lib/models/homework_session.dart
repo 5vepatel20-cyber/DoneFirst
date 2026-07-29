@@ -1,3 +1,5 @@
+import '../utils/db_time.dart';
+
 class HomeworkSession {
   final String id;
   final String childId;
@@ -43,8 +45,8 @@ class HomeworkSession {
         'child_id': childId,
         'parent_id': parentId,
         'status': status,
-        'started_at': startedAt.toIso8601String(),
-        if (endedAt != null) 'ended_at': endedAt!.toIso8601String(),
+        'started_at': dbTime(startedAt),
+        if (endedAt != null) 'ended_at': dbTime(endedAt!),
         'min_lock_minutes': minLockMinutes,
         if (maxLiftMinutes != null) 'max_lift_minutes': maxLiftMinutes,
         'approval_mode': approvalMode,

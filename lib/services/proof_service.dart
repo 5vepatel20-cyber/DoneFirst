@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
+import '../utils/db_time.dart';
 
 class ProofService {
   final _supabase = Supabase.instance.client;
@@ -91,7 +92,7 @@ class ProofService {
   }) async {
     await _supabase.from('proof_submissions').update({
       'parent_decision': 'approved',
-      'parent_acted_at': DateTime.now().toIso8601String(),
+      'parent_acted_at': dbNow(),
       'parent_note': ?parentNote,
     }).eq('id', proofId);
   }
@@ -102,7 +103,7 @@ class ProofService {
   }) async {
     await _supabase.from('proof_submissions').update({
       'parent_decision': 'rejected',
-      'parent_acted_at': DateTime.now().toIso8601String(),
+      'parent_acted_at': dbNow(),
       'parent_note': ?parentNote,
     }).eq('id', proofId);
   }
@@ -115,7 +116,7 @@ class ProofService {
     if (proofIds.isEmpty) return;
     final update = {
       'parent_decision': decision,
-      'parent_acted_at': DateTime.now().toIso8601String(),
+      'parent_acted_at': dbNow(),
       'parent_note': ?parentNote,
     };
     // One update for the whole batch instead of one per ID. The

@@ -409,7 +409,9 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
       children: [
         const DfSectionLabel('Recent sessions'),
         ..._sessions.take(10).map((s) {
-          final started = s.startedAt.toIso8601String();
+          // startedAt is a UTC DateTime (timestamptz); grouping by the
+          // UTC date files an 8pm session under tomorrow.
+          final started = s.startedAt.toLocal().toIso8601String();
           final date = started.length >= 10
               ? started.substring(0, 10)
               : started;

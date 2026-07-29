@@ -187,24 +187,49 @@ class _ParentDashboardState extends State<ParentDashboard> {
       // today's schedules, and the parent's family_id are all
       // independent reads. Fire them in parallel so the dashboard
       // loads in max(latencies) instead of sum(latencies).
-      final results = await Future.wait([
-        _sessionService.getMonthlySessionCount(parentId),
-        _proofService.getMistralCallsToday(),
-        _notificationService.getUnreadCount(),
-        _scheduleService.getTodaySchedules(),
-        Supabase.instance.client
-            .from('parents')
-            .select('family_id')
-            .eq('id', parentId)
-            .single(),
-      ]);
-      _monthlySessionCount = results[0] as int;
-      _mistralCallsToday = results[1] as int;
-      _unreadNotifications = results[2] as int;
-      _todaySchedules = (results[3] as List).cast<RecurringSchedule>();
-      final family = results[4] as Map<String, dynamic>;
+      //
+      // Each one keeps its own failure to itself. A bare Future.wait
+      // rejects on the first error and skips everything after it, so
+      // one broken read used to take the whole dashboard down: when
+      // the `notifications` table came back with a foreign schema
+      // (see migration_22) the unread-count query threw 42703, the
+      // family_id read never ran, and the per-child section below was
+      // never reached — so a kid device that was correctly paired and
+      // sending heartbeats rendered as "No device paired". A stat we
+      // can't fetch should cost us that stat and nothing else.
+      final failures = <String>[];
+      Future<T?> soft<T>(String label, Future<T> read) =>
+          read.then<T?>((v) => v).catchError((Object e) {
+            debugPrint('Dashboard: $label failed: $e');
+            failures.add(label);
+            return null;
+          });
 
-      if (family['family_id'] != null) {
+      final results = await Future.wait([
+        soft('session count', _sessionService.getMonthlySessionCount(parentId)),
+        soft('AI usage', _proofService.getMistralCallsToday()),
+        soft('notifications', _notificationService.getUnreadCount()),
+        soft('schedule', _scheduleService.getTodaySchedules()),
+        soft(
+          'family',
+          Supabase.instance.client
+              .from('parents')
+              .select('family_id')
+              .eq('id', parentId)
+              .single(),
+        ),
+      ]);
+      // Hold the previous value for anything that failed rather than
+      // zeroing it — a transient blip shouldn't tell a parent their
+      // child did nothing this month.
+      _monthlySessionCount = results[0] as int? ?? _monthlySessionCount;
+      _mistralCallsToday = results[1] as int? ?? _mistralCallsToday;
+      _unreadNotifications = results[2] as int? ?? _unreadNotifications;
+      _todaySchedules =
+          (results[3] as List?)?.cast<RecurringSchedule>() ?? _todaySchedules;
+      final family = results[4] as Map<String, dynamic>?;
+
+      if (family != null && family['family_id'] != null) {
         final allChildren = await Supabase.instance.client
             .from('children')
             .select('id')
@@ -320,6 +345,17 @@ class _ParentDashboardState extends State<ParentDashboard> {
         _pendingProofs[entry.key] = entry.value.$2;
         _pendingBreaks[entry.key] = entry.value.$3;
         _kidDeviceStatus[entry.key] = entry.value.$4;
+      }
+      // Everything that *could* load has loaded by now. Say what
+      // didn't, once, instead of either failing the whole screen or
+      // quietly showing stale numbers as if they were fresh.
+      if (failures.isNotEmpty) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Couldn’t refresh ${failures.join(', ')}.'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
       }
     } catch (e) {
       // Top-level catch covers getOrCreateFamily / getChildren /

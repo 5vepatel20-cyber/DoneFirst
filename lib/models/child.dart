@@ -1,3 +1,5 @@
+import '../utils/db_time.dart';
+
 class Child {
   final String id;
   final String name;
@@ -40,6 +42,6 @@ class Child {
         if (color != null) 'color': color,
         if (emoji != null) 'emoji': emoji,
         'streak_count': streakCount,
-        if (lastStreakDate != null) 'last_streak_date': lastStreakDate!.toIso8601String(),
+        if (lastStreakDate != null) 'last_streak_date': dbTime(lastStreakDate!),
       };
 }

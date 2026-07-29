@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import 'consent_service.dart';
+import '../utils/db_time.dart';
 
 class SessionService {
   final _supabase = Supabase.instance.client;
@@ -75,7 +76,7 @@ class SessionService {
         .from('homework_sessions')
         .update({
           'status': 'completed',
-          'ended_at': DateTime.now().toIso8601String(),
+          'ended_at': dbNow(),
         })
         .eq('id', sessionId);
   }
@@ -327,7 +328,7 @@ class SessionService {
 
   Future<int> getMonthlySessionCount([String? parentId]) async {
     final now = DateTime.now();
-    final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+    final startOfMonth = dbTime(DateTime(now.year, now.month, 1));
     final uid = parentId ?? _userId;
     if (uid == null) return 0;
     final response = await _supabase

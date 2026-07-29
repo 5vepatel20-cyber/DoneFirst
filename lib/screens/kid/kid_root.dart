@@ -144,10 +144,18 @@ class _KidRootState extends State<KidRoot> {
     // hop doesn't delay session restore (or vice versa).
     bool restored = false;
     try {
+      // Bounded. Everything inside is *supposed* to be bounded already
+      // — restoreSession caps its two setSession attempts, and the
+      // platform channel either answers or throws MissingPluginException
+      // — but _booting gates the entire kid UI behind a splash with no
+      // text and no controls, so anything that doesn't return here
+      // leaves a kid staring at a logo with no way forward. A ceiling
+      // here means the worst case is the pairing screen, which is at
+      // least a screen they can act on. The catch below handles it.
       final results = await Future.wait<Object?>([
         kiosk.refreshDeviceOwner(),
         kidAuth.restoreSession(),
-      ]);
+      ]).timeout(const Duration(seconds: 40));
       restored = results[1] as bool;
       // Render the moment we know whether this device is paired.
       // Subscribing to realtime takes a REST read plus a socket
@@ -213,6 +221,27 @@ class _KidRootState extends State<KidRoot> {
     }
     if (!kidAuth.isPaired) {
       return PairingScreen(onSignOut: _signOut, authService: kidAuth);
+    }
+    if (!kidAuth.hasLiveSession) {
+      // Paired, but the Supabase client has no kid session, so every
+      // read is going out as anon and coming back empty — with a 200,
+      // not an error. Rendering the dashboard here would show a kid
+      // who studied all week 0m / 0 sessions / 0 streak and tell them
+      // nothing is scheduled, and rendering `unlocked` would release
+      // a lock we simply cannot see. WaitingScreen is the honest
+      // answer: it says we can't reach the parent app, offers
+      // reconnect, and keeps the settings gear so the device can be
+      // re-paired if the session is gone for good.
+      return WaitingScreen(
+        onReconnect: () {
+          if (kidAuth.childId != null) {
+            realtime.reconnect(kidAuth.childId!);
+          }
+        },
+        heartbeat: heartbeat,
+        childName: _childDisplayName,
+        onUnpair: _unpair,
+      );
     }
     // Realtime drives the lock state. Fall back to waiting if it
     // hasn't reported anything yet — most commonly because the

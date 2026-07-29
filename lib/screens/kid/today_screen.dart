@@ -63,11 +63,41 @@ class _KidTodayScreenState extends State<KidTodayScreen> {
   // streak is 0 is worse than admitting we couldn't load it.
   bool _streakFailed = false;
   bool _sessionsFailed = false;
+  // Same idea for the schedule. An empty list and a read that never
+  // came back both used to render "Nothing scheduled yet — your parent
+  // can set up a homework routine", which is a factual claim about the
+  // parent's setup that we have no business making when we simply
+  // couldn't reach the server.
+  bool _scheduleFailed = false;
+
+  /// Ceiling on each of the three reads.
+  ///
+  /// Nothing in the chain below imposed one, and a postgrest call that
+  /// never completes has no error to catch — so a single stalled
+  /// request parked the screen in its loading state permanently: three
+  /// "—" tiles and a next-session card confidently reporting nothing
+  /// scheduled, with no spinner, no message and no way to retry short
+  /// of relaunching the app.
+  static const Duration _readTimeout = Duration(seconds: 12);
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(KidTodayScreen old) {
+    super.didUpdateWidget(old);
+    // kid_root can build this screen before KidAuthService has
+    // finished restoring the kid's identity, then rebuild it with a
+    // real child_id a moment later. Same widget type in the same slot
+    // means the same State — initState does not run again — so
+    // without this the screen kept the "no child id" result from its
+    // first frame forever.
+    if (widget.childId != old.childId && widget.childId != null) {
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -82,24 +112,39 @@ class _KidTodayScreenState extends State<KidTodayScreen> {
       return;
     }
 
+    if (mounted && !_loading) {
+      setState(() {
+        _loading = true;
+        _noChildId = false;
+      });
+    }
+
     var streakFailed = false;
     var sessionsFailed = false;
+    var scheduleFailed = false;
 
     // All three are best-effort and independent: one failing still
-    // lets the others populate. The schedule read is allowed to fail
-    // silently — a missing "next session" card is fine, a crash is not.
+    // lets the others populate.
     final results = await Future.wait([
-      _streaks.getStreakCount(childId).catchError((Object _) {
+      _streaks.getStreakCount(childId).timeout(_readTimeout).catchError((
+        Object _,
+      ) {
         streakFailed = true;
         return 0;
       }),
-      _streaks.getRecentSessions(childId, limit: 60).catchError((Object _) {
-        sessionsFailed = true;
-        return <HomeworkSession>[];
+      _streaks
+          .getRecentSessions(childId, limit: 60)
+          .timeout(_readTimeout)
+          .catchError((Object _) {
+            sessionsFailed = true;
+            return <HomeworkSession>[];
+          }),
+      _schedules.getSchedules(childId).timeout(_readTimeout).catchError((
+        Object _,
+      ) {
+        scheduleFailed = true;
+        return <RecurringSchedule>[];
       }),
-      _schedules.getSchedules(childId).catchError(
-        (Object _) => <RecurringSchedule>[],
-      ),
     ]);
 
     final streak = results[0] as int;
@@ -113,11 +158,11 @@ class _KidTodayScreenState extends State<KidTodayScreen> {
     var sessionsToday = 0;
     for (final s in sessions) {
       if (!s.isCompleted) continue;
-      final started = DateTime(
-        s.startedAt.year,
-        s.startedAt.month,
-        s.startedAt.day,
-      );
+      // startedAt is a UTC DateTime (Postgres timestamptz), so its
+      // y/m/d are the UTC date. Comparing those against the kid's
+      // local `today` credited an evening session to tomorrow.
+      final local = s.startedAt.toLocal();
+      final started = DateTime(local.year, local.month, local.day);
       if (started != today) continue;
       focusedTodayMin += _sessionMinutes(s);
       sessionsToday += 1;
@@ -133,6 +178,7 @@ class _KidTodayScreenState extends State<KidTodayScreen> {
       _sessionsToday = sessionsToday;
       _streakFailed = streakFailed;
       _sessionsFailed = sessionsFailed;
+      _scheduleFailed = scheduleFailed;
       _next = picked?.schedule;
       _nextInDays = picked?.inDays ?? 0;
     });
@@ -145,7 +191,10 @@ class _KidTodayScreenState extends State<KidTodayScreen> {
     List<RecurringSchedule> schedules,
   ) {
     if (schedules.isEmpty) return null;
-    final todayDow = DateTime.now().weekday - 1; // 0 = Monday
+    // Mon=1..Sun=7, matching RecurringSchedule.dayOfWeek. The modulo
+    // below is what makes the convention matter: both operands have to
+    // be on the same scale or every "next session" lands a day out.
+    final todayDow = DateTime.now().weekday;
     RecurringSchedule? best;
     var bestDelta = 8;
     for (final s in schedules) {
@@ -279,25 +328,36 @@ class _KidTodayScreenState extends State<KidTodayScreen> {
   Widget _nextSessionCard() {
     final next = _next;
     if (next == null) {
+      final couldNotLoad = _scheduleFailed && !_noChildId;
       return DfCard(
         padding: const EdgeInsets.all(AppSpacing.cardPaddingKid),
         child: Row(
           children: [
             _iconTile(
-              LucideIcons.calendarDays,
+              couldNotLoad ? LucideIcons.wifiOff : LucideIcons.calendarDays,
               bg: AppColors.border2,
               fg: AppColors.ink70,
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                _noChildId
+                _loading || _noChildId
                     ? 'Getting your schedule ready…'
+                    : couldNotLoad
+                    ? 'Couldn’t check your schedule just now.'
                     : 'Nothing scheduled yet — your parent can set up a '
                           'homework routine.',
                 style: AppText.bodySecondary(),
               ),
             ),
+            if (couldNotLoad)
+              TextButton(
+                onPressed: _load,
+                child: Text(
+                  'Try again',
+                  style: AppText.caption().copyWith(color: AppColors.green),
+                ),
+              ),
           ],
         ),
       );

@@ -142,20 +142,43 @@ void main() {
   });
 
   group('RecurringSchedule', () {
-    test('dayName returns correct names', () {
-      final mon = RecurringSchedule(
-        id: 'r1',
-        childId: 'c1',
-        dayOfWeek: 0,
-      );
-      expect(mon.dayName, 'Mon');
+    // day_of_week is DateTime.weekday: Mon=1..Sun=7. That is what the
+    // day picker has always written; the readers that treated it as
+    // 0-based named every schedule as the day before the one the
+    // parent picked, and never matched Sunday at all.
+    test('dayName follows DateTime.weekday (Mon=1..Sun=7)', () {
+      String nameFor(int dow) =>
+          RecurringSchedule(id: 'r', childId: 'c1', dayOfWeek: dow).dayName;
 
-      final sun = RecurringSchedule(
-        id: 'r2',
+      expect(nameFor(DateTime.monday), 'Mon');
+      expect(nameFor(DateTime.wednesday), 'Wed');
+      expect(nameFor(DateTime.sunday), 'Sun');
+    });
+
+    test('dayName rejects out-of-range days rather than guessing', () {
+      String nameFor(int dow) =>
+          RecurringSchedule(id: 'r', childId: 'c1', dayOfWeek: dow).dayName;
+
+      // 0 is the old convention's Monday. Naming it anything would
+      // hide a writer that has drifted back to 0-based days.
+      expect(nameFor(0), '?');
+      expect(nameFor(8), '?');
+    });
+
+    test('isToday compares against DateTime.weekday directly', () {
+      final today = RecurringSchedule(
+        id: 'r',
         childId: 'c1',
-        dayOfWeek: 6,
+        dayOfWeek: DateTime.now().weekday,
       );
-      expect(sun.dayName, 'Sun');
+      expect(today.isToday, isTrue);
+
+      final tomorrow = RecurringSchedule(
+        id: 'r',
+        childId: 'c1',
+        dayOfWeek: DateTime.now().weekday % 7 + 1,
+      );
+      expect(tomorrow.isToday, isFalse);
     });
   });
 

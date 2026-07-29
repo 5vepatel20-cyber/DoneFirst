@@ -105,10 +105,16 @@ void main() {
       expect(restored.minLockMinutes, original.minLockMinutes);
       expect(restored.maxLiftMinutes, original.maxLiftMinutes);
       expect(restored.approvalMode, original.approvalMode);
-      expect(restored.startedAt.toIso8601String(),
-          original.startedAt.toIso8601String());
-      expect(restored.endedAt?.toIso8601String(),
-          original.endedAt?.toIso8601String());
+      // Compare instants, not strings. toMap now serialises in UTC
+      // (see utils/db_time.dart) because Postgres reads an
+      // offset-less ISO string as UTC — writing local time made
+      // sessions on a UTC-4 machine come back four hours early, which
+      // is how `ended_at` ended up *before* `started_at` on real rows.
+      // The round-trip has to preserve the moment; the text is free to
+      // change zone.
+      expect(restored.startedAt.isAtSameMomentAs(original.startedAt), isTrue);
+      expect(restored.endedAt?.isAtSameMomentAs(original.endedAt!), isTrue);
+      expect(restored.startedAt.isUtc, isTrue);
     });
   });
 

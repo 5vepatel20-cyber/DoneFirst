@@ -1,3 +1,5 @@
+import '../utils/db_time.dart';
+
 class AiResult {
   final String decision;
   final double confidence;
@@ -99,6 +101,6 @@ class ProofSubmission {
         if (aiReason != null) 'ai_reason': aiReason,
         'parent_decision': parentDecision,
         if (parentActedAt != null)
-          'parent_acted_at': parentActedAt!.toIso8601String(),
+          'parent_acted_at': dbTime(parentActedAt!),
       };
 }

@@ -372,7 +372,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
   }
 
   Widget _buildSessionCard(HomeworkSession s) {
-    final date = s.startedAt.toIso8601String().substring(0, 10);
+    final date = s.startedAt.toLocal().toIso8601String().substring(0, 10);
     final subjects = _sessionSubjects[s.id] ?? const <String>{};
     return DfCard(
       onTap: () => _showSessionProofs(s.id),

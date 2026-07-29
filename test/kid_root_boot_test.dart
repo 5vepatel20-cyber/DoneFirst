@@ -39,6 +39,14 @@ void main() {
       findsNothing,
       reason: 'we do not know yet whether this device is paired',
     );
+
+    // _bootstrap now caps its Future.wait so a stalled restore can't
+    // hold the splash forever, and that ceiling is a real Timer.
+    // Unmount first (so the timeout's error path finds !mounted and
+    // doesn't raise a snackbar with timers of its own), then let it
+    // fire, or teardown reports it as leaked.
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pump(const Duration(seconds: 41));
   });
 
   testWidgets('boot resolves off the splash once pairing is known', (

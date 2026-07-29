@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/db_time.dart';
 
 /// Device pairing + management for the parent side of DoneFirst.
 /// The single-app refactor collapses the kid-side companion into
@@ -71,7 +72,7 @@ class KidDeviceService {
             'family_id': familyId,
             'child_id': childId,
             'created_by': userId,
-            'expires_at': expiresAt.toIso8601String(),
+            'expires_at': dbTime(expiresAt),
           })
           .select('code, expires_at')
           .single();
@@ -94,7 +95,7 @@ class KidDeviceService {
               'family_id': familyId,
               'child_id': childId,
               'created_by': userId,
-              'expires_at': expiresAt.toIso8601String(),
+              'expires_at': dbTime(expiresAt),
             })
             .select('code, expires_at')
             .single();
@@ -150,7 +151,7 @@ class KidDeviceService {
   Future<void> revokeDevice(String deviceId) async {
     await _supabase
         .from('kid_devices')
-        .update({'revoked_at': DateTime.now().toIso8601String()})
+        .update({'revoked_at': dbNow()})
         .eq('id', deviceId);
   }
 

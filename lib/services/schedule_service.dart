@@ -51,7 +51,11 @@ class ScheduleService {
   }
 
   Future<List<RecurringSchedule>> getTodaySchedules([String? childId]) async {
-    final today = DateTime.now().weekday - 1;
+    // day_of_week is stored as DateTime.weekday (Mon=1..Sun=7) — see
+    // RecurringSchedule.dayOfWeek. Subtracting 1 here asked for
+    // yesterday's schedules every day of the week, and never matched
+    // Sunday at all (it asked for 6, Sunday is 7).
+    final today = DateTime.now().weekday;
     final response = await _supabase
         .from('recurring_schedules')
         .select()

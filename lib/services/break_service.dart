@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
+import '../utils/db_time.dart';
 
 class BreakService {
   final _supabase = Supabase.instance.client;
@@ -91,8 +92,8 @@ class BreakService {
     final now = DateTime.now();
     await _supabase.from('break_requests').update({
       'status': 'approved',
-      'started_at': now.toIso8601String(),
-      'break_ends_at': now.add(approvedBreakDuration).toIso8601String(),
+      'started_at': dbTime(now),
+      'break_ends_at': dbTime(now.add(approvedBreakDuration)),
     }).eq('id', requestId);
   }
 
@@ -113,7 +114,7 @@ class BreakService {
         .from('break_requests')
         .update({
           'status': 'completed',
-          'ended_at': DateTime.now().toIso8601String(),
+          'ended_at': dbNow(),
         })
         .eq('id', requestId)
         .eq('status', 'approved');
@@ -128,7 +129,7 @@ class BreakService {
         .from('break_requests')
         .update({
           'status': 'cancelled',
-          'ended_at': DateTime.now().toIso8601String(),
+          'ended_at': dbNow(),
         })
         .eq('id', requestId)
         .eq('status', 'approved');

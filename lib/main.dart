@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app_globals.dart';
 import 'supabase_config.dart';
 import 'services/auth_service.dart';
+import 'services/kid_auth_service.dart';
 import 'services/profile_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_mode.dart';
@@ -176,10 +177,22 @@ class _EntryPointState extends State<EntryPoint> {
       ]);
     } catch (e) {
       debugPrint('EntryPoint _checkAuth failed: $e');
-      // Fallback: route to onboarding so the user isn't stuck
-      // on the splash screen forever.
+      // Fallback so the user isn't stuck on the splash forever. The
+      // most likely way to land here is initSupabase() having timed
+      // out in main(), which makes every Supabase.instance access
+      // throw — and that failure is *more* likely on a kid device
+      // than a parent's, because it is the one launching cold on
+      // school wifi. Sending it to the role chooser offers to
+      // re-purpose a tablet that is already paired and locked, so
+      // check the persisted pairing here too.
+      var kid = false;
+      try {
+        kid = await KidAuthService.hasPersistedPairing();
+      } catch (_) {
+        // Prefs unreadable as well — take the chooser.
+      }
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/role-select');
+        Navigator.pushReplacementNamed(context, kid ? '/kid' : '/role-select');
       }
     }
     if (mounted) setState(() => _checking = false);
@@ -193,6 +206,17 @@ class _EntryPointState extends State<EntryPoint> {
   Future<void> _resolveRoute() async {
     if (!mounted) return;
     if (_auth.currentUser == null) {
+      // No Supabase session doesn't mean no kid. A paired kid device
+      // keeps its identity in SharedPreferences and rebuilds the
+      // Supabase session from it in KidRoot._bootstrap; if init was
+      // slow or the session recovery timed out, currentUser is null
+      // here for a device that is fully paired. Route on the
+      // persisted tokens so it lands in the kid app rather than on
+      // the parent/kid chooser.
+      if (await KidAuthService.hasPersistedPairing()) {
+        if (mounted) Navigator.pushReplacementNamed(context, '/kid');
+        return;
+      }
       final prefs = await SharedPreferences.getInstance();
       final onboardingDone = prefs.getBool('onboarding_done') ?? false;
       if (mounted) {

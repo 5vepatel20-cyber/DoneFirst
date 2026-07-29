@@ -41,7 +41,9 @@ class KidAuthService extends ChangeNotifier {
   /// real http.Client.
   KidAuthService({http.Client? httpClient})
     : _supabase = Supabase.instance.client,
-      _http = httpClient ?? http.Client();
+      _http = httpClient ?? http.Client() {
+    _watchTokenRotation();
+  }
 
   /// Test-only constructor taking both an http.Client and the
   /// SupabaseClient. Production should not use this — leave
@@ -52,6 +54,30 @@ class KidAuthService extends ChangeNotifier {
     SupabaseClient? supabaseClient,
   }) : _supabase = supabaseClient ?? Supabase.instance.client,
        _http = httpClient;
+
+  /// Keeps the tokens on disk in step with the ones the Supabase
+  /// client is actually using.
+  ///
+  /// Supabase rotates the refresh token on every refresh and the old
+  /// one stops working immediately. We only ever wrote the pair we
+  /// were handed at pairing time, so the first background refresh —
+  /// roughly an hour in — left SharedPreferences holding a spent
+  /// refresh token and an access token that would soon expire. Every
+  /// cold launch after that failed to restore a session.
+  ///
+  /// That failure was silent and total. restoreSession still decoded
+  /// a child_id out of the stale JWT, so `isPaired` stayed true and
+  /// the kid app carried on — but with `auth.currentSession == null`,
+  /// supabase's AuthHttpClient falls back to the anon key on every
+  /// request. RLS then filtered *everything* to zero rows and
+  /// returned 200, not an error: the kid's dashboard showed 0m
+  /// focused, 0 sessions, 0 streak and "nothing scheduled" on a
+  /// device with real sessions and a real schedule, and the realtime
+  /// service read no active session, so a locked kid would have been
+  /// let straight out. Verified on 2026-07-29 by logging the
+  /// Authorization header the kid app actually sent: `role: anon` on
+  /// every REST call.
+  StreamSubscription<AuthState>? _authSub;
 
   /// Child id carried in the JWT's app_metadata. Used to scope
   /// realtime subscriptions and break-request inserts.
@@ -198,6 +224,60 @@ class KidAuthService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// True when the Supabase client holds a live *kid* session — i.e.
+  /// when `supabase.from(...)` will be sent with the kid's JWT rather
+  /// than falling back to the anon key.
+  ///
+  /// The distinction matters because the fallback is invisible: an
+  /// anon request is not rejected, it is filtered, and every kid table
+  /// answers `200 []`. Callers that would otherwise present those
+  /// zeroes as fact should check this first.
+  bool get hasLiveSession =>
+      _supabase.auth.currentSession?.user.appMetadata['child_id'] != null;
+
+  /// Mirror rotated tokens back to disk so the next cold launch has a
+  /// refresh token the server will still accept. See [_authSub].
+  void _watchTokenRotation() {
+    try {
+      _authSub = _supabase.auth.onAuthStateChange.listen((state) {
+        final session = state.session;
+        // Only ever write kid tokens into kid storage. The parent app
+        // shares this client (and, on web, this origin), so a signed-in
+        // parent must not overwrite a kid device's identity.
+        if (session == null) return;
+        if (session.user.appMetadata['child_id'] == null) return;
+        final refresh = session.refreshToken;
+        if (refresh == null) return;
+        unawaited(_persistTokens(session.accessToken, refresh));
+      });
+    } catch (_) {
+      // No Supabase instance (unit tests). Nothing to mirror.
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  /// True if this device has kid tokens on disk, whether or not the
+  /// Supabase client currently holds a session.
+  ///
+  /// The two can disagree, and the router has to believe this one.
+  /// `Supabase.initialize` recovers its session from storage
+  /// asynchronously and gives up after 10s (see initSupabase), so on a
+  /// slow launch `auth.currentUser` is null for a device that is very
+  /// much paired. main()'s route resolver read only currentUser and
+  /// sent those launches to the "Who's going to use it?" chooser —
+  /// handing a kid the screen that offers to set the device up as a
+  /// parent's, on a device already locked to their homework.
+  static Future<bool> hasPersistedPairing() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kAccessToken) != null &&
+        prefs.getString(_kRefreshToken) != null;
+  }
+
   /// Re-hydrate the Supabase session from previously-persisted
   /// tokens. Called once on app launch from main() before deciding
   /// whether to show the pairing screen or the unlocked screen.
@@ -229,6 +309,20 @@ class KidAuthService extends ChangeNotifier {
         } catch (e2) {
           debugPrint('setSession retry in restoreSession failed: $e2');
         }
+      }
+
+      if (!hasLiveSession) {
+        // Worth shouting about: from here on every supabase.from()
+        // goes out signed with the anon key and comes back 200 with
+        // zero rows. The decode fallback below still recovers the
+        // kid's identity so the app knows *who* it is, but it cannot
+        // read anything on their behalf — see [_authSub], and
+        // KidRoot.build, which refuses to render data screens in this
+        // state rather than presenting the empty reads as fact.
+        debugPrint(
+          'KidAuthService: no live session after restore — REST reads '
+          'will run as anon and return nothing.',
+        );
       }
 
       // If setSession succeeded, currentUser is populated.

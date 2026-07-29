@@ -326,7 +326,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       itemCount: _schedules.length,
       itemBuilder: (ctx, i) {
         final s = _schedules[i];
-        final isToday = s.dayOfWeek == DateTime.now().weekday;
+        final isToday = s.isToday;
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: DfCard(
@@ -360,7 +360,10 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            weekdayNames[s.dayOfWeek - 1],
+                            // Same source as the edit/delete dialogs,
+                            // so the card and the confirmation can no
+                            // longer disagree about which day this is.
+                            s.dayName,
                             style: AppText.cardHeader(size: 16),
                           ),
                           const SizedBox(height: 2),

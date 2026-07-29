@@ -53,7 +53,7 @@ class _ProofGalleryScreenState extends State<ProofGalleryScreen> {
       // re-deriving it for every row.
       final dateBySession = <String, String>{
         for (final s in sessions)
-          s.id: s.startedAt.toIso8601String().substring(0, 10),
+          s.id: s.startedAt.toLocal().toIso8601String().substring(0, 10),
       };
       // Pull proofs in parallel for every session instead of one
       // round-trip per session. With N sessions of M proofs each,
