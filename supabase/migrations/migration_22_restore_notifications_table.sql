@@ -41,11 +41,13 @@
 --   2. Create `notifications` in the shape the app expects, with the
 --      DDL living in the repo this time so it can be rebuilt from
 --      source.
---   3. RLS: parents own their inbox. Kids get INSERT only — they
+--   3. Grant the API roles table access. RLS is what restricts rows;
+--      without the grant every request fails outright.
+--   4. RLS: parents own their inbox. Kids get INSERT only — they
 --      raise 'proof_submitted' and 'break_requested' from their own
 --      device (ProofCaptureScreen, KidHomeScreen) — and cannot read
 --      the parent's inbox back.
---   4. Re-add the table to the realtime publication so
+--   5. Re-add the table to the realtime publication so
 --      RealtimeService's bell badge keeps updating live.
 --
 -- Idempotent: re-running is a no-op.
@@ -64,6 +66,30 @@ BEGIN
   ) THEN
     ALTER TABLE public.notifications
       RENAME TO notifications_foreign_20260729;
+
+    -- RENAME TO moves the table but leaves its constraints and
+    -- indexes under their original names, so `notifications_pkey`
+    -- would still be taken and the table created below would silently
+    -- end up with a primary key called `notifications_pkey1`. Not
+    -- fatal, but the next person to read this schema deserves better.
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'notifications_pkey'
+    ) THEN
+      ALTER TABLE public.notifications_foreign_20260729
+        RENAME CONSTRAINT notifications_pkey TO notifications_foreign_20260729_pkey;
+    END IF;
+
+    -- It also stays in the realtime publication under the new name,
+    -- streaming WAL for a table nothing in this product reads.
+    IF EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = 'notifications_foreign_20260729'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime
+        DROP TABLE public.notifications_foreign_20260729;
+    END IF;
   END IF;
 END $$;
 
@@ -94,9 +120,33 @@ CREATE INDEX IF NOT EXISTS notifications_parent_unread_idx
   ON public.notifications (parent_id)
   WHERE read = FALSE;
 
+-- 3. Table-level access for the API roles.
+--
+-- Supabase normally hands this out through ALTER DEFAULT PRIVILEGES,
+-- but that only fires for the role the defaults are attached to — run
+-- this migration from a different role (or a project whose defaults
+-- were never set up) and PostgREST answers every request with
+-- "permission denied for table notifications", taking the whole
+-- notification centre down. Granting explicitly costs nothing and
+-- removes the dependency: RLS above is what actually restricts rows,
+-- not the absence of a GRANT.
+DO $$
+DECLARE
+  api_role TEXT;
+BEGIN
+  FOREACH api_role IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = api_role) THEN
+      EXECUTE format(
+        'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.notifications TO %I',
+        api_role
+      );
+    END IF;
+  END LOOP;
+END $$;
+
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
--- 3a. Parents own their own inbox, end to end (read, mark read,
+-- 4a. Parents own their own inbox, end to end (read, mark read,
 -- delete, clear all, and the app's own addNotification insert).
 DROP POLICY IF EXISTS "Parents manage their own notifications"
   ON public.notifications;
@@ -106,7 +156,7 @@ CREATE POLICY "Parents manage their own notifications"
   USING (parent_id = auth.uid())
   WITH CHECK (parent_id = auth.uid());
 
--- 3b. Kids may only *raise* a notification, and only for themselves.
+-- 4b. Kids may only *raise* a notification, and only for themselves.
 --
 -- Both kid-side call sites run during an active session, so the
 -- child -> parent link is proved through homework_sessions rather
@@ -128,7 +178,7 @@ CREATE POLICY "Kids can raise notifications for their parent"
     )
   );
 
--- 4. RealtimeService subscribes to INSERTs on this table to drive the
+-- 5. RealtimeService subscribes to INSERTs on this table to drive the
 -- unread badge, so it has to be in the publication.
 DO $$
 BEGIN
