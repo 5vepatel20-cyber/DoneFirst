@@ -38,5 +38,12 @@ Future<void> initSupabase() async {
     authOptions: const FlutterAuthClientOptions(
       authFlowType: AuthFlowType.pkce,
     ),
+  ).timeout(
+    const Duration(seconds: 10),
+    onTimeout: () {
+      // On web, Supabase init can hang due to CORS, network, or
+      // CDN issues. Timeout so the app still renders.
+      throw Exception('Supabase init timed out — app will run offline');
+    },
   );
 }

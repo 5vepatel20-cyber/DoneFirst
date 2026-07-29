@@ -4,9 +4,15 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
-  User? get currentUser => _supabase.auth.currentUser;
+  User? get currentUser {
+    try {
+      return _supabase.auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
 
   // OAuth client IDs are injected at build time via --dart-define.
   // Empty when running without those defines; we surface a clear
@@ -18,9 +24,13 @@ class AuthService {
       String.fromEnvironment('G_OAUTH_IOS_CLIENT_ID');
 
   Future<void> resendVerification() async {
+    final email = _supabase.auth.currentUser?.email;
+    if (email == null) {
+      throw StateError('No authenticated user or email is unavailable');
+    }
     await _supabase.auth.resend(
       type: OtpType.signup,
-      email: _supabase.auth.currentUser!.email!,
+      email: email,
     );
   }
 

@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 class ConnectivityService extends ChangeNotifier {
   bool _isOnline = true;
@@ -19,9 +19,10 @@ class ConnectivityService extends ChangeNotifier {
 
   Future<void> _checkNow() async {
     try {
-      final result = await InternetAddress.lookup('supabase.co')
-          .timeout(const Duration(seconds: 5));
-      final online = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+      final response = await http.get(
+        Uri.parse('https://wxjtksxugsirpowptpmz.supabase.co/rest/v1/'),
+      ).timeout(const Duration(seconds: 5));
+      final online = response.statusCode < 500;
       if (online != _isOnline) {
         _isOnline = online;
         notifyListeners();

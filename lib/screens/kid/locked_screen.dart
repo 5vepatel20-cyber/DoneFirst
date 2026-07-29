@@ -223,7 +223,7 @@ class _LockedScreenState extends State<LockedScreen> {
           ],
         ),
       ),
-    ).then((_) => controller.dispose());
+    );
   }
 
   @override
@@ -458,25 +458,11 @@ class _LockedScreenState extends State<LockedScreen> {
       statusColor = null;
     }
 
-    return Dismissible(
-      key: Key(t.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 16),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.dangerFg,
-          borderRadius: BorderRadius.circular(AppRadius.tile),
-        ),
-        child: const Icon(LucideIcons.trash2, color: Colors.white, size: 18),
-      ),
-      onDismissed: (_) => _deleteTask(t.id),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
+    final taskRow = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
             Container(
               width: 26,
               height: 26,
@@ -551,7 +537,24 @@ class _LockedScreenState extends State<LockedScreen> {
               ),
           ],
         ),
+    );
+
+    if (!t.isPending) return taskRow;
+    return Dismissible(
+      key: Key(t.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 16),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.dangerFg,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+        ),
+        child: const Icon(LucideIcons.trash2, color: Colors.white, size: 18),
       ),
+      onDismissed: (_) => _deleteTask(t.id),
+      child: taskRow,
     );
   }
 

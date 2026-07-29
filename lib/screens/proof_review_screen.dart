@@ -96,6 +96,7 @@ class _ProofReviewScreenState extends State<ProofReviewScreen> {
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
     }
+    if (!mounted) return;
     setState(() => _loading = false);
   }
 

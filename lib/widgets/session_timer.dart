@@ -40,8 +40,8 @@ class _SessionTimerState extends State<SessionTimer> {
   void didUpdateWidget(SessionTimer old) {
     super.didUpdateWidget(old);
     if (widget.paused != old.paused) {
+      _tick?.cancel();
       if (!widget.paused) {
-        _tick?.cancel();
         _tick = Timer.periodic(const Duration(seconds: 1), (_) {
           setState(() => _now = DateTime.now());
         });

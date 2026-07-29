@@ -28,6 +28,10 @@ class _BreakTimerState extends State<BreakTimer> {
     super.initState();
     _remaining = widget.breakDurationSeconds;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) {
+        _timer?.cancel();
+        return;
+      }
       if (_remaining <= 1) {
         _timer?.cancel();
         widget.onComplete();

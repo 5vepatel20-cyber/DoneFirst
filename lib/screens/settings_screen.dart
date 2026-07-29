@@ -71,6 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ]);
       final profile = profileResults[0] as ParentUser?;
       final familyName = profileResults[1] as String?;
+      if (!mounted) return;
       setState(() {
         _userEmail = user.email;
         _displayName = profile?.displayName ?? user.email;

@@ -136,14 +136,16 @@ class _ProofCaptureScreenState extends State<ProofCaptureScreen> {
             : _noteController.text.trim(),
       );
       final sessionData = await SessionService().getSessionById(sessionId);
-      await _notificationService.insertNotification(
-        parentId: sessionData!.parentId,
-        childId: sessionData.childId,
-        type: 'proof_submitted',
-        title:
-            'Proof submitted (${urls.length} photo${urls.length > 1 ? 's' : ''})',
-        body: widget.taskDescription,
-      );
+      if (sessionData != null) {
+        await _notificationService.insertNotification(
+          parentId: sessionData.parentId,
+          childId: sessionData.childId,
+          type: 'proof_submitted',
+          title:
+              'Proof submitted (${urls.length} photo${urls.length > 1 ? 's' : ''})',
+          body: widget.taskDescription,
+        );
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {

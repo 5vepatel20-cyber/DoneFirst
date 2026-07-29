@@ -53,12 +53,14 @@ class _OnBreakScreenState extends State<OnBreakScreen> {
   }
 
   /// Compute the initial countdown from the break's started_at
-  /// + the parent's configured break duration. We don't pull
-  /// the duration from the row because the parent app's
-  /// BreakTimer is hardcoded to 5 min; the contract is "the kid
-  /// app also assumes 5 min". If a future build changes the
-  /// parent's break length, pass a different value here.
+  /// or break_ends_at. Prefer break_ends_at (the parent-stamped
+  /// expiry) when available, falling back to started_at + duration.
   int _initialRemaining() {
+    final expires = widget.activeBreak.breakEndsAt;
+    if (expires != null) {
+      final left = expires.difference(DateTime.now()).inSeconds;
+      return left > 0 ? left : 0;
+    }
     final started = widget.activeBreak.startedAt;
     if (started == null) return widget.breakDurationSeconds;
     final elapsed = DateTime.now().difference(started).inSeconds;

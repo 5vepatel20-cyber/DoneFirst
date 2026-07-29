@@ -182,6 +182,10 @@ class SessionService {
         .eq('child_id', childId);
 
     // 2) Homework data in FK dependency order.
+    //    proof_submissions.task_id → homework_tasks (NO ACTION)
+    //    homework_tasks.session_id → homework_sessions (NO ACTION)
+    //    proof_submissions.session_id is often NULL, so we must
+    //    delete via task_id, not session_id.
     final sessions = await _supabase
         .from('homework_sessions')
         .select('id')
@@ -189,26 +193,46 @@ class SessionService {
     final sessionIds =
         (sessions as List).map((r) => r['id'] as String).toList();
 
+    // Gather ALL task IDs across all sessions first, then delete
+    // proofs in one batch — avoids partial deletes if a later
+    // session's proof_submissions reference tasks from an earlier
+    // session.
+    final allTaskIds = <String>[];
     for (final sid in sessionIds) {
       final tasks = await _supabase
           .from('homework_tasks')
           .select('id')
           .eq('session_id', sid);
-      final taskIds =
-          (tasks as List).map((r) => r['id'] as String).toList();
+      allTaskIds.addAll(
+        (tasks as List).map((r) => r['id'] as String),
+      );
+    }
 
-      if (taskIds.isNotEmpty) {
+    // Delete proof_submissions first (they reference homework_tasks).
+    if (allTaskIds.isNotEmpty) {
+      // Supabase inFilter caps at ~300 items; batch in chunks.
+      for (var i = 0; i < allTaskIds.length; i += 200) {
+        final chunk = allTaskIds.sublist(
+          i,
+          i + 200 > allTaskIds.length ? allTaskIds.length : i + 200,
+        );
         await _supabase
             .from('proof_submissions')
             .delete()
-            .inFilter('task_id', taskIds);
-        await _supabase
-            .from('homework_tasks')
-            .delete()
-            .inFilter('id', taskIds);
+            .inFilter('task_id', chunk);
       }
+    }
 
-      await _supabase.from('break_requests').delete().eq('session_id', sid);
+    // Now safe to delete tasks, then break_requests, then sessions.
+    for (final sid in sessionIds) {
+      await _supabase
+          .from('homework_tasks')
+          .delete()
+          .eq('session_id', sid);
+      await _supabase
+          .from('break_requests')
+          .delete()
+          .eq('session_id', sid);
     }
 
     if (sessionIds.isNotEmpty) {

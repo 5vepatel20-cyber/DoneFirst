@@ -90,7 +90,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
   @override
   void initState() {
     super.initState();
-    _loadAll();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadAll();
+    });
     app.realtimeService.startListening();
     // Save the previous handlers so dispose() can restore them.
     // Without this, navigating back to the dashboard after a child
@@ -245,7 +247,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
           // so fire them all at once. Each one is wrapped in a
           // fail-soft catch so a transient RLS hiccup on one row
           // doesn't kill the rest of the dashboard.
+          // Start with the PREVIOUS known active-lock state so a
+          // transient network / CORS failure on the session query
+          // doesn't falsely flip the card to "No session running".
           HomeworkSession? session;
+          bool? sessionQueryFailed;
           int pending = _pendingProofs[child.id] ?? 0;
           // Pending-proof count per child for the inbox chip. If
           // this throws (e.g. RLS still pending), leave the prior
@@ -257,7 +263,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
             Future(() async {
               try {
                 session = await _sessionService.getActiveSession(child.id);
-              } catch (_) {}
+              } catch (_) {
+                // Preserve the existing lock-state indicator rather
+                // than clearing it on a transient failure.
+                sessionQueryFailed = true;
+              }
             }),
             Future(() async {
               try {
@@ -290,8 +300,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
               } catch (_) {}
             }),
           ]);
+          // If the session query succeeded, use the result directly.
+          // If it failed (network / CORS), keep the previous
+          // _activeLocks value so the UI doesn't flicker to
+          // "No session running" on a transient blip.
+          final lockActive = sessionQueryFailed == true
+              ? (_activeLocks[child.id] ?? false)
+              : session != null;
           return MapEntry(child.id, (
-            session != null,
+            lockActive,
             pending,
             pendingBreaks,
             deviceStatus,

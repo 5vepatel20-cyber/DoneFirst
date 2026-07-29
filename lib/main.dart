@@ -24,14 +24,22 @@ export 'app_globals.dart' show realtimeService, toastService, rootScaffoldMessen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initSupabase();
+
+  try {
+    await initSupabase();
+  } catch (e) {
+    // On web, Supabase init can fail due to CORS, missing storage, etc.
+    // Let the app still render so users can see the error rather than
+    // a blank white screen.
+    debugPrint('⚠️ initSupabase failed: $e');
+  }
 
   // Sentry crash reporting. To enable, build with:
   //   flutter build apk --dart-define=SENTRY_DSN=https://...@sentry.io/...
   // If SENTRY_DSN is not set, String.fromEnvironment returns ''
   // and SentryFlutter.init becomes a no-op (no network calls,
   // no overhead). See LAUNCH_CHECKLIST.md section 7.1.
-  await SentryFlutter.init(
+  SentryFlutter.init(
     (options) {
       options.dsn = const String.fromEnvironment('SENTRY_DSN');
       options.tracesSampleRate = 0.1;
@@ -59,8 +67,9 @@ void main() async {
         return event;
       };
     },
-    appRunner: () => runApp(const DoneFirstApp()),
   );
+
+  runApp(const DoneFirstApp());
 }
 
 class DoneFirstApp extends StatelessWidget {
@@ -160,10 +169,19 @@ class _EntryPointState extends State<EntryPoint> {
 
     // Hold the splash for at least 600ms so the logo animation
     // doesn't flicker on fast devices. Auth check happens in parallel.
-    await Future.wait([
-      Future.delayed(const Duration(milliseconds: 600)),
-      _resolveRoute(),
-    ]);
+    try {
+      await Future.wait([
+        Future.delayed(const Duration(milliseconds: 600)),
+        _resolveRoute(),
+      ]);
+    } catch (e) {
+      debugPrint('EntryPoint _checkAuth failed: $e');
+      // Fallback: route to onboarding so the user isn't stuck
+      // on the splash screen forever.
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/role-select');
+      }
+    }
     if (mounted) setState(() => _checking = false);
   }
 

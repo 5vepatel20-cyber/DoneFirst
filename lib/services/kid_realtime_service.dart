@@ -268,7 +268,6 @@ class KidRealtimeService extends ChangeNotifier {
   RealtimeRetryPolicy get retryPolicy => _retryPolicy;
 
   RealtimeChannel? _channel;
-  StreamSubscription? _sub;
   String? _childId;
   Timer? _retryTimer;
 
@@ -391,6 +390,9 @@ class KidRealtimeService extends ChangeNotifier {
     final childId = _childId;
     if (childId == null) return;
     _retryPolicy.recordAttempt();
+    // Force re-subscribe breaks on the new channel — the old channel
+    // (which held the break listener) was destroyed.
+    _subscribedBreakSessionId = null;
     _channel = _supabase.channel('kid_homework_$childId')
       ..onPostgresChanges(
         event: PostgresChangeEvent.all,
@@ -474,8 +476,6 @@ class KidRealtimeService extends ChangeNotifier {
     _pollTimer = null;
     _breakExpireTimer?.cancel();
     _breakExpireTimer = null;
-    await _sub?.cancel();
-    _sub = null;
     // Guard the null-assertion: on a fresh app launch/refresh,
     // start() calls stop() before anything has subscribed, so
     // _channel is still null. removeChannel(_channel!) would throw
@@ -638,10 +638,13 @@ class KidRealtimeService extends ChangeNotifier {
     _retryTimer = Timer(delay, () async {
       if (_childId == null) return;
       // Tear down the broken channel and resubscribe.
-      try {
-        await _supabase.removeChannel(_channel!);
-      } catch (_) {
-        /* best-effort */
+      final ch = _channel;
+      if (ch != null) {
+        try {
+          await _supabase.removeChannel(ch);
+        } catch (_) {
+          /* best-effort */
+        }
       }
       _channel = null;
       _retryPolicy.bumpBackoff();

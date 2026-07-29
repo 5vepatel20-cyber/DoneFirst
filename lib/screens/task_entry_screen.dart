@@ -43,7 +43,7 @@ class _TaskEntryScreenState extends State<TaskEntryScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Couldn’t load tasks: $e'),
+          content: Text('Could not load tasks: $e'),
           backgroundColor: AppColors.danger,
         ),
       );

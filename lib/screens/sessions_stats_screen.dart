@@ -45,14 +45,20 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
   Future<void> _loadStats() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
 
     final families = await supabase
         .from('families')
         .select('id')
         .eq('parent_id', user.id)
         .maybeSingle();
-    if (families == null) return;
+    if (families == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     final familyId = families['id'];
 
     final children = await supabase
@@ -61,7 +67,10 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
         .eq('family_id', familyId)
         .eq('name', widget.childName)
         .maybeSingle();
-    if (children == null) return;
+    if (children == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     final childId = children['id'] as String;
 
     final sessions = await supabase
@@ -132,6 +141,7 @@ class _SessionStatsScreenState extends State<SessionStatsScreen> {
           (_subjectMinutes[subject] ?? 0) + (sessionMinutes[sid] ?? 0);
     }
 
+    if (!mounted) return;
     setState(() {
       // Weekly breakdown
       final now = DateTime.now();

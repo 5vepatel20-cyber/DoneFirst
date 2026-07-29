@@ -33,21 +33,49 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
-  <script src="flutter_bootstrap.js" async></script>
+  <!-- Error logging so white-screen issues are visible -->
+  <div id="error-display" style="display:none;color:red;padding:20px;font-family:monospace;white-space:pre-wrap;"></div>
   <script>
-    if ('serviceWorker' in navigator && location.hostname === 'localhost') {
-      navigator.serviceWorker.getRegistrations().then(registrations => {
-        registrations.forEach(r => r.unregister());
-      });
+    window.onerror = function(msg, url, line, col, error) {
+      var el = document.getElementById('error-display');
+      el.style.display = 'block';
+      el.textContent += 'ERROR: ' + msg + '\n' + url + ':' + line + '\n';
+      return false;
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      var el = document.getElementById('error-display');
+      el.style.display = 'block';
+      el.textContent += 'UNHANDLED PROMISE: ' + e.reason + '\n';
+    });
+  </script>
+  <script>
+    // Clear all caches and unregister all service workers BEFORE
+    // loading the Flutter bootstrap. This prevents stale assets
+    // from being served after a new deployment.
+    async function clearCachesAndLoad() {
+      if ('serviceWorker' in navigator) {
+        try {
+          var regs = await navigator.serviceWorker.getRegistrations();
+          for (var i = 0; i < regs.length; i++) {
+            regs[i].unregister();
+          }
+        } catch (e) {}
+      }
+      if ('caches' in window) {
+        try {
+          var names = await caches.keys();
+          for (var i = 0; i < names.length; i++) {
+            await caches.delete(names[i]);
+          }
+        } catch (e) {}
+      }
+      // Now load Flutter with a cache-busting query string.
+      var s = document.createElement('script');
+      s.src = 'flutter_bootstrap.js?' + Date.now();
+      s.async = true;
+      document.body.appendChild(s);
     }
+    clearCachesAndLoad();
   </script>
 </body>
 </html>

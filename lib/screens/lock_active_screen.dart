@@ -428,6 +428,7 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
 
   Future<void> _checkAutoUnlock() async {
     if (_proofs.isEmpty) return;
+    if (_paused) return;
     final allDecided = _proofs.every((p) => p.parentDecision != 'pending');
     if (allDecided) {
       final allApproved = _proofs.every((p) => p.isApproved);
@@ -914,42 +915,12 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
-        final remaining = _session?.startedAt
-            .add(Duration(minutes: _session!.minLockMinutes))
-            .difference(DateTime.now());
-        final pastEnd = remaining?.isNegative ?? false;
-        final remainingLabel = remaining == null
-            ? null
-            : pastEnd
-            ? 'past the planned end'
-            : '${_formatMinutes(remaining.inMinutes)} left';
-        final warningText = remainingLabel == null
-            ? null
-            : 'The lock has ${pastEnd ? "already ended" : remainingLabel} — '
-                  'wrapping up now still credits the kid with the time they spent. '
-                  'Use “Cancel session” instead if you want to discard it.';
-
-        final confirmed = await DestructiveConfirmDialog.show(
-          context,
-          title: 'End ${widget.childName}\'s lock early?',
-          description:
-              'The lock will unlock all apps. ${widget.childName} will '
-              'see the celebration screen with their stats for the time '
-              'they put in so far.',
-          confirmPhrase: widget.childName,
-          confirmButtonLabel: 'End early',
-          warningText: warningText,
-        );
-        if (confirmed) {
-          await _unlock();
-        }
-      },
-      child: Scaffold(
+    return Scaffold(
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -1272,7 +1243,6 @@ class _LockActiveScreenState extends State<LockActiveScreen> {
                     ],
                   ),
                 ),
-        ),
       ),
     );
   }

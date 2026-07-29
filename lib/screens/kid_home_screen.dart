@@ -242,8 +242,21 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canPop = Navigator.canPop(context);
     return Scaffold(
       backgroundColor: AppColors.paper,
+      appBar: canPop
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(LucideIcons.arrowLeft, size: 20),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: Text(
+                '${widget.childName}\'s view',
+                style: AppText.screenTitle(size: 18),
+              ),
+            )
+          : null,
       body: Stack(
         children: [
           SafeArea(
@@ -652,51 +665,34 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
         ? const Icon(LucideIcons.rotateCcw, size: 13, color: Colors.white)
         : null;
 
-    return Dismissible(
-      key: Key(t.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          color: AppColors.dangerBg,
-          borderRadius: BorderRadius.circular(AppRadius.tile),
-        ),
-        child: const Icon(
-          LucideIcons.trash2,
-          color: AppColors.dangerFg,
-          size: 18,
-        ),
-      ),
-      onDismissed: (_) => _deleteTask(t.id),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: boxFill,
-                border: Border.all(color: boxBorder, width: 1.6),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              alignment: Alignment.center,
-              child: boxIcon,
+    final taskRow = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: boxFill,
+              border: Border.all(color: boxBorder, width: 1.6),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                t.description,
-                style: AppText.listTitle().copyWith(
-                  decoration: approved ? TextDecoration.lineThrough : null,
-                  decorationColor: AppColors.ink45,
-                  color: approved ? AppColors.ink45 : AppColors.ink,
-                ),
+            alignment: Alignment.center,
+            child: boxIcon,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              t.description,
+              style: AppText.listTitle().copyWith(
+                decoration: approved ? TextDecoration.lineThrough : null,
+                decorationColor: AppColors.ink45,
+                color: approved ? AppColors.ink45 : AppColors.ink,
               ),
             ),
-            const SizedBox(width: 8),
+          ),
+          const SizedBox(width: 8),
             if (done)
               DfStatusPill(
                 statusLabel,
@@ -732,7 +728,27 @@ class _KidHomeScreenState extends State<KidHomeScreen> {
               ),
           ],
         ),
+    );
+
+    if (done) return taskRow;
+    return Dismissible(
+      key: Key(t.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          color: AppColors.dangerBg,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+        ),
+        child: const Icon(
+          LucideIcons.trash2,
+          color: AppColors.dangerFg,
+          size: 18,
+        ),
       ),
+      onDismissed: (_) => _deleteTask(t.id),
+      child: taskRow,
     );
   }
 
