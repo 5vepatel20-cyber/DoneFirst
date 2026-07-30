@@ -50,9 +50,16 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
   }
 
   String _formatDuration(HomeworkSession s) {
-    final diff = s.endedAt != null
-        ? s.endedAt!.difference(s.startedAt)
-        : DateTime.now().difference(s.startedAt);
+    // Shares _durationOf so a single session's label can never
+    // disagree with the totals row below it. Going through the
+    // unclamped subtraction here used to make a row whose ended_at
+    // precedes its started_at read as a plausible-but-invented
+    // duration: Dart's `%` is non-negative for a positive divisor, so
+    // -1h59m came out as inHours -1 (failing `h > 0`) and inMinutes
+    // % 60 == 1, printing "1m" while _durationOf counted it as zero.
+    // Rows like that exist from before timestamps were written in UTC
+    // (see utils/db_time.dart), so this has to hold for real data.
+    final diff = _durationOf(s);
     final h = diff.inHours;
     final m = diff.inMinutes % 60;
     return h > 0 ? '${h}h ${m}m' : '${m}m';
