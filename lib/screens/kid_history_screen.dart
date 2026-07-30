@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/models.dart';
+import '../utils/kid_level.dart';
 import '../services/session_service.dart';
 import '../services/proof_service.dart';
 import '../theme/app_theme.dart';
@@ -13,10 +14,17 @@ import 'proof_image_viewer.dart';
 class KidHistoryScreen extends StatefulWidget {
   final String childId;
   final String childName;
+
+  /// True when rendered as the Progress tab inside KidShell, which
+  /// owns the Scaffold and the tab bar. Standalone (the parent's "Kid
+  /// view" path) it keeps its own Scaffold and AppBar.
+  final bool embedded;
+
   const KidHistoryScreen({
     super.key,
     required this.childId,
     required this.childName,
+    this.embedded = false,
   });
 
   @override
@@ -67,10 +75,12 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
 
   // ── Presentational XP / level layer over real session data ────────
   // XP and levels are a friendly surface on top of the sessions this
-  // screen already loads — no new services or persistence. Each
-  // completed session is worth 100 XP; every 500 XP is a level.
-  static const int _xpPerSession = 100;
-  static const int _xpPerLevel = 500;
+  // screen already loads — no new services or persistence. The maths
+  // lives in utils/kid_level.dart because the Me tab shows the same
+  // level and the same "N XP to Level M", and two copies is how one
+  // tab ends up calling a kid Level 4 while the next calls them 5.
+  static const int _xpPerSession = KidLevel.xpPerSession;
+  static const int _xpPerLevel = KidLevel.xpPerLevel;
 
   Duration _durationOf(HomeworkSession s) {
     final end = s.endedAt ?? DateTime.now();
@@ -86,11 +96,7 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
   int get _xpIntoLevel => _totalXp % _xpPerLevel;
   int get _xpToNext => _xpPerLevel - _xpIntoLevel;
 
-  String _levelTitle(int lvl) => lvl >= 8
-      ? 'Focus Master'
-      : lvl >= 5
-      ? 'Focus Pro'
-      : 'Focus Explorer';
+  String _levelTitle(int lvl) => KidLevel.titleFor(lvl);
 
   String _fmtMinutes(int mins) {
     final h = mins ~/ 60;
@@ -100,10 +106,7 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.paper,
-      appBar: AppBar(title: Text('Progress', style: AppText.screenTitle())),
-      body: _loading
+    final body = _loading
           ? ListView(
               padding: const EdgeInsets.all(AppSpacing.screenPadding),
               children: const [
@@ -146,7 +149,22 @@ class _KidHistoryScreenState extends State<KidHistoryScreen> {
                   _buildRecentSessions(),
                 ],
               ),
-            ),
+            );
+
+    // As a tab inside KidShell the Scaffold and the bottom inset
+    // belong to the shell, and an AppBar here would render a second
+    // title bar with a back arrow that pops the whole kid app.
+    if (widget.embedded) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: body,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.paper,
+      appBar: AppBar(title: Text('Progress', style: AppText.screenTitle())),
+      body: body,
     );
   }
 

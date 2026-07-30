@@ -32,11 +32,18 @@ class KidTodayScreen extends StatefulWidget {
   /// through the settings gear so a paired device is not a dead end.
   final Future<void> Function()? onUnpair;
 
+  /// True when rendered as a tab inside [KidShell], which supplies the
+  /// Scaffold, the SafeArea and the settings gear for every tab. Left
+  /// false this screen is still a complete, standalone screen — the
+  /// race-fallback paths in kid_root render it that way.
+  final bool embedded;
+
   const KidTodayScreen({
     super.key,
     required this.childName,
     this.childId,
     this.onUnpair,
+    this.embedded = false,
   });
 
   @override
@@ -219,6 +226,45 @@ class _KidTodayScreenState extends State<KidTodayScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final content = SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenPadding,
+        6,
+        AppSpacing.screenPadding,
+        28,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_dateEyebrow, style: AppText.eyebrow()),
+          const SizedBox(height: 8),
+          Text('Hi, ${widget.childName}', style: AppText.display(size: 32)),
+          const SizedBox(height: 14),
+          _pills(),
+          const SizedBox(height: 20),
+          _statusCard(),
+          const SizedBox(height: 22),
+          const DfSectionLabel('Next session'),
+          _nextSessionCard(),
+          const SizedBox(height: 22),
+          const DfSectionLabel('Today at a glance'),
+          _glanceCard(),
+        ],
+      ),
+    );
+
+    // Inside the shell the Scaffold, SafeArea and settings gear belong
+    // to the shell — nesting a second Scaffold here would put a second
+    // gear on screen and give this tab its own bottom inset.
+    if (widget.embedded) {
+      return RefreshIndicator(
+        onRefresh: _load,
+        color: AppColors.green,
+        child: content,
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.paper,
       body: SafeArea(
@@ -237,37 +283,7 @@ class _KidTodayScreenState extends State<KidTodayScreen> {
                   ),
                 ),
               ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenPadding,
-                  6,
-                  AppSpacing.screenPadding,
-                  28,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_dateEyebrow, style: AppText.eyebrow()),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Hi, ${widget.childName}',
-                      style: AppText.display(size: 32),
-                    ),
-                    const SizedBox(height: 14),
-                    _pills(),
-                    const SizedBox(height: 20),
-                    _statusCard(),
-                    const SizedBox(height: 22),
-                    const DfSectionLabel('Next session'),
-                    _nextSessionCard(),
-                    const SizedBox(height: 22),
-                    const DfSectionLabel('Today at a glance'),
-                    _glanceCard(),
-                  ],
-                ),
-              ),
-            ),
+            Expanded(child: content),
           ],
         ),
       ),

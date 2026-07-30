@@ -10,10 +10,10 @@ import '../../../services/kiosk_service.dart';
 import '../../../theme/app_theme.dart';
 import '../auth_screen.dart';
 import '../splash_screen.dart';
+import 'kid_shell.dart';
 import 'locked_screen.dart';
 import 'on_break_screen.dart';
 import 'pairing_screen.dart';
-import 'today_screen.dart';
 import 'unlocked_screen.dart';
 import 'waiting_screen.dart';
 
@@ -233,6 +233,7 @@ class _KidRootState extends State<KidRoot> {
       // reconnect, and keeps the settings gear so the device can be
       // re-paired if the session is gone for good.
       return WaitingScreen(
+        reason: KidWaitingReason.disconnected,
         onReconnect: () {
           if (kidAuth.childId != null) {
             realtime.reconnect(kidAuth.childId!);
@@ -318,7 +319,10 @@ class _KidRootState extends State<KidRoot> {
             onDone: realtime.dismissFinishedSession,
           );
         }
-        return KidTodayScreen(
+        // The free-time home, with the redesign's four-tab bar. Only
+        // this state gets tabs — see KidShell for why locked, on-break
+        // and the celebration deliberately stay full-screen.
+        return KidShell(
           childName: _childDisplayName,
           childId: kidAuth.childId,
           onUnpair: _unpair,
